@@ -12,6 +12,20 @@ This project is organized as a Rust workspace with the following crates:
 
 ## Getting Started
 
+## Development
+
+This project uses a `Makefile` to simplify common development tasks.
+
+### Basic Commands
+
+- `make help`: Display all available commands.
+- `make dev`: Run the Tauri desktop app in development mode.
+- `make dev-cli`: Run the CLI in development mode.
+- `make build`: Build both the app and CLI for production.
+- `make lint`: Run Rust (clippy) and Frontend (eslint) linters.
+- `make test`: Run all tests across the workspace.
+- `make fmt`: Format all code.
+
 ### Prerequisites
 
 - Rust (latest stable)
@@ -46,4 +60,4 @@ cargo run -p cortex-cli
 
 - **Rust**: Workspace member crates use a shared version and author configuration.
 - **Tauri**: Version 2.0.
-- **Frontend**: Minimal static HTML/CSS in `crates/cortex-app/ui`.
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS + shadcn-ui in `crates/cortex-app/ui`.

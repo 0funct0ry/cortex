@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "identifier": "com.cortex.app",
   "build": {
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "",
-    "frontendDist": "ui"
+    "beforeDevCommand": "npm run dev --prefix cortex-app/ui",
+    "beforeBuildCommand": "npm run build --prefix cortex-app/ui",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "ui/dist"
   },
   "app": {
     "windows": [
