@@ -80,6 +80,37 @@ Triggered automatically when a new version tag (e.g., `v0.1.0`) is pushed:
 - **Standalone CLI**: Platform-specific binaries (`cortex-macos-universal`, `cortex-windows-x86_64.exe`, `cortex-linux-x86_64`).
 - **Automated GitHub Releases**: Assets are uploaded to the GitHub Release page with autopopulated release notes from `CHANGELOG.md` and SHA-256 checksums.
 
+## Testing
+
+Cortex follows a strict cross-platform testing strategy. All PRs must pass the test suite on macOS, Windows, and Linux.
+
+### Test Matrix
+- **macOS**: Latest stable version.
+- **Windows**: Latest stable version.
+- **Ubuntu Linux**: Latest LTS version.
+
+### Running Tests
+We use `cargo-nextest` for faster, more robust test execution.
+```bash
+# Run all tests in the workspace
+cargo nextest run --workspace
+
+# Run doc tests (not handled by nextest)
+cargo test --doc
+```
+
+### Flaky Test Policy
+Reliable CI is critical. Intermittently failing (flaky) tests must be addressed immediately:
+1. **Identify**: If a test fails intermittently, it is considered flaky.
+2. **Track**: Open a GitHub Issue with the label `flaky-test` and include the error logs.
+3. **Isolate**: Mark the test with `#[ignore]` and add a comment linking to the GitHub Issue.
+   ```rust
+   #[test]
+   #[ignore = "Flaky: https://github.com/0funct0ry/cortex/issues/XYZ"]
+   fn my_flaky_test() { ... }
+   ```
+4. **Fix**: Flaky tests must be resolved or permanently removed within **one release cycle**.
+
 ## Releases
 
 Download the latest version of Cortex and the CLI from the [GitHub Releases](https://github.com/0funct0ry/cortex/releases) page.

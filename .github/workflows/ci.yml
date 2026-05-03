@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
+        platform: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -74,11 +74,14 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
       - name: Install System Dependencies (Linux only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: contains(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -91,11 +94,11 @@ jobs:
             libsoup-3.0-dev \
             libssl-dev
 
-      - name: Rust Unit Tests
-        run: cargo test --workspace
+      - name: Run Tests
+        run: cargo nextest run --workspace --reporter github--metadata
 
-      - name: Rust Unit Tests
-        run: cargo test --workspace
+      - name: Run Doc Tests
+        run: cargo test --doc --workspace
 
       - name: Build Tauri App (Check)
         run: npm run build --prefix crates/cortex-app/ui && cargo build --release -p cortex-app
