@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  NODE_VERSION: '20'
+  RUST_VERSION: 'stable'
+
+jobs:
+  release:
+    name: Build & Release
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'crates/cortex-app/ui/package-lock.json'
+
+      - name: Install Frontend Dependencies
+        working-directory: crates/cortex-app/ui
+        run: npm install
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install System Dependencies (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libssl-dev \
+            rpm
+
+      - name: Extract Release Notes
+        id: release_notes
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Extract content between the version header and the next header
+          sed -n "/## \[$VERSION\]/,/## /p" CHANGELOG.md | sed '$d' > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "Release notes for $VERSION not found in CHANGELOG.md" > release_notes.md
+          fi
+
+      - name: Build CLI Binary
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            rustup target add x86_64-apple-darwin aarch64-apple-darwin
+            cargo build --release --target x86_64-apple-darwin -p cortex-cli
+            cargo build --release --target aarch64-apple-darwin -p cortex-cli
+            mkdir -p artifacts/cli
+            lipo -create target/x86_64-apple-darwin/release/cortex-cli target/aarch64-apple-darwin/release/cortex-cli -output artifacts/cli/cortex-macos-universal
+          elif [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            cargo build --release -p cortex-cli
+            mkdir -p artifacts/cli
+            cp target/release/cortex-cli.exe artifacts/cli/cortex-windows-x86_64.exe
+          else
+            cargo build --release -p cortex-cli
+            mkdir -p artifacts/cli
+            cp target/release/cortex-cli artifacts/cli/cortex-linux-x86_64
+          fi
+
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Cortex ${{ github.ref_name }}"
+          releaseBodyPath: release_notes.md
+          releaseDraft: false
+          prerelease: false
+          projectPath: crates/cortex-app
+
+      - name: Generate Checksums
+        shell: bash
+        run: |
+          cd artifacts/cli
+          for file in *; do
+            if [ -f "$file" ] && [[ ! "$file" == *.sha256 ]]; then
+              if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum "$file" > "$file.sha256"
+              else
+                shasum -a 256 "$file" > "$file.sha256"
+              fi
+            fi
+          done
+
+      - name: Upload CLI and Checksums to Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            artifacts/cli/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

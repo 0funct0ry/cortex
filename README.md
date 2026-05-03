@@ -62,16 +62,31 @@ cargo run -p cortex-cli
 - **Tauri**: Version 2.0.
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS + shadcn-ui in `crates/cortex-app/ui`.
 
-## Continuous Integration
+## Continuous Integration & Deployment
 
-The project uses GitHub Actions for automated CI. The pipeline is defined in `.github/workflows/ci.yml` and includes the following checks on every push and pull request:
+The project uses GitHub Actions for automated CI/CD:
 
-- **Lint & Type-check**:
-    - Rust: `cargo fmt` and `cargo clippy`.
-    - Frontend: `eslint` and TypeScript type-check (`tsc`).
-- **Test & Build**:
-    - Rust: `cargo test` across the workspace.
-    - Tauri: Full production build for macOS, Windows, and Linux (Ubuntu).
-- **Caching**: Rust and Node.js dependencies are cached to optimize build times.
+### CI Pipeline (`ci.yml`)
+Runs on every push and pull request to `main`:
+- **Lint & Type-check**: Rust (`fmt`, `clippy`) and Frontend (`eslint`, `tsc`).
+- **Test & Build**: Rust unit tests and Tauri build validation across macOS, Windows, and Linux.
 
-The target CI run time for a clean build is under 20 minutes.
+### Release Pipeline (`release.yml`)
+Triggered automatically when a new version tag (e.g., `v0.1.0`) is pushed:
+- **Signed Installers**:
+    - **macOS**: Signed and notarized `.dmg` (universal binary).
+    - **Windows**: Signed `.msi` installer.
+    - **Linux**: `.deb`, `.rpm`, and `.AppImage` packages.
+- **Standalone CLI**: Platform-specific binaries (`cortex-macos-universal`, `cortex-windows-x86_64.exe`, `cortex-linux-x86_64`).
+- **Automated GitHub Releases**: Assets are uploaded to the GitHub Release page with autopopulated release notes from `CHANGELOG.md` and SHA-256 checksums.
+
+## Releases
+
+Download the latest version of Cortex and the CLI from the [GitHub Releases](https://github.com/0funct0ry/cortex/releases) page.
+
+### Installation
+
+- **macOS**: Download the `.dmg` file, open it, and drag Cortex to your Applications folder.
+- **Windows**: Download the `.msi` file and run the installer.
+- **Linux**: Choose your preferred format (`.deb`, `.rpm`, or `.AppImage`).
+- **CLI**: Download the binary for your platform, rename it to `cortex`, make it executable (`chmod +x cortex`), and move it to your PATH.

@@ -94,16 +94,8 @@ jobs:
       - name: Rust Unit Tests
         run: cargo test --workspace
 
-      - name: Build Tauri App
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: "Cortex v__VERSION__"
-          releaseBody: "See the assets below to download the latest version."
-          releaseDraft: true
-          prerelease: false
-          # tauri-action automatically finds the tauri.conf.json in the monorepo if possible, 
-          # but we specify it for clarity.
-          projectPath: crates/cortex-app
+      - name: Rust Unit Tests
+        run: cargo test --workspace
+
+      - name: Build Tauri App (Check)
+        run: npm run build --prefix crates/cortex-app/ui && cargo build --release -p cortex-app
