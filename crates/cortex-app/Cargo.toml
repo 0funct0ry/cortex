@@ -1,0 +1,14 @@
+[package]
+name = "cortex-app"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+tauri = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+cortex-core = { workspace = true }
+
+[build-dependencies]
+tauri-build = { workspace = true }
