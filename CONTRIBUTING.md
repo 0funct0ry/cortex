@@ -10,7 +10,6 @@ To contribute to Cortex, you'll need the following tools installed on your syste
 
 - **Rust**: Latest stable version. Install via [rustup](https://rustup.rs/).
 - **Node.js**: Version 18 or later. Install via [nodejs.org](https://nodejs.org/).
-- **Cargo-nextest**: Recommended for running tests. Install via `cargo install cargo-nextest`.
 - **OS-Specific Dependencies**: Follow the [Tauri 2.0 Prerequisites Guide](https://tauri.app/v2/guides/getting-started/prerequisites/) for your operating system (macOS, Windows, or Linux).
 
 ## Local Development Setup

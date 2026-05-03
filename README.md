@@ -33,7 +33,6 @@ This project uses a `Makefile` to simplify common development tasks.
 ### Prerequisites
 
 - Rust (latest stable)
-- `cargo-nextest` (recommended for running tests: `brew install nextest-rs` or `cargo install cargo-nextest`)
 - Node.js (for Tauri frontend, if applicable)
 - OS-specific Tauri dependencies (see [Tauri documentation](https://tauri.app/v2/guides/getting-started/prerequisites/))
 
@@ -96,13 +95,9 @@ Cortex follows a strict cross-platform testing strategy. All PRs must pass the t
 - **Ubuntu Linux**: Latest LTS version.
 
 ### Running Tests
-We use `cargo-nextest` for faster, more robust test execution.
+To run all tests in the workspace:
 ```bash
-# Run all tests in the workspace
-cargo nextest run --workspace
-
-# Run doc tests (not handled by nextest)
-cargo test --doc
+cargo test --workspace
 ```
 
 ### Flaky Test Policy

@@ -14,7 +14,6 @@ UI_DIR := $(APP_DIR)/ui
 
 # Tools
 CARGO := cargo
-NEXTEST := $(shell command -v cargo-nextest >/dev/null 2>&1 && echo "nextest run" || echo "test")
 NPM := npm
 TAURI := $(CARGO) tauri
 
@@ -104,7 +103,7 @@ test: test-core test-cli test-app ## Run all tests
 
 .PHONY: test-workspace
 test-workspace: ## Run all tests in the workspace
-	$(CARGO) $(NEXTEST) --workspace
+	$(CARGO) test --workspace
 
 .PHONY: test-doc
 test-doc: ## Run doc tests for the workspace
@@ -112,15 +111,15 @@ test-doc: ## Run doc tests for the workspace
 
 .PHONY: test-core
 test-core: ## Run tests for cortex-core
-	$(CARGO) $(NEXTEST) -p $(CORE_NAME)
+	$(CARGO) test -p $(CORE_NAME)
 
 .PHONY: test-cli
 test-cli: ## Run tests for cortex-cli
-	$(CARGO) $(NEXTEST) -p $(CLI_NAME)
+	$(CARGO) test -p $(CLI_NAME)
 
 .PHONY: test-app
 test-app: ## Run tests for cortex-app (Tauri)
-	$(CARGO) $(NEXTEST) -p $(APP_NAME)
+	$(CARGO) test -p $(APP_NAME)
 
 .PHONY: verify-ipc
 verify-ipc: test-app ## Verify IPC contract sync
