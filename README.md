@@ -1,5 +1,8 @@
 # Cortex
 
+[![Contributing](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Code of Conduct](https://img.shields.io/badge/code%20of-conduct-blue.svg)](CODE_OF_CONDUCT.md)
+
 Cortex is a multi-modal desktop application built with Rust and Tauri 2.0.
 
 ## Project Structure
@@ -124,3 +127,11 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 - **Windows**: Download the `.msi` file and run the installer.
 - **Linux**: Choose your preferred format (`.deb`, `.rpm`, or `.AppImage`).
 - **CLI**: Download the binary for your platform, rename it to `cortex`, make it executable (`chmod +x cortex`), and move it to your PATH.
+
+## Documentation
+
+For more detailed information, please refer to the following resources:
+- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Architecture Overview](internal-docs/ARCHITECTURE.md)
+- [Full Documentation Site](https://docs.cortex.app) (Coming soon!)

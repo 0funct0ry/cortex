@@ -19,10 +19,7 @@ mod tests {
             .commands(tauri_specta::collect_commands![commands::greet]);
 
         builder
-            .export(
-                specta_typescript::Typescript::default(),
-                "ui/src/bindings.ts",
-            )
+            .export(specta_typescript::Typescript::default(), "ui/src/bindings.ts")
             .expect("Failed to export bindings");
     }
 }

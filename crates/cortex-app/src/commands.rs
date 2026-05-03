@@ -9,7 +9,5 @@ pub struct GreetResponse {
 #[tauri::command]
 #[specta::specta]
 pub fn greet(name: &str) -> GreetResponse {
-    GreetResponse {
-        message: format!("Hello, {}! You've been greeted from Rust!", name),
-    }
+    GreetResponse { message: format!("Hello, {}! You've been greeted from Rust!", name) }
 }

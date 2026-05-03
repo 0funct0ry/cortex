@@ -78,13 +78,20 @@ fmt: fmt-rust fmt-ui ## Format all code
 fmt-rust: ## Format Rust code
 	$(CARGO) fmt --all
 
-.PHONY: check-fmt
-check-fmt: ## Check Rust code formatting without applying changes
+.PHONY: fmt-ui
+fmt-ui: ## Format frontend code
+	cd $(UI_DIR) && $(NPM) run format
+
+.PHONY: check-fmt-rust
+check-fmt-rust: ## Check Rust code formatting
 	$(CARGO) fmt --all -- --check
 
-.PHONY: fmt-ui
-fmt-ui: ## Format frontend code (via prettier if available, or just lint fix)
-	cd $(UI_DIR) && $(NPM) run lint -- --fix
+.PHONY: check-fmt-ui
+check-fmt-ui: ## Check frontend code formatting
+	cd $(UI_DIR) && npx prettier --check .
+
+.PHONY: check-fmt
+check-fmt: check-fmt-rust check-fmt-ui ## Check all code formatting
 
 .PHONY: check
 check: ## Run cargo check for the workspace

@@ -1,15 +1,15 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { commands } from "./bindings";
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { commands } from './bindings'
 
 function App() {
-  const [name, setName] = useState("");
-  const [greetMsg, setGreetMsg] = useState("");
+  const [name, setName] = useState('')
+  const [greetMsg, setGreetMsg] = useState('')
 
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    const response = await commands.greet(name);
-    setGreetMsg(response.message);
+    const response = await commands.greet(name)
+    setGreetMsg(response.message)
   }
 
   return (
@@ -19,17 +19,15 @@ function App() {
           <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
             CORTEX
           </h1>
-          <p className="text-slate-400 text-lg">
-            Type-Safe IPC Established
-          </p>
+          <p className="text-slate-400 text-lg">Type-Safe IPC Established</p>
         </div>
-        
+
         <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-4">
           <form
             className="flex flex-col gap-4"
             onSubmit={(e) => {
-              e.preventDefault();
-              greet();
+              e.preventDefault()
+              greet()
             }}
           >
             <input
@@ -54,11 +52,12 @@ function App() {
         </div>
 
         <div className="pt-8 text-sm text-slate-500">
-          Generated bindings located at <code className="bg-slate-900 px-1 py-0.5 rounded">ui/src/bindings.ts</code>
+          Generated bindings located at{' '}
+          <code className="bg-slate-900 px-1 py-0.5 rounded">ui/src/bindings.ts</code>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
