@@ -50,6 +50,15 @@ jobs:
       - name: Rust Clippy
         run: cargo clippy --workspace -- -D warnings
 
+      - name: Verify IPC Contract Sync
+        run: |
+          cargo test -p cortex-app
+          if [ -n "$(git status --porcelain crates/cortex-app/ui/src/bindings.ts)" ]; then
+            echo "Error: IPC bindings are out of sync. Please run 'cargo test -p cortex-app' locally and commit the changes."
+            git diff crates/cortex-app/ui/src/bindings.ts
+            exit 1
+          fi
+
   test-build:
     name: Test & Build
     strategy:
@@ -95,7 +104,7 @@ jobs:
             libssl-dev
 
       - name: Run Tests
-        run: cargo nextest run --workspace --reporter github--metadata
+        run: cargo nextest run --workspace --reporter github
 
       - name: Run Doc Tests
         run: cargo test --doc --workspace

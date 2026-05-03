@@ -14,6 +14,7 @@ UI_DIR := $(APP_DIR)/ui
 
 # Tools
 CARGO := cargo
+NEXTEST := $(shell command -v cargo-nextest >/dev/null 2>&1 && echo "nextest run" || echo "test")
 NPM := npm
 TAURI := $(CARGO) tauri
 
@@ -26,7 +27,7 @@ help: ## Display this help screen
 
 .PHONY: dev
 dev: ## Run the Tauri app in development mode
-	$(TAURI) dev
+	cd $(APP_DIR) && $(TAURI) dev
 
 .PHONY: dev-ui
 dev-ui: ## Run the frontend dev server
@@ -60,11 +61,15 @@ lint: lint-rust lint-ui ## Run all linters
 
 .PHONY: lint-rust
 lint-rust: ## Run clippy for all crates
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --workspace -- -D warnings
 
 .PHONY: lint-ui
 lint-ui: ## Run eslint for the frontend
 	cd $(UI_DIR) && $(NPM) run lint
+
+.PHONY: type-check
+type-check: ## run typescript type-check
+	cd $(UI_DIR) && npx tsc --noEmit
 
 .PHONY: fmt
 fmt: fmt-rust fmt-ui ## Format all code
@@ -72,6 +77,10 @@ fmt: fmt-rust fmt-ui ## Format all code
 .PHONY: fmt-rust
 fmt-rust: ## Format Rust code
 	$(CARGO) fmt --all
+
+.PHONY: check-fmt
+check-fmt: ## Check Rust code formatting without applying changes
+	$(CARGO) fmt --all -- --check
 
 .PHONY: fmt-ui
 fmt-ui: ## Format frontend code (via prettier if available, or just lint fix)
@@ -86,17 +95,39 @@ check: ## Run cargo check for the workspace
 .PHONY: test
 test: test-core test-cli test-app ## Run all tests
 
+.PHONY: test-workspace
+test-workspace: ## Run all tests in the workspace
+	$(CARGO) $(NEXTEST) --workspace
+
+.PHONY: test-doc
+test-doc: ## Run doc tests for the workspace
+	$(CARGO) test --doc --workspace
+
 .PHONY: test-core
 test-core: ## Run tests for cortex-core
-	$(CARGO) test -p $(CORE_NAME)
+	$(CARGO) $(NEXTEST) -p $(CORE_NAME)
 
 .PHONY: test-cli
 test-cli: ## Run tests for cortex-cli
-	$(CARGO) test -p $(CLI_NAME)
+	$(CARGO) $(NEXTEST) -p $(CLI_NAME)
 
 .PHONY: test-app
 test-app: ## Run tests for cortex-app (Tauri)
-	$(CARGO) test -p $(APP_NAME)
+	$(CARGO) $(NEXTEST) -p $(APP_NAME)
+
+.PHONY: verify-ipc
+verify-ipc: test-app ## Verify IPC contract sync
+	@if [ -n "$$(git status --porcelain $(UI_DIR)/src/bindings.ts | grep -v '??')" ]; then \
+		echo "Error: IPC bindings are out of sync. Please commit the changes in $(UI_DIR)/src/bindings.ts"; \
+		git diff $(UI_DIR)/src/bindings.ts; \
+		exit 1; \
+	fi
+
+# --- CI ---
+
+.PHONY: ci
+ci: check-fmt lint type-check verify-ipc test-workspace test-doc ## Run all CI checks locally
+	@echo "All CI checks passed!"
 
 # --- Cleanup ---
 

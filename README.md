@@ -19,6 +19,7 @@ This project uses a `Makefile` to simplify common development tasks.
 ### Basic Commands
 
 - `make help`: Display all available commands.
+- `make ci`: Run all CI checks locally (lint, format, type-check, tests).
 - `make dev`: Run the Tauri desktop app in development mode.
 - `make dev-cli`: Run the CLI in development mode.
 - `make build`: Build both the app and CLI for production.
@@ -29,6 +30,7 @@ This project uses a `Makefile` to simplify common development tasks.
 ### Prerequisites
 
 - Rust (latest stable)
+- `cargo-nextest` (recommended for running tests: `brew install nextest-rs` or `cargo install cargo-nextest`)
 - Node.js (for Tauri frontend, if applicable)
 - OS-specific Tauri dependencies (see [Tauri documentation](https://tauri.app/v2/guides/getting-started/prerequisites/))
 
@@ -61,6 +63,7 @@ cargo run -p cortex-cli
 - **Rust**: Workspace member crates use a shared version and author configuration.
 - **Tauri**: Version 2.0.
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS + shadcn-ui in `crates/cortex-app/ui`.
+- **IPC Contract**: End-to-end type safety between Rust and TypeScript using `tauri-specta`. Bindings are auto-generated via `cargo test -p cortex-app`.
 
 ## Continuous Integration & Deployment
 
