@@ -61,3 +61,17 @@ cargo run -p cortex-cli
 - **Rust**: Workspace member crates use a shared version and author configuration.
 - **Tauri**: Version 2.0.
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS + shadcn-ui in `crates/cortex-app/ui`.
+
+## Continuous Integration
+
+The project uses GitHub Actions for automated CI. The pipeline is defined in `.github/workflows/ci.yml` and includes the following checks on every push and pull request:
+
+- **Lint & Type-check**:
+    - Rust: `cargo fmt` and `cargo clippy`.
+    - Frontend: `eslint` and TypeScript type-check (`tsc`).
+- **Test & Build**:
+    - Rust: `cargo test` across the workspace.
+    - Tauri: Full production build for macOS, Windows, and Linux (Ubuntu).
+- **Caching**: Rust and Node.js dependencies are cached to optimize build times.
+
+The target CI run time for a clean build is under 20 minutes.
