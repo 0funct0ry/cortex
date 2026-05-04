@@ -163,6 +163,27 @@ settings:
   timeout: 5000
 ```
 
+### Collection Manifest (`cortex.yaml`)
+
+Every Cortex collection directory contains a `cortex.yaml` file at its root. This manifest defines the collection's name, description, and shared configurations like default headers, authentication, and variables.
+
+Example `cortex.yaml` file:
+
+```yaml
+version: "1"
+name: "E-commerce API"
+description: "Requests for the e-commerce platform"
+headers:
+  Content-Type: "application/json"
+  X-Client-ID: "cortex-app"
+auth:
+  type: bearer
+  token: "{{global_token}}"
+variables:
+  base_url: "https://api.example.com"
+  version: "v1"
+```
+
 ## Documentation
 
 For more detailed information, please refer to the following resources:

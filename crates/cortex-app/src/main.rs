@@ -25,7 +25,7 @@ fn main() {
     }
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![commands::greet])
+        .invoke_handler(tauri::generate_handler![commands::greet, commands::load_collection])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn export_bindings() {
         let builder = tauri_specta::Builder::<tauri::Wry>::new()
-            .commands(tauri_specta::collect_commands![commands::greet]);
+            .commands(tauri_specta::collect_commands![commands::greet, commands::load_collection]);
 
         builder
             .export(specta_typescript::Typescript::default(), "ui/src/bindings.ts")

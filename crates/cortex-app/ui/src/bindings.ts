@@ -7,6 +7,14 @@
 export const commands = {
 async greet(name: string) : Promise<GreetResponse> {
     return await TAURI_INVOKE("greet", { name });
+},
+async loadCollection(path: string) : Promise<Result<CollectionManifest, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_collection", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -20,6 +28,35 @@ async greet(name: string) : Promise<GreetResponse> {
 
 /** user-defined types **/
 
+export type AuthRef = ({ [key in string]: string }) & { type: string }
+/**
+ * Represents the structure of a `cortex.yaml` collection manifest file.
+ */
+export type CollectionManifest = { 
+/**
+ * Schema version (e.g., "1")
+ */
+version: string; 
+/**
+ * Human-readable name of the collection
+ */
+name: string; 
+/**
+ * Optional description of the collection
+ */
+description?: string | null; 
+/**
+ * Default authentication settings for all requests in the collection
+ */
+auth?: AuthRef | null; 
+/**
+ * Default headers for all requests in the collection
+ */
+headers?: { [key in string]: string } | null; 
+/**
+ * Collection-level variables
+ */
+variables?: { [key in string]: string } | null }
 export type GreetResponse = { message: string }
 
 /** tauri-specta globals **/

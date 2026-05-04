@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::BTreeMap;
 
 /// Represents the structure of a `.crx` request file.
@@ -48,7 +49,7 @@ pub enum RequestBody {
     Form(BTreeMap<String, String>),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 pub struct AuthRef {
     pub r#type: String,
     #[serde(flatten)]
