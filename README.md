@@ -10,8 +10,7 @@ Cortex is a multi-modal desktop application built with Rust and Tauri 2.0.
 This project is organized as a Rust workspace with the following crates:
 
 - **`crates/cortex-core`**: A shared library containing core logic and data structures. It is independent of Tauri and WebView.
-- **`crates/cortex-app`**: The main desktop application built with Tauri 2.0. It provides the GUI and desktop-specific features.
-- **`crates/cortex-cli`**: A command-line interface for interacting with the Cortex system, depending only on `cortex-core`.
+- **`crates/cortex-app`**: The main application. It functions as a single unified binary that launches the GUI by default and switches to CLI mode when subcommands are provided.
 
 ## Getting Started
 
@@ -24,8 +23,8 @@ This project uses a `Makefile` to simplify common development tasks.
 - `make help`: Display all available commands.
 - `make ci`: Run all CI checks locally (lint, format, type-check, tests).
 - `make dev`: Run the Tauri desktop app in development mode.
-- `make dev-cli`: Run the CLI in development mode.
-- `make build`: Build both the app and CLI for production.
+- `make dev-cli`: Run the app in CLI mode for development.
+- `make build`: Build the unified application for production.
 - `make lint`: Run Rust (clippy) and Frontend (eslint) linters.
 - `make test`: Run all tests across the workspace.
 - `make fmt`: Format all code.
@@ -46,18 +45,22 @@ cargo build
 
 ### Running
 
-#### Desktop App
+#### Desktop App (GUI)
 ```bash
 # Using cargo
-cargo run -p cortex-app
+cargo run -p cortex
 
 # Or using Tauri CLI (recommended for dev)
 cargo tauri dev
 ```
 
-#### CLI
+#### CLI Mode
 ```bash
-cargo run -p cortex-cli
+# Display help
+cargo run -p cortex -- --help
+
+# Run a subcommand
+cargo run -p cortex -- run --request "Hello world"
 ```
 
 ## Toolchain
@@ -65,7 +68,7 @@ cargo run -p cortex-cli
 - **Rust**: Workspace member crates use a shared version and author configuration.
 - **Tauri**: Version 2.0.
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS + shadcn-ui in `crates/cortex-app/ui`.
-- **IPC Contract**: End-to-end type safety between Rust and TypeScript using `tauri-specta`. Bindings are auto-generated via `cargo test -p cortex-app`.
+- **IPC Contract**: End-to-end type safety between Rust and TypeScript using `tauri-specta`. Bindings are auto-generated via `cargo test -p cortex`.
 
 ## Continuous Integration & Deployment
 
@@ -82,8 +85,8 @@ Triggered automatically when a new version tag (e.g., `v0.1.0`) is pushed:
     - **macOS**: Signed and notarized `.dmg` (universal binary).
     - **Windows**: Signed `.msi` installer.
     - **Linux**: `.deb`, `.rpm`, and `.AppImage` packages.
-- **Standalone CLI**: Platform-specific binaries (`cortex-macos-universal`, `cortex-windows-x86_64.exe`, `cortex-linux-x86_64`).
-- **Automated GitHub Releases**: Assets are uploaded to the GitHub Release page with autopopulated release notes from `CHANGELOG.md` and SHA-256 checksums.
+- **Unified Binary**: A single `cortex` binary for each platform that supports both GUI and CLI modes.
+- **Automated GitHub Releases**: Installers and standalone binaries are uploaded to the GitHub Release page with autopopulated release notes from `CHANGELOG.md` and SHA-256 checksums.
 
 ## Testing
 
@@ -121,7 +124,7 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 - **macOS**: Download the `.dmg` file, open it, and drag Cortex to your Applications folder.
 - **Windows**: Download the `.msi` file and run the installer.
 - **Linux**: Choose your preferred format (`.deb`, `.rpm`, or `.AppImage`).
-- **CLI**: Download the binary for your platform, rename it to `cortex`, make it executable (`chmod +x cortex`), and move it to your PATH.
+- **CLI**: The unified `cortex` binary can be found in the installation directory or downloaded separately. Add it to your PATH to use it from any terminal.
 
 ## Documentation
 

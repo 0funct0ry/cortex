@@ -1,5 +1,5 @@
 [package]
-name = "cortex-app"
+name = "cortex"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -12,6 +12,10 @@ specta = { workspace = true }
 tauri-specta = { workspace = true }
 specta-typescript = { workspace = true }
 cortex-core = { workspace = true }
+clap = { version = "4.4", features = ["derive"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_System_Console"] }
 
 [build-dependencies]
 tauri-build = { workspace = true, features = [] }

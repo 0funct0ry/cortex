@@ -1,14 +1,12 @@
 # Cortex Monorepo Makefile
 
 # Variables
-APP_NAME := cortex-app
-CLI_NAME := cortex-cli
+APP_NAME := cortex
 CORE_NAME := cortex-core
 
 # Paths
 CRATES_DIR := crates
 APP_DIR := $(CRATES_DIR)/cortex-app
-CLI_DIR := $(CRATES_DIR)/cortex-cli
 CORE_DIR := $(CRATES_DIR)/cortex-core
 UI_DIR := $(APP_DIR)/ui
 
@@ -34,12 +32,12 @@ dev-ui: ## Run the frontend dev server
 
 .PHONY: dev-cli
 dev-cli: ## Run the CLI in development mode
-	$(CARGO) run -p $(CLI_NAME) --
+	$(CARGO) run -p $(APP_NAME) -- run
 
 # --- Build ---
 
 .PHONY: build
-build: build-ui build-app build-cli ## Build all components for production
+build: build-ui build-app ## Build all components for production
 
 .PHONY: build-ui
 build-ui: ## Build the frontend
@@ -47,11 +45,7 @@ build-ui: ## Build the frontend
 
 .PHONY: build-app
 build-app: ## Build the Tauri application (production)
-	$(TAURI) build
-
-.PHONY: build-cli
-build-cli: ## Build the CLI binary
-	$(CARGO) build --release -p $(CLI_NAME)
+	cd $(APP_DIR) && $(TAURI) build
 
 # --- Lint & Format ---
 
@@ -113,12 +107,8 @@ test-doc: ## Run doc tests for the workspace
 test-core: ## Run tests for cortex-core
 	$(CARGO) test -p $(CORE_NAME)
 
-.PHONY: test-cli
-test-cli: ## Run tests for cortex-cli
-	$(CARGO) test -p $(CLI_NAME)
-
 .PHONY: test-app
-test-app: ## Run tests for cortex-app (Tauri)
+test-app: ## Run tests for cortex (Tauri)
 	$(CARGO) test -p $(APP_NAME)
 
 .PHONY: verify-ipc

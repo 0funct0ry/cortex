@@ -68,9 +68,9 @@ jobs:
 
       - name: Verify IPC Contract Sync
         run: |
-          cargo test -p cortex-app
+          cargo test -p cortex
           if [ -n "$(git status --porcelain crates/cortex-app/ui/src/bindings.ts)" ]; then
-            echo "Error: IPC bindings are out of sync. Please run 'cargo test -p cortex-app' locally and commit the changes."
+            echo "Error: IPC bindings are out of sync. Please run 'cargo test -p cortex' locally and commit the changes."
             git diff crates/cortex-app/ui/src/bindings.ts
             exit 1
           fi
@@ -124,5 +124,11 @@ jobs:
       - name: Run Doc Tests
         run: cargo test --doc --workspace
 
-      - name: Build Tauri App (Check)
-        run: npm run build --prefix crates/cortex-app/ui && cargo build --release -p cortex-app
+      - name: Build Unified Binary (Check)
+        run: npm run build --prefix crates/cortex-app/ui && cargo build --release -p cortex
+
+      - name: Smoke Test CLI (Help)
+        run: cargo run --release -p cortex -- --help
+
+      - name: Smoke Test CLI (Subcommand)
+        run: cargo run --release -p cortex -- run --request "CI Test"

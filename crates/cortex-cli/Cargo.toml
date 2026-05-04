@@ -1,9 +1,0 @@
-[package]
-name = "cortex-cli"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-
-[dependencies]
-cortex-core = { workspace = true }
-serde = { workspace = true }

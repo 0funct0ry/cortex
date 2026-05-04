@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "crates/cortex-core",
-    "crates/cortex-cli",
     "crates/cortex-app",
 ]
 resolver = "2"

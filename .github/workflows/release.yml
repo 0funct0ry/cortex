@@ -67,23 +67,23 @@ jobs:
             echo "Release notes for $VERSION not found in CHANGELOG.md" > release_notes.md
           fi
 
-      - name: Build CLI Binary
+      - name: Build Unified Binary
         shell: bash
         run: |
           if [ "${{ matrix.platform }}" = "macos-latest" ]; then
             rustup target add x86_64-apple-darwin aarch64-apple-darwin
-            cargo build --release --target x86_64-apple-darwin -p cortex-cli
-            cargo build --release --target aarch64-apple-darwin -p cortex-cli
+            cargo build --release --target x86_64-apple-darwin -p cortex
+            cargo build --release --target aarch64-apple-darwin -p cortex
             mkdir -p artifacts/cli
-            lipo -create target/x86_64-apple-darwin/release/cortex-cli target/aarch64-apple-darwin/release/cortex-cli -output artifacts/cli/cortex-macos-universal
+            lipo -create target/x86_64-apple-darwin/release/cortex target/aarch64-apple-darwin/release/cortex -output artifacts/cli/cortex-macos-universal
           elif [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            cargo build --release -p cortex-cli
+            cargo build --release -p cortex
             mkdir -p artifacts/cli
-            cp target/release/cortex-cli.exe artifacts/cli/cortex-windows-x86_64.exe
+            cp target/release/cortex.exe artifacts/cli/cortex-windows-x86_64.exe
           else
-            cargo build --release -p cortex-cli
+            cargo build --release -p cortex
             mkdir -p artifacts/cli
-            cp target/release/cortex-cli artifacts/cli/cortex-linux-x86_64
+            cp target/release/cortex artifacts/cli/cortex-linux-x86_64
           fi
 
       - name: Build Tauri App
