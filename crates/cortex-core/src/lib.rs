@@ -1,3 +1,5 @@
+pub mod request;
+
 pub fn hello_from_core() -> &'static str {
     "Hello from Cortex Core!"
 }

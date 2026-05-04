@@ -126,6 +126,43 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 - **Linux**: Choose your preferred format (`.deb`, `.rpm`, or `.AppImage`).
 - **CLI**: The unified `cortex` binary can be found in the installation directory or downloaded separately. Add it to your PATH to use it from any terminal.
 
+## File Formats
+
+### Request File (`.crx`)
+
+Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.
+
+Example `.crx` file:
+
+```yaml
+version: "1"
+name: "Get User Profile"
+method: GET
+url: "https://api.example.com/v1/profile"
+headers:
+  Accept: "application/json"
+  Authorization: "Bearer {{token}}"
+params:
+  include: "details"
+auth:
+  type: bearer
+  token: "{{token}}"
+scripts:
+  pre: |
+    console.log("Setting up request...");
+  post: |
+    console.log("Processing response...");
+tests: |
+  test("status is 200", () => {
+    expect(res.status).toBe(200);
+  });
+tags:
+  - "user"
+  - "api"
+settings:
+  timeout: 5000
+```
+
 ## Documentation
 
 For more detailed information, please refer to the following resources:
