@@ -1,0 +1,133 @@
+use crate::collection::{Collection, CollectionError};
+use serde::{Deserialize, Serialize};
+use specta::Type;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// Represents the structure of a `cortex-workspace.yaml` file.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceManifest {
+    /// Schema version (e.g., "1")
+    pub version: String,
+    /// Human-readable name of the workspace
+    pub name: String,
+    /// List of paths to collection directories (relative to workspace file or absolute)
+    pub collections: Vec<String>,
+}
+
+impl WorkspaceManifest {
+    pub fn new(name: String) -> Self {
+        Self { version: "1".to_string(), name, collections: Vec::new() }
+    }
+
+    /// Serializes the manifest to a YAML string.
+    pub fn to_yaml(&self) -> Result<String, serde_yaml::Error> {
+        serde_yaml::to_string(self)
+    }
+
+    /// Deserializes a manifest from a YAML string.
+    pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        serde_yaml::from_str(yaml)
+    }
+}
+
+/// Represents a loaded workspace and its collections.
+#[derive(Debug)]
+pub struct Workspace {
+    /// Absolute path to the workspace file
+    pub path: PathBuf,
+    /// The workspace manifest
+    pub manifest: WorkspaceManifest,
+    /// Loaded collections or errors for each path defined in the manifest
+    pub collections: Vec<(String, Result<Collection, CollectionError>)>,
+}
+
+impl Workspace {
+    /// Loads a workspace from a YAML file.
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
+        let path = path.as_ref().to_path_buf();
+        let absolute_path =
+            if path.is_absolute() { path.clone() } else { std::env::current_dir()?.join(&path) };
+
+        let content = fs::read_to_string(&absolute_path)?;
+        let manifest: WorkspaceManifest = serde_yaml::from_str(&content)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let workspace_dir = absolute_path.parent().unwrap_or(Path::new("."));
+
+        let collections = manifest
+            .collections
+            .iter()
+            .map(|col_path_str| {
+                let col_path = Path::new(col_path_str);
+                let full_col_path = if col_path.is_absolute() {
+                    col_path.to_path_buf()
+                } else {
+                    workspace_dir.join(col_path)
+                };
+
+                (col_path_str.clone(), Collection::load(full_col_path))
+            })
+            .collect();
+
+        Ok(Self { path: absolute_path, manifest, collections })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_workspace_manifest_roundtrip() {
+        let manifest = WorkspaceManifest {
+            version: "1".to_string(),
+            name: "My Workspace".to_string(),
+            collections: vec!["./col1".to_string(), "/absolute/path/to/col2".to_string()],
+        };
+
+        let yaml = manifest.to_yaml().unwrap();
+        let decoded = WorkspaceManifest::from_yaml(&yaml).unwrap();
+        assert_eq!(manifest, decoded);
+    }
+
+    #[test]
+    fn test_load_workspace_success() {
+        let dir = tempdir().unwrap();
+        let workspace_path = dir.path().join("cortex-workspace.yaml");
+
+        // Create a collection directory
+        let col1_dir = dir.path().join("col1");
+        fs::create_dir(&col1_dir).unwrap();
+        fs::write(col1_dir.join("cortex.yaml"), "version: \"1\"\nname: \"Col 1\"").unwrap();
+
+        let workspace_content = "
+version: \"1\"
+name: \"Test Workspace\"
+collections:
+  - ./col1
+  - ./missing
+";
+        fs::write(&workspace_path, workspace_content).unwrap();
+
+        let workspace = Workspace::load(&workspace_path).unwrap();
+        assert_eq!(workspace.manifest.name, "Test Workspace");
+        assert_eq!(workspace.collections.len(), 2);
+
+        // First collection should be loaded
+        assert_eq!(workspace.collections[0].0, "./col1");
+        assert!(workspace.collections[0].1.is_ok());
+        assert_eq!(workspace.collections[0].1.as_ref().unwrap().manifest.name, "Col 1");
+
+        // Second collection should have an error
+        assert_eq!(workspace.collections[1].0, "./missing");
+        assert!(workspace.collections[1].1.is_err());
+        match workspace.collections[1].1.as_ref().unwrap_err() {
+            CollectionError::NotFound(_) => {}
+            _ => panic!("Expected NotFound error"),
+        }
+    }
+}

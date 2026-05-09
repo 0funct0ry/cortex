@@ -2,6 +2,7 @@ pub mod collection;
 pub mod crypto;
 pub mod environment;
 pub mod request;
+pub mod workspace;
 
 pub fn hello_from_core() -> &'static str {
     "Hello from Cortex Core!"

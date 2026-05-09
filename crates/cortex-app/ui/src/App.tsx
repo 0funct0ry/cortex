@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { commands, type CollectionManifest } from './bindings'
+import { commands, type CollectionManifest, type WorkspaceResponse } from './bindings'
 
 function App() {
   const [name, setName] = useState('')
@@ -8,7 +8,11 @@ function App() {
 
   const [collectionPath, setCollectionPath] = useState('')
   const [manifest, setManifest] = useState<CollectionManifest | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [collectionError, setCollectionError] = useState<string | null>(null)
+
+  const [workspacePath, setWorkspacePath] = useState('')
+  const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null)
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null)
 
   async function greet() {
     const response = await commands.greet(name)
@@ -17,23 +21,39 @@ function App() {
 
   async function loadCollection() {
     try {
-      setError(null)
+      setCollectionError(null)
       const result = await commands.loadCollection(collectionPath)
       if (result.status === 'ok') {
         setManifest(result.data)
       } else {
-        setError(result.error)
+        setCollectionError(result.error)
         setManifest(null)
       }
     } catch (e) {
-      setError(String(e))
+      setCollectionError(String(e))
       setManifest(null)
+    }
+  }
+
+  async function loadWorkspace() {
+    try {
+      setWorkspaceError(null)
+      const result = await commands.loadWorkspace(workspacePath)
+      if (result.status === 'ok') {
+        setWorkspace(result.data)
+      } else {
+        setWorkspaceError(result.error)
+        setWorkspace(null)
+      }
+    } catch (e) {
+      setWorkspaceError(String(e))
+      setWorkspace(null)
     }
   }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-start p-8 space-y-12 overflow-y-auto">
-      <div className="max-w-4xl w-full space-y-8 text-center">
+      <div className="max-w-6xl w-full space-y-8 text-center">
         <div className="space-y-2">
           <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
             CORTEX
@@ -41,7 +61,7 @@ function App() {
           <p className="text-slate-400 text-lg">Core File Format & Collection Layer Verification</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
           {/* Greet Demo */}
           <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-4 h-full">
             <h2 className="text-xl font-semibold text-blue-400">IPC Greet Demo</h2>
@@ -83,9 +103,9 @@ function App() {
               </Button>
             </div>
 
-            {error && (
+            {collectionError && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-                <p className="text-red-400 text-xs font-mono">{error}</p>
+                <p className="text-red-400 text-xs font-mono">{collectionError}</p>
               </div>
             )}
 
@@ -118,6 +138,68 @@ function App() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Workspace Load Demo */}
+          <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-4 h-full">
+            <h2 className="text-xl font-semibold text-purple-400">Workspace FS Layer</h2>
+            <div className="flex flex-col gap-4">
+              <input
+                id="workspace-input"
+                className="bg-slate-950 border border-slate-800 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-sm"
+                value={workspacePath}
+                onChange={(e) => setWorkspacePath(e.currentTarget.value)}
+                placeholder="Enter absolute path to cortex-workspace.yaml..."
+              />
+              <Button onClick={loadWorkspace} className="bg-purple-600 hover:bg-purple-500">
+                Load Workspace
+              </Button>
+            </div>
+
+            {workspaceError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+                <p className="text-red-400 text-xs font-mono">{workspaceError}</p>
+              </div>
+            )}
+
+            {workspace && (
+              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-md space-y-2 animate-in zoom-in-95 duration-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-purple-500 font-bold uppercase tracking-wider">
+                    Workspace Loaded
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-white">{workspace.name}</h3>
+
+                <div className="pt-2 space-y-2">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Collections</p>
+                  <div className="flex flex-col gap-2">
+                    {workspace.collections.map((col, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-2 rounded border text-xs font-mono ${
+                          col.name
+                            ? 'bg-slate-950 border-emerald-500/30'
+                            : 'bg-red-500/5 border-red-500/30'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <span
+                            className={col.name ? 'text-emerald-400 font-bold' : 'text-red-400'}
+                          >
+                            {col.name || 'Error Loading'}
+                          </span>
+                          <span className="text-[10px] text-slate-600">{col.path}</span>
+                        </div>
+                        {col.error && (
+                          <p className="text-[10px] text-red-500 mt-1 leading-tight">{col.error}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

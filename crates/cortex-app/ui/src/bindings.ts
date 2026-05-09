@@ -15,6 +15,14 @@ async loadCollection(path: string) : Promise<Result<CollectionManifest, string>>
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async loadWorkspace(path: string) : Promise<Result<WorkspaceResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_workspace", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -58,6 +66,8 @@ headers?: { [key in string]: string } | null;
  */
 variables?: { [key in string]: string } | null }
 export type GreetResponse = { message: string }
+export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
+export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[] }
 
 /** tauri-specta globals **/
 

@@ -1,4 +1,4 @@
-use cortex_core::crypto;
+// Example of environment management
 use cortex_core::environment::{EnvironmentFile, EnvironmentVariable};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

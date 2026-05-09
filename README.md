@@ -129,6 +129,7 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 ## File Formats
 
 ### 📁 Core File Formats
+- **Workspace Manifest (`cortex-workspace.yaml`)**: Groups multiple collections into a single organizational unit.
 - **Collection Manifest (`cortex.yaml`)**: Root configuration for a collection.
 - **Request Files (`.crx`)**: Standalone YAML files for individual API requests.
 - **Environments (`environments/*.yaml`)**: Environment-specific variables with support for encrypted secrets.
@@ -172,6 +173,21 @@ tags:
   - "api"
 settings:
   timeout: 5000
+```
+
+### Workspace Manifest (`cortex-workspace.yaml`)
+
+A workspace allows you to group multiple collections, potentially from different repositories or directories, into a single project view. It is a local organizational artifact and is typically not committed to individual collection repositories.
+
+Example `cortex-workspace.yaml` file:
+
+```yaml
+version: "1"
+name: "My Project Workspace"
+collections:
+  - ./local-collection
+  - ../another-repo/some-collection
+  - /absolute/path/to/a/collection
 ```
 
 ### Collection Manifest (`cortex.yaml`)
