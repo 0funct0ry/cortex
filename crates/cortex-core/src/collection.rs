@@ -1,3 +1,4 @@
+use crate::environment::EnvironmentFile;
 use crate::request::AuthRef;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -55,6 +56,7 @@ impl CollectionManifest {
 pub struct Collection {
     pub path: PathBuf,
     pub manifest: CollectionManifest,
+    pub environments: Vec<EnvironmentFile>,
 }
 
 #[derive(Debug)]
@@ -117,7 +119,23 @@ impl Collection {
         let content = fs::read_to_string(&manifest_path)?;
         let manifest = CollectionManifest::from_yaml(&content)?;
 
-        Ok(Self { path, manifest })
+        let mut environments = Vec::new();
+        let env_dir = path.join("environments");
+        if env_dir.exists() && env_dir.is_dir() {
+            for entry in fs::read_dir(env_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file()
+                    && (path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
+                {
+                    let content = fs::read_to_string(&path)?;
+                    let env = EnvironmentFile::from_yaml(&content)?;
+                    environments.push(env);
+                }
+            }
+        }
+
+        Ok(Self { path, manifest, environments })
     }
 
     /// Saves the manifest back to disk.
@@ -185,5 +203,20 @@ description: \"Description\"
 
         let result = Collection::load(dir.path());
         assert!(matches!(result, Err(CollectionError::YamlError(_))));
+    }
+
+    #[test]
+    fn test_load_collection_with_environments() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("cortex.yaml"), "version: \"1\"\nname: \"Test\"").unwrap();
+
+        let env_dir = dir.path().join("environments");
+        fs::create_dir(&env_dir).unwrap();
+        fs::write(env_dir.join("prod.yaml"), "version: \"1\"\nname: \"Production\"\nvariables: []")
+            .unwrap();
+
+        let collection = Collection::load(dir.path()).unwrap();
+        assert_eq!(collection.environments.len(), 1);
+        assert_eq!(collection.environments[0].name, "Production");
     }
 }

@@ -124,12 +124,23 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 - **macOS**: Download the `.dmg` file, open it, and drag Cortex to your Applications folder.
 - **Windows**: Download the `.msi` file and run the installer.
 - **Linux**: Choose your preferred format (`.deb`, `.rpm`, or `.AppImage`).
-- **CLI**: The unified `cortex` binary can be found in the installation directory or downloaded separately. Add it to your PATH to use it from any terminal.
+- **CLI**: The unified `cortex` binary can be found in the installation directory or downloaded separately. Add it to your PATH
 
 ## File Formats
 
-### Request File (`.crx`)
+### 📁 Core File Formats
+- **Collection Manifest (`cortex.yaml`)**: Root configuration for a collection.
+- **Request Files (`.crx`)**: Standalone YAML files for individual API requests.
+- **Environments (`environments/*.yaml`)**: Environment-specific variables with support for encrypted secrets.
 
+### 🔐 Secret Management
+Cortex supports transparent encryption for sensitive variables (like API keys) to allow safe version control.
+- Mark a variable as `secret: true` in an environment file.
+- Cortex encrypts the value using **AES-GCM-256** before saving to disk.
+- Encrypted values are stored as `ENC(v1:...)` blobs.
+- Requires a master key (provided via `CORTEX_MASTER_KEY` environment variable) for decryption.
+
+### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.
 
 Example `.crx` file:
