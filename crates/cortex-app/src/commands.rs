@@ -1,6 +1,7 @@
+use crate::state::AppSettings;
 use cortex_core::collection::Collection;
 use cortex_core::request::RequestFile;
-use cortex_core::workspace::Workspace;
+use cortex_core::workspace::{Workspace, WorkspaceManifest};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::PathBuf;
@@ -74,7 +75,12 @@ pub fn move_item(path: String, new_parent: String) -> Result<String, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
-    let workspace = Workspace::load(path).map_err(|e| e.to_string())?;
+    let workspace = Workspace::load(&path).map_err(|e| e.to_string())?;
+
+    // Remember this workspace
+    let mut settings = AppSettings::load();
+    settings.last_workspace_path = Some(path);
+    let _ = settings.save();
 
     let collections = workspace
         .collections
@@ -86,4 +92,80 @@ pub fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
         .collect();
 
     Ok(WorkspaceResponse { name: workspace.manifest.name, collections })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_workspace(name: String, path: String) -> Result<String, String> {
+    let manifest = WorkspaceManifest::new(name);
+    let mut path = PathBuf::from(path);
+    if path.is_dir() {
+        path.push("cortex-workspace.yaml");
+    }
+
+    manifest.save(&path).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn add_collection_to_workspace(
+    workspace_path: String,
+    collection_path: String,
+) -> Result<(), String> {
+    let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
+    let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+
+    manifest.add_collection(collection_path);
+    manifest.save(&workspace_path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn remove_collection_from_workspace(
+    workspace_path: String,
+    collection_path: String,
+) -> Result<(), String> {
+    let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
+    let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+
+    manifest.remove_collection(&collection_path);
+    manifest.save(&workspace_path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_last_workspace_path() -> Option<String> {
+    AppSettings::load().last_workspace_path
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn pick_file(
+    app: tauri::AppHandle,
+    title: String,
+    filter_name: String,
+    filter_ext: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let file = app
+        .dialog()
+        .file()
+        .set_title(&title)
+        .add_filter(filter_name, &[&filter_ext])
+        .blocking_pick_file();
+    Ok(file.map(|p| p.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn pick_directory(
+    app: tauri::AppHandle,
+    title: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let dir = app.dialog().file().set_title(&title).blocking_pick_folder();
+    Ok(dir.map(|p| p.to_string()))
 }

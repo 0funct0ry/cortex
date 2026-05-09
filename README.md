@@ -129,7 +129,7 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 ## File Formats
 
 ### 📁 Core File Formats
-- **Workspace Manifest (`cortex-workspace.yaml`)**: Groups multiple collections into a single organizational unit.
+- **Workspace Manifest (`cortex-workspace.yaml`)**: Groups multiple collections into a single organizational unit. Includes UI support for creating, switching, and persisting workspaces.
 - **Collection Manifest (`cortex.yaml`)**: Root configuration for a collection.
 - **Request Files (`.crx`)**: Standalone YAML files for individual API requests.
 - **Environments (`environments/*.yaml`)**: Environment-specific variables with support for encrypted secrets.

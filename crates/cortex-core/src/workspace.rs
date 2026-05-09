@@ -30,6 +30,25 @@ impl WorkspaceManifest {
     pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
         serde_yaml::from_str(yaml)
     }
+
+    /// Saves the manifest to a file.
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
+        let yaml =
+            self.to_yaml().map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        fs::write(path, yaml)
+    }
+
+    /// Adds a collection path to the manifest if it doesn't already exist.
+    pub fn add_collection(&mut self, path: String) {
+        if !self.collections.contains(&path) {
+            self.collections.push(path);
+        }
+    }
+
+    /// Removes a collection path from the manifest.
+    pub fn remove_collection(&mut self, path: &str) {
+        self.collections.retain(|c| c != path);
+    }
 }
 
 /// Represents a loaded workspace and its collections.
@@ -129,5 +148,30 @@ collections:
             CollectionError::NotFound(_) => {}
             _ => panic!("Expected NotFound error"),
         }
+    }
+
+    #[test]
+    fn test_workspace_manifest_management() {
+        let mut manifest = WorkspaceManifest::new("Test".to_string());
+        manifest.add_collection("./col1".to_string());
+        assert_eq!(manifest.collections.len(), 1);
+        manifest.add_collection("./col1".to_string()); // Duplicate
+        assert_eq!(manifest.collections.len(), 1);
+        manifest.add_collection("./col2".to_string());
+        assert_eq!(manifest.collections.len(), 2);
+        manifest.remove_collection("./col1");
+        assert_eq!(manifest.collections.len(), 1);
+        assert_eq!(manifest.collections[0], "./col2");
+    }
+
+    #[test]
+    fn test_save_workspace_manifest() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("cortex-workspace.yaml");
+        let manifest = WorkspaceManifest::new("Save Test".to_string());
+        manifest.save(&path).unwrap();
+        assert!(path.exists());
+        let content = fs::read_to_string(path).unwrap();
+        assert!(content.contains("name: Save Test"));
     }
 }

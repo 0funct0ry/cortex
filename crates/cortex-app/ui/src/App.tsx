@@ -1,162 +1,318 @@
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { commands, type Collection } from './bindings'
+import { useState, useEffect, useCallback } from 'react'
+import { commands, type WorkspaceResponse, type Collection } from './bindings'
 import { CollectionExplorer } from './components/CollectionExplorer'
-import { FolderOpen, RefreshCcw } from 'lucide-react'
+import { WorkspaceHeader } from './components/WorkspaceHeader'
+import { ErrorToast } from './components/CollectionExplorer'
+import { AlertCircle, Loader2, X, Plus } from 'lucide-react'
+
+// Simple modal for workspace name
+const NameModal: React.FC<{
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: (name: string) => void
+}> = ({ isOpen, onClose, onConfirm }) => {
+  const [name, setName] = useState('')
+  if (!isOpen) return null
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+        <div className="flex justify-between items-center">
+          <h3 className="text-white font-bold">New Workspace</h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            Workspace Name
+          </label>
+          <input
+            autoFocus
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="e.g. My Projects"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="flex justify-end gap-3 pt-2">
+          <button onClick={onClose} className="px-4 py-2 text-xs text-slate-400 hover:text-white">
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (name.trim()) onConfirm(name.trim())
+            }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-2"
+          >
+            <Plus className="w-3 h-3" /> Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function App() {
-  const [collectionPath, setCollectionPath] = useState('')
-  const [collection, setCollection] = useState<Collection | null>(null)
-  const [collectionError, setCollectionError] = useState<string | null>(null)
+  const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null)
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null)
+  const [loadedCollections, setLoadedCollections] = useState<Record<string, Collection>>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function loadCollection(pathOverride?: string) {
-    const path = pathOverride || collectionPath
-    if (!path) return
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false)
 
+  const loadWorkspace = useCallback(async (path: string) => {
     setIsLoading(true)
+    setError(null)
     try {
-      setCollectionError(null)
-      const result = await commands.loadCollection(path)
-      if (result.status === 'ok') {
-        setCollection(result.data)
+      const res = await commands.loadWorkspace(path)
+      if (res.status === 'ok') {
+        setWorkspace(res.data)
+        setWorkspacePath(path)
+
+        // Load all collections in parallel
+        const collections: Record<string, Collection> = {}
+        await Promise.all(
+          res.data.collections.map(async (c) => {
+            if (!c.error) {
+              const cRes = await commands.loadCollection(c.path)
+              if (cRes.status === 'ok') {
+                collections[c.path] = cRes.data
+              }
+            }
+          })
+        )
+        setLoadedCollections(collections)
       } else {
-        setCollectionError(result.error)
-        setCollection(null)
+        setError(`Failed to load workspace: ${res.error}`)
       }
     } catch (e) {
-      setCollectionError(String(e))
-      setCollection(null)
+      setError(`IPC Error: ${e}`)
     } finally {
       setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const init = async () => {
+      const lastPath = await commands.getLastWorkspacePath()
+      if (lastPath) {
+        loadWorkspace(lastPath)
+      }
+    }
+    init()
+  }, [loadWorkspace])
+
+  const handleOpenWorkspace = async () => {
+    const res = await commands.pickFile('Open Cortex Workspace', 'Cortex Workspace', 'yaml')
+    if (res.status === 'ok' && res.data) {
+      loadWorkspace(res.data)
+    } else if (res.status === 'error') {
+      setError(`File picker error: ${res.error}`)
+    }
+  }
+
+  const handleCreateWorkspace = (name: string) => {
+    setIsNameModalOpen(false)
+    // Wrap in async to handle pickDirectory
+    const run = async () => {
+      const resDir = await commands.pickDirectory('Select Workspace Directory')
+      if (resDir.status === 'ok' && resDir.data) {
+        const res = await commands.createWorkspace(name, resDir.data)
+        if (res.status === 'ok') {
+          loadWorkspace(res.data)
+        } else {
+          setError(`Failed to create workspace: ${res.error}`)
+        }
+      } else if (resDir.status === 'error') {
+        setError(`Directory picker error: ${resDir.error}`)
+      }
+    }
+    run()
+  }
+
+  const handleAddCollection = async () => {
+    if (!workspacePath) return
+    const resDir = await commands.pickDirectory('Select Collection Directory')
+    if (resDir.status === 'ok' && resDir.data) {
+      const res = await commands.addCollectionToWorkspace(workspacePath, resDir.data)
+      if (res.status === 'ok') {
+        loadWorkspace(workspacePath)
+      } else {
+        setError(`Failed to add collection: ${res.error}`)
+      }
+    } else if (resDir.status === 'error') {
+      setError(`Directory picker error: ${resDir.error}`)
+    }
+  }
+
+  const handleRemoveCollection = async (path: string) => {
+    if (!workspacePath) return
+    const res = await commands.removeCollectionFromWorkspace(workspacePath, path)
+    if (res.status === 'ok') {
+      loadWorkspace(workspacePath)
+    } else {
+      setError(`Failed to remove collection: ${res.error}`)
+    }
+  }
+
+  const handleRefreshCollection = async (path: string) => {
+    const res = await commands.loadCollection(path)
+    if (res.status === 'ok') {
+      setLoadedCollections((prev) => ({ ...prev, [path]: res.data }))
+    } else {
+      setError(`Failed to refresh collection: ${res.error}`)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-start p-8 space-y-8 overflow-y-auto font-sans">
-      <div className="max-w-4xl w-full space-y-8 text-center">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-            CORTEX
-          </h1>
-          <p className="text-slate-400 text-lg">Collection FS Layer Verification</p>
+    <div className="min-h-screen bg-[#020617] text-slate-200 flex flex-col font-sans selection:bg-blue-500/30">
+      {/* Top Banner / Navigation */}
+      <div className="max-w-7xl mx-auto w-full px-8 pt-8 pb-4">
+        <div className="flex items-center justify-between mb-8">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-black tracking-tighter bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 bg-clip-text text-transparent">
+              CORTEX
+            </h1>
+            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em]">
+              Agentic Development Platform
+            </p>
+          </div>
+          <div className="flex gap-4">
+            {isLoading && (
+              <div className="flex items-center gap-2 text-slate-500 text-xs font-medium bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-800">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Updating...
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-6 text-left">
-          <div className="flex flex-col gap-4">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Open Collection
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input
-                  id="collection-input"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm"
-                  value={collectionPath}
-                  onChange={(e) => setCollectionPath(e.currentTarget.value)}
-                  placeholder="Enter absolute path to collection folder..."
-                />
-              </div>
-              <Button
-                onClick={() => loadCollection()}
-                disabled={isLoading}
-                className="bg-emerald-600 hover:bg-emerald-500 min-w-[120px]"
+        {workspace ? (
+          <WorkspaceHeader
+            name={workspace.name}
+            onOpen={handleOpenWorkspace}
+            onCreate={() => setIsNameModalOpen(true)}
+            onAddCollection={handleAddCollection}
+          />
+        ) : (
+          <div className="bg-slate-900/50 border border-slate-800 border-dashed rounded-2xl p-12 text-center space-y-6">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-white">No Workspace Open</h2>
+              <p className="text-slate-500 text-sm max-w-sm mx-auto">
+                Open an existing workspace or create a new one to start managing your agent
+                collections.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={handleOpenWorkspace}
+                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-sm transition-all shadow-lg"
               >
-                {isLoading ? 'Loading...' : 'Load'}
-              </Button>
+                Open Workspace
+              </button>
+              <button
+                onClick={() => setIsNameModalOpen(true)}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-600/20"
+              >
+                Create New
+              </button>
             </div>
           </div>
+        )}
+      </div>
 
-          {collectionError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md animate-in fade-in slide-in-from-top-1 duration-200">
-              <p className="text-red-400 text-sm font-medium">Error loading collection</p>
-              <p className="text-red-500/80 text-xs font-mono mt-1">{collectionError}</p>
-            </div>
-          )}
+      <NameModal
+        isOpen={isNameModalOpen}
+        onClose={() => setIsNameModalOpen(false)}
+        onConfirm={handleCreateWorkspace}
+      />
 
-          {collection && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="flex justify-between items-end border-b border-slate-800 pb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-2xl font-bold text-white">{collection.manifest.name}</h2>
-                    <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full text-emerald-300 font-mono">
-                      v{collection.manifest.version}
-                    </span>
-                  </div>
-                  {collection.manifest.description && (
-                    <p className="text-slate-400 text-sm mt-1">{collection.manifest.description}</p>
+      {/* Main Content */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-8 pb-12 overflow-hidden flex flex-col">
+        {workspace && (
+          <div className="grid grid-cols-12 gap-8 h-full overflow-hidden">
+            {/* Sidebar Explorer */}
+            <aside className="col-span-4 flex flex-col gap-6 overflow-hidden">
+              <div className="flex-1 bg-slate-900/40 border border-slate-800/60 rounded-2xl p-4 overflow-y-auto custom-scrollbar backdrop-blur-sm">
+                <div className="space-y-8">
+                  {workspace.collections.map((c) => (
+                    <div key={c.path} className="space-y-3">
+                      <div className="flex items-center justify-between group">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full ${c.error ? 'bg-red-500' : 'bg-emerald-500'} shadow-lg ${c.error ? 'shadow-red-500/40' : 'shadow-emerald-500/40'}`}
+                          />
+                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">
+                            {c.name || 'Unknown Collection'}
+                          </h3>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveCollection(c.path)}
+                          className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 p-1 rounded transition-all"
+                          title="Remove from Workspace"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {c.error ? (
+                        <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
+                          <p className="text-[10px] text-red-400 leading-relaxed italic">
+                            Error: {c.error}
+                          </p>
+                        </div>
+                      ) : loadedCollections[c.path] ? (
+                        <CollectionExplorer
+                          rootPath={c.path}
+                          items={loadedCollections[c.path].items}
+                          onRefresh={() => handleRefreshCollection(c.path)}
+                        />
+                      ) : (
+                        <div className="py-4 text-center">
+                          <Loader2 className="w-4 h-4 animate-spin text-slate-700 mx-auto" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {workspace.collections.length === 0 && (
+                    <div className="py-20 text-center space-y-4">
+                      <p className="text-xs text-slate-600 italic">
+                        No collections in this workspace
+                      </p>
+                      <button
+                        onClick={handleAddCollection}
+                        className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 uppercase tracking-widest"
+                      >
+                        + Add First Collection
+                      </button>
+                    </div>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => loadCollection()}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <RefreshCcw className="w-3 h-3 mr-2" /> Refresh
-                </Button>
               </div>
+            </aside>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    Explorer
-                  </h3>
-                  <div className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 min-h-[400px]">
-                    <CollectionExplorer
-                      rootPath={collection.path}
-                      items={collection.items}
-                      onRefresh={() => loadCollection()}
-                    />
-                  </div>
+            {/* Main Stage */}
+            <section className="col-span-8 flex flex-col gap-8 overflow-hidden">
+              <div className="flex-1 bg-slate-900/20 border border-slate-800/40 border-dashed rounded-3xl flex flex-col items-center justify-center text-center p-12">
+                <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-6 border border-slate-700">
+                  <AlertCircle className="w-8 h-8 text-slate-600" />
                 </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    Environments
-                  </h3>
-                  <div className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 min-h-[400px]">
-                    {collection.environments.length === 0 ? (
-                      <p className="text-slate-600 text-[10px] italic">No environments found</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {collection.environments.map((env, i) => (
-                          <div
-                            key={i}
-                            className="p-3 bg-slate-900 border border-slate-800 rounded-md"
-                          >
-                            <p className="text-xs font-bold text-emerald-400 uppercase tracking-tighter">
-                              {env.name}
-                            </p>
-                            <div className="mt-2 space-y-1">
-                              {env.variables.map((v, j) => (
-                                <div key={j} className="flex justify-between text-[10px] font-mono">
-                                  <span className="text-slate-500">{v.name}:</span>
-                                  <span className={v.secret ? 'text-purple-400' : 'text-slate-300'}>
-                                    {v.secret ? '••••••••' : v.value}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <h3 className="text-lg font-medium text-slate-400">
+                  Select a request to view details
+                </h3>
+                <p className="text-sm text-slate-600 mt-2 max-w-xs">
+                  Once you select a .crx file from the explorer, its configuration and environment
+                  will appear here.
+                </p>
               </div>
-            </div>
-          )}
-        </div>
+            </section>
+          </div>
+        )}
+      </main>
 
-        <div className="flex justify-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-            Reload App
-          </Button>
-        </div>
-      </div>
+      {error && <ErrorToast message={error} onClose={() => setError(null)} />}
     </div>
   )
 }

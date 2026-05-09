@@ -196,7 +196,7 @@ interface ErrorToastProps {
   onClose: () => void
 }
 
-const ErrorToast: React.FC<ErrorToastProps> = ({ message, onClose }) => (
+export const ErrorToast: React.FC<ErrorToastProps> = ({ message, onClose }) => (
   <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-3 rounded-xl shadow-xl backdrop-blur-sm max-w-sm">
     <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
     <span className="flex-1">{message}</span>
@@ -294,10 +294,7 @@ export const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
 
       {/* Explorer tree */}
       <div className="space-y-1">
-        <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-800/50 px-2">
-          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-            Root
-          </span>
+        <div className="flex items-center justify-end mb-2 pb-2 border-b border-slate-800/50 px-2">
           <button
             onClick={() => setDialog({ kind: 'create', parentPath: rootPath })}
             className="flex items-center gap-1 text-[10px] font-bold text-emerald-500 hover:text-emerald-400 transition-colors cursor-pointer p-1 rounded hover:bg-slate-800/50"

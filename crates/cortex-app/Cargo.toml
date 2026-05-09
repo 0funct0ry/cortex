@@ -12,6 +12,8 @@ specta = { workspace = true }
 tauri-specta = { workspace = true }
 specta-typescript = { workspace = true }
 cortex-core = { workspace = true }
+dirs = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
 
 [build-dependencies]

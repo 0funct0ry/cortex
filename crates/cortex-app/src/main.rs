@@ -2,6 +2,7 @@
 
 mod cli;
 mod commands;
+mod state;
 
 use clap::Parser;
 
@@ -29,6 +30,7 @@ fn main() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::load_collection,
@@ -37,7 +39,13 @@ fn main() {
             commands::delete_item,
             commands::rename_item,
             commands::move_item,
-            commands::load_workspace
+            commands::load_workspace,
+            commands::create_workspace,
+            commands::add_collection_to_workspace,
+            commands::remove_collection_from_workspace,
+            commands::get_last_workspace_path,
+            commands::pick_file,
+            commands::pick_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -58,7 +66,13 @@ mod tests {
                 commands::delete_item,
                 commands::rename_item,
                 commands::move_item,
-                commands::load_workspace
+                commands::load_workspace,
+                commands::create_workspace,
+                commands::add_collection_to_workspace,
+                commands::remove_collection_from_workspace,
+                commands::get_last_workspace_path,
+                commands::pick_file,
+                commands::pick_directory
             ]);
 
         builder
