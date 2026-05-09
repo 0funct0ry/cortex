@@ -8,9 +8,49 @@ export const commands = {
 async greet(name: string) : Promise<GreetResponse> {
     return await TAURI_INVOKE("greet", { name });
 },
-async loadCollection(path: string) : Promise<Result<CollectionManifest, string>> {
+async loadCollection(path: string) : Promise<Result<Collection, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_collection", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveRequest(request: RequestFile, path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_request", { request, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createRequest(name: string, parentPath: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_request", { name, parentPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteItem(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_item", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async renameItem(path: string, newName: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_item", { path, newName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async moveItem(path: string, newParent: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("move_item", { path, newParent }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -37,6 +77,11 @@ async loadWorkspace(path: string) : Promise<Result<WorkspaceResponse, string>> {
 /** user-defined types **/
 
 export type AuthRef = ({ [key in string]: string }) & { type: string }
+/**
+ * Represents a loaded collection.
+ */
+export type Collection = { path: string; manifest: CollectionManifest; environments: EnvironmentFile[]; items: CollectionItem[] }
+export type CollectionItem = { type: "Request"; data: RequestFileWrapper } | { type: "Folder"; data: Folder }
 /**
  * Represents the structure of a `cortex.yaml` collection manifest file.
  */
@@ -65,7 +110,90 @@ headers?: { [key in string]: string } | null;
  * Collection-level variables
  */
 variables?: { [key in string]: string } | null }
+export type EnvironmentFile = { 
+/**
+ * Schema version (e.g., "1")
+ */
+version: string; 
+/**
+ * Human-readable name of the environment
+ */
+name: string; 
+/**
+ * List of environment variables
+ */
+variables: EnvironmentVariable[] }
+export type EnvironmentVariable = { 
+/**
+ * Variable name
+ */
+name: string; 
+/**
+ * Variable value (plaintext or encrypted)
+ */
+value: string; 
+/**
+ * Whether the value should be treated as a secret
+ */
+secret: boolean }
+export type Folder = { name: string; path: string; relative_path: string; items: CollectionItem[] }
 export type GreetResponse = { message: string }
+export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
+/**
+ * Represents the structure of a `.crx` request file.
+ */
+export type RequestFile = { 
+/**
+ * Schema version (e.g., "1")
+ */
+version: string; 
+/**
+ * Human-readable name of the request
+ */
+name: string; 
+/**
+ * HTTP method (e.g., GET, POST, PUT, DELETE)
+ */
+method: string; 
+/**
+ * Request URL (may contain environment variables)
+ */
+url: string; 
+/**
+ * HTTP headers
+ */
+headers?: { [key in string]: string } | null; 
+/**
+ * Query parameters
+ */
+params?: { [key in string]: string } | null; 
+/**
+ * Request body
+ */
+body?: RequestBody | null; 
+/**
+ * Authentication configuration
+ */
+auth?: AuthRef | null; 
+/**
+ * Pre-request and post-response scripts
+ */
+scripts?: Scripts | null; 
+/**
+ * Test scripts
+ */
+tests?: string | null; 
+/**
+ * Tags for categorization
+ */
+tags?: string[] | null; 
+/**
+ * Per-request settings
+ */
+settings?: Settings | null }
+export type RequestFileWrapper = { name: string; path: string; relative_path: string; content: RequestFile | null; error: string | null }
+export type Scripts = { pre?: string | null; post?: string | null }
+export type Settings = { timeout?: number | null }
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
 export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[] }
 

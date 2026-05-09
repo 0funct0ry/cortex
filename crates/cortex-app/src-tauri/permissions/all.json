@@ -1,0 +1,16 @@
+{
+  "identifier": "allow-all-commands",
+  "description": "Allows all custom app commands",
+  "commands": {
+    "allow": [
+      "greet",
+      "load_collection",
+      "save_request",
+      "create_request",
+      "delete_item",
+      "rename_item",
+      "move_item",
+      "load_workspace"
+    ]
+  }
+}

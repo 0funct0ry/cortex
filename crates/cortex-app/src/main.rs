@@ -32,6 +32,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::load_collection,
+            commands::save_request,
+            commands::create_request,
+            commands::delete_item,
+            commands::rename_item,
+            commands::move_item,
             commands::load_workspace
         ])
         .run(tauri::generate_context!())
@@ -48,6 +53,11 @@ mod tests {
             tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
                 commands::greet,
                 commands::load_collection,
+                commands::save_request,
+                commands::create_request,
+                commands::delete_item,
+                commands::rename_item,
+                commands::move_item,
                 commands::load_workspace
             ]);
 

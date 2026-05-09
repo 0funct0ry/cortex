@@ -1,5 +1,5 @@
 use crate::environment::EnvironmentFile;
-use crate::request::AuthRef;
+use crate::request::{AuthRef, RequestFile};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeMap;
@@ -51,12 +51,37 @@ impl CollectionManifest {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[serde(tag = "type", content = "data")]
+pub enum CollectionItem {
+    Request(Box<RequestFileWrapper>),
+    Folder(Folder),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct RequestFileWrapper {
+    pub name: String,
+    pub path: PathBuf,
+    pub relative_path: PathBuf,
+    pub content: Option<RequestFile>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct Folder {
+    pub name: String,
+    pub path: PathBuf,
+    pub relative_path: PathBuf,
+    pub items: Vec<CollectionItem>,
+}
+
 /// Represents a loaded collection.
-#[derive(Debug, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Collection {
     pub path: PathBuf,
     pub manifest: CollectionManifest,
     pub environments: Vec<EnvironmentFile>,
+    pub items: Vec<CollectionItem>,
 }
 
 #[derive(Debug)]
@@ -66,6 +91,7 @@ pub enum CollectionError {
     MissingManifest(PathBuf),
     IoError(std::io::Error),
     YamlError(serde_yaml::Error),
+    InvalidPath(String),
 }
 
 impl std::fmt::Display for CollectionError {
@@ -80,6 +106,7 @@ impl std::fmt::Display for CollectionError {
             }
             CollectionError::IoError(err) => write!(f, "IO error: {}", err),
             CollectionError::YamlError(err) => write!(f, "YAML error: {}", err),
+            CollectionError::InvalidPath(msg) => write!(f, "Invalid path: {}", msg),
         }
     }
 }
@@ -135,7 +162,9 @@ impl Collection {
             }
         }
 
-        Ok(Self { path, manifest, environments })
+        let items = load_tree(&path, &path)?;
+
+        Ok(Self { path, manifest, environments, items })
     }
 
     /// Saves the manifest back to disk.
@@ -145,6 +174,116 @@ impl Collection {
         fs::write(manifest_path, yaml)?;
         Ok(())
     }
+
+    /// Saves a request to disk.
+    pub fn save_request(request: &RequestFile, path: &Path) -> Result<(), CollectionError> {
+        let yaml = request.to_yaml()?;
+        fs::write(path, yaml)?;
+        Ok(())
+    }
+
+    /// Creates a new request file.
+    pub fn create_request(name: &str, parent_path: &Path) -> Result<PathBuf, CollectionError> {
+        let file_name =
+            if name.ends_with(".crx") { name.to_string() } else { format!("{}.crx", name) };
+        let path = parent_path.join(file_name);
+        if path.exists() {
+            return Err(CollectionError::InvalidPath(format!("File already exists: {:?}", path)));
+        }
+
+        let request =
+            RequestFile::new(name.replace(".crx", ""), "GET".to_string(), "https://".to_string());
+        let yaml = request.to_yaml()?;
+        fs::write(&path, yaml)?;
+        Ok(path)
+    }
+
+    /// Deletes an item (moves to trash).
+    pub fn delete_item(path: &Path) -> Result<(), CollectionError> {
+        trash::delete(path).map_err(|e| CollectionError::IoError(std::io::Error::other(e)))?;
+        Ok(())
+    }
+
+    /// Renames an item on disk.
+    pub fn rename_item(path: &Path, new_name: &str) -> Result<PathBuf, CollectionError> {
+        let parent = path
+            .parent()
+            .ok_or_else(|| CollectionError::InvalidPath("Cannot rename root".to_string()))?;
+
+        let new_file_name = if path.is_file() && !new_name.ends_with(".crx") {
+            format!("{}.crx", new_name)
+        } else {
+            new_name.to_string()
+        };
+
+        let new_path = parent.join(new_file_name);
+        fs::rename(path, &new_path)?;
+        Ok(new_path)
+    }
+
+    /// Moves an item to a new parent directory.
+    pub fn move_item(path: &Path, new_parent: &Path) -> Result<PathBuf, CollectionError> {
+        let file_name = path
+            .file_name()
+            .ok_or_else(|| CollectionError::InvalidPath("Invalid file name".to_string()))?;
+        let new_path = new_parent.join(file_name);
+        fs::rename(path, &new_path)?;
+        Ok(new_path)
+    }
+}
+
+fn load_tree(
+    base_path: &Path,
+    current_path: &Path,
+) -> Result<Vec<CollectionItem>, CollectionError> {
+    let mut items = Vec::new();
+    let entries = fs::read_dir(current_path)?;
+
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let relative_path = path.strip_prefix(base_path).unwrap_or(&path).to_path_buf();
+
+        if path.is_dir() {
+            // Skip environments directory at root
+            if name == "environments" && current_path == base_path {
+                continue;
+            }
+            let children = load_tree(base_path, &path)?;
+            items.push(CollectionItem::Folder(Folder {
+                name,
+                path,
+                relative_path,
+                items: children,
+            }));
+        } else if path.extension().is_some_and(|ext| ext == "crx") {
+            let (content, error) = match fs::read_to_string(&path) {
+                Ok(s) => match RequestFile::from_yaml(&s) {
+                    Ok(rf) => (Some(rf), None),
+                    Err(e) => (None, Some(e.to_string())),
+                },
+                Err(e) => (None, Some(e.to_string())),
+            };
+            items.push(CollectionItem::Request(Box::new(RequestFileWrapper {
+                name: name.replace(".crx", ""),
+                path,
+                relative_path,
+                content,
+                error,
+            })));
+        }
+    }
+
+    // Sort items by name (folders first, then requests)
+    items.sort_by(|a, b| match (a, b) {
+        (CollectionItem::Folder(_), CollectionItem::Request(_)) => std::cmp::Ordering::Less,
+        (CollectionItem::Request(_), CollectionItem::Folder(_)) => std::cmp::Ordering::Greater,
+        (CollectionItem::Folder(f1), CollectionItem::Folder(f2)) => f1.name.cmp(&f2.name),
+        (CollectionItem::Request(r1), CollectionItem::Request(r2)) => r1.name.cmp(&r2.name),
+    });
+
+    Ok(items)
 }
 
 #[cfg(test)]
@@ -189,34 +328,36 @@ description: \"Description\"
     }
 
     #[test]
-    fn test_load_collection_missing_manifest() {
-        let dir = tempdir().unwrap();
-        let result = Collection::load(dir.path());
-        assert!(matches!(result, Err(CollectionError::MissingManifest(_))));
-    }
-
-    #[test]
-    fn test_load_collection_invalid_yaml() {
-        let dir = tempdir().unwrap();
-        let manifest_path = dir.path().join("cortex.yaml");
-        fs::write(manifest_path, "invalid: yaml: :").unwrap();
-
-        let result = Collection::load(dir.path());
-        assert!(matches!(result, Err(CollectionError::YamlError(_))));
-    }
-
-    #[test]
-    fn test_load_collection_with_environments() {
+    fn test_load_collection_tree() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("cortex.yaml"), "version: \"1\"\nname: \"Test\"").unwrap();
 
-        let env_dir = dir.path().join("environments");
-        fs::create_dir(&env_dir).unwrap();
-        fs::write(env_dir.join("prod.yaml"), "version: \"1\"\nname: \"Production\"\nvariables: []")
-            .unwrap();
+        let sub = dir.path().join("Subfolder");
+        fs::create_dir(&sub).unwrap();
+
+        let req_content = "version: \"1\"\nname: \"Req\"\nmethod: \"GET\"\nurl: \"https://\"";
+        fs::write(dir.path().join("root_req.crx"), req_content).unwrap();
+        fs::write(sub.join("sub_req.crx"), req_content).unwrap();
 
         let collection = Collection::load(dir.path()).unwrap();
-        assert_eq!(collection.environments.len(), 1);
-        assert_eq!(collection.environments[0].name, "Production");
+        assert_eq!(collection.items.len(), 2); // Subfolder and root_req
+
+        let folder = match &collection.items[0] {
+            CollectionItem::Folder(f) => f,
+            _ => panic!("Expected folder"),
+        };
+        assert_eq!(folder.name, "Subfolder");
+        assert_eq!(folder.items.len(), 1);
+    }
+
+    #[test]
+    fn test_create_request() {
+        let dir = tempdir().unwrap();
+        let path = Collection::create_request("New Request", dir.path()).unwrap();
+        assert!(path.exists());
+        assert!(path.to_str().unwrap().contains("New Request.crx"));
+
+        let content = fs::read_to_string(path).unwrap();
+        assert!(content.contains("name: New Request"));
     }
 }

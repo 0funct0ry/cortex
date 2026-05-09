@@ -3,3 +3,4 @@ target/
 .idea/
 internal-docs
 
+/sample-collection/

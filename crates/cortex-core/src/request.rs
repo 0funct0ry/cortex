@@ -3,7 +3,7 @@ use specta::Type;
 use std::collections::BTreeMap;
 
 /// Represents the structure of a `.crx` request file.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 #[serde(deny_unknown_fields)]
 pub struct RequestFile {
     /// Schema version (e.g., "1")
@@ -40,7 +40,7 @@ pub struct RequestFile {
     pub settings: Option<Settings>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 #[serde(rename_all = "lowercase")]
 #[serde(deny_unknown_fields)]
 pub enum RequestBody {
@@ -56,7 +56,7 @@ pub struct AuthRef {
     pub config: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 #[serde(deny_unknown_fields)]
 pub struct Scripts {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -65,11 +65,11 @@ pub struct Scripts {
     pub post: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout: Option<u64>,
+    pub timeout: Option<u32>,
 }
 
 impl RequestFile {

@@ -1,208 +1,154 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { commands, type CollectionManifest, type WorkspaceResponse } from './bindings'
+import { commands, type Collection } from './bindings'
+import { CollectionExplorer } from './components/CollectionExplorer'
+import { FolderOpen, RefreshCcw } from 'lucide-react'
 
 function App() {
-  const [name, setName] = useState('')
-  const [greetMsg, setGreetMsg] = useState('')
-
   const [collectionPath, setCollectionPath] = useState('')
-  const [manifest, setManifest] = useState<CollectionManifest | null>(null)
+  const [collection, setCollection] = useState<Collection | null>(null)
   const [collectionError, setCollectionError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const [workspacePath, setWorkspacePath] = useState('')
-  const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null)
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+  async function loadCollection(pathOverride?: string) {
+    const path = pathOverride || collectionPath
+    if (!path) return
 
-  async function greet() {
-    const response = await commands.greet(name)
-    setGreetMsg(response.message)
-  }
-
-  async function loadCollection() {
+    setIsLoading(true)
     try {
       setCollectionError(null)
-      const result = await commands.loadCollection(collectionPath)
+      const result = await commands.loadCollection(path)
       if (result.status === 'ok') {
-        setManifest(result.data)
+        setCollection(result.data)
       } else {
         setCollectionError(result.error)
-        setManifest(null)
+        setCollection(null)
       }
     } catch (e) {
       setCollectionError(String(e))
-      setManifest(null)
-    }
-  }
-
-  async function loadWorkspace() {
-    try {
-      setWorkspaceError(null)
-      const result = await commands.loadWorkspace(workspacePath)
-      if (result.status === 'ok') {
-        setWorkspace(result.data)
-      } else {
-        setWorkspaceError(result.error)
-        setWorkspace(null)
-      }
-    } catch (e) {
-      setWorkspaceError(String(e))
-      setWorkspace(null)
+      setCollection(null)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-start p-8 space-y-12 overflow-y-auto">
-      <div className="max-w-6xl w-full space-y-8 text-center">
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-start p-8 space-y-8 overflow-y-auto font-sans">
+      <div className="max-w-4xl w-full space-y-8 text-center">
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
             CORTEX
           </h1>
-          <p className="text-slate-400 text-lg">Core File Format & Collection Layer Verification</p>
+          <p className="text-slate-400 text-lg">Collection FS Layer Verification</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-          {/* Greet Demo */}
-          <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-4 h-full">
-            <h2 className="text-xl font-semibold text-blue-400">IPC Greet Demo</h2>
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault()
-                greet()
-              }}
-            >
-              <input
-                id="greet-input"
-                className="bg-slate-950 border border-slate-800 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                onChange={(e) => setName(e.currentTarget.value)}
-                placeholder="Enter a name..."
-              />
-              <Button type="submit">Greet</Button>
-            </form>
-            {greetMsg && (
-              <p className="text-emerald-400 font-medium animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {greetMsg}
-              </p>
-            )}
-          </div>
-
-          {/* Collection Load Demo */}
-          <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-4 h-full">
-            <h2 className="text-xl font-semibold text-emerald-400">Collection FS Layer</h2>
-            <div className="flex flex-col gap-4">
-              <input
-                id="collection-input"
-                className="bg-slate-950 border border-slate-800 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm"
-                value={collectionPath}
-                onChange={(e) => setCollectionPath(e.currentTarget.value)}
-                placeholder="Enter absolute path to collection folder..."
-              />
-              <Button onClick={loadCollection} className="bg-emerald-600 hover:bg-emerald-500">
-                Load Collection
+        <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-6 text-left">
+          <div className="flex flex-col gap-4">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              Open Collection
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  id="collection-input"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm"
+                  value={collectionPath}
+                  onChange={(e) => setCollectionPath(e.currentTarget.value)}
+                  placeholder="Enter absolute path to collection folder..."
+                />
+              </div>
+              <Button
+                onClick={() => loadCollection()}
+                disabled={isLoading}
+                className="bg-emerald-600 hover:bg-emerald-500 min-w-[120px]"
+              >
+                {isLoading ? 'Loading...' : 'Load'}
               </Button>
             </div>
+          </div>
 
-            {collectionError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-                <p className="text-red-400 text-xs font-mono">{collectionError}</p>
-              </div>
-            )}
+          {collectionError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md animate-in fade-in slide-in-from-top-1 duration-200">
+              <p className="text-red-400 text-sm font-medium">Error loading collection</p>
+              <p className="text-red-500/80 text-xs font-mono mt-1">{collectionError}</p>
+            </div>
+          )}
 
-            {manifest && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md space-y-2 animate-in zoom-in-95 duration-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-emerald-500 font-bold uppercase tracking-wider">
-                    Manifest Loaded
-                  </span>
-                  <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full text-emerald-300">
-                    v{manifest.version}
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-white">{manifest.name}</h3>
-                {manifest.description && (
-                  <p className="text-slate-400 text-xs">{manifest.description}</p>
-                )}
-                {manifest.variables && (
-                  <div className="pt-2">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">Variables</p>
-                    <div className="grid grid-cols-2 gap-1 mt-1">
-                      {Object.entries(manifest.variables).map(([k, v]) => (
-                        <div
-                          key={k}
-                          className="text-[10px] font-mono bg-slate-950 p-1 rounded border border-slate-800"
-                        >
-                          <span className="text-blue-400">{k}:</span> {v}
-                        </div>
-                      ))}
-                    </div>
+          {collection && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex justify-between items-end border-b border-slate-800 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-white">{collection.manifest.name}</h2>
+                    <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full text-emerald-300 font-mono">
+                      v{collection.manifest.version}
+                    </span>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Workspace Load Demo */}
-          <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl space-y-4 h-full">
-            <h2 className="text-xl font-semibold text-purple-400">Workspace FS Layer</h2>
-            <div className="flex flex-col gap-4">
-              <input
-                id="workspace-input"
-                className="bg-slate-950 border border-slate-800 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-sm"
-                value={workspacePath}
-                onChange={(e) => setWorkspacePath(e.currentTarget.value)}
-                placeholder="Enter absolute path to cortex-workspace.yaml..."
-              />
-              <Button onClick={loadWorkspace} className="bg-purple-600 hover:bg-purple-500">
-                Load Workspace
-              </Button>
-            </div>
-
-            {workspaceError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-                <p className="text-red-400 text-xs font-mono">{workspaceError}</p>
-              </div>
-            )}
-
-            {workspace && (
-              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-md space-y-2 animate-in zoom-in-95 duration-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-purple-500 font-bold uppercase tracking-wider">
-                    Workspace Loaded
-                  </span>
+                  {collection.manifest.description && (
+                    <p className="text-slate-400 text-sm mt-1">{collection.manifest.description}</p>
+                  )}
                 </div>
-                <h3 className="text-lg font-bold text-white">{workspace.name}</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => loadCollection()}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <RefreshCcw className="w-3 h-3 mr-2" /> Refresh
+                </Button>
+              </div>
 
-                <div className="pt-2 space-y-2">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">Collections</p>
-                  <div className="flex flex-col gap-2">
-                    {workspace.collections.map((col, idx) => (
-                      <div
-                        key={idx}
-                        className={`p-2 rounded border text-xs font-mono ${
-                          col.name
-                            ? 'bg-slate-950 border-emerald-500/30'
-                            : 'bg-red-500/5 border-red-500/30'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <span
-                            className={col.name ? 'text-emerald-400 font-bold' : 'text-red-400'}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Explorer
+                  </h3>
+                  <div className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 min-h-[400px]">
+                    <CollectionExplorer
+                      rootPath={collection.path}
+                      items={collection.items}
+                      onRefresh={() => loadCollection()}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Environments
+                  </h3>
+                  <div className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 min-h-[400px]">
+                    {collection.environments.length === 0 ? (
+                      <p className="text-slate-600 text-[10px] italic">No environments found</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {collection.environments.map((env, i) => (
+                          <div
+                            key={i}
+                            className="p-3 bg-slate-900 border border-slate-800 rounded-md"
                           >
-                            {col.name || 'Error Loading'}
-                          </span>
-                          <span className="text-[10px] text-slate-600">{col.path}</span>
-                        </div>
-                        {col.error && (
-                          <p className="text-[10px] text-red-500 mt-1 leading-tight">{col.error}</p>
-                        )}
+                            <p className="text-xs font-bold text-emerald-400 uppercase tracking-tighter">
+                              {env.name}
+                            </p>
+                            <div className="mt-2 space-y-1">
+                              {env.variables.map((v, j) => (
+                                <div key={j} className="flex justify-between text-[10px] font-mono">
+                                  <span className="text-slate-500">{v.name}:</span>
+                                  <span className={v.secret ? 'text-purple-400' : 'text-slate-300'}>
+                                    {v.secret ? '••••••••' : v.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-center gap-4">

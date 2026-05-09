@@ -141,6 +141,14 @@ Cortex supports transparent encryption for sensitive variables (like API keys) t
 - Encrypted values are stored as `ENC(v1:...)` blobs.
 - Requires a master key (provided via `CORTEX_MASTER_KEY` environment variable) for decryption.
 
+### 📂 Collection Filesystem Layer
+Cortex uses a direct filesystem-to-UI mapping for collections.
+- **Immediate Save**: Changes in the app are written to disk immediately.
+- **Tree Structure**: Folders and `.crx` files are mapped directly from the filesystem.
+- **External Changes**: Cortex watches the filesystem for external changes and prompts for reload.
+- **Trash Integration**: Deleting a request moves the file to the OS Trash.
+- **Validation**: Invalid YAML or schema violations are flagged in the UI with detailed error messages.
+
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.
 
