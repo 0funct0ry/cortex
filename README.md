@@ -132,6 +132,14 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 - **Linux**: Choose your preferred format (`.deb`, `.rpm`, or `.AppImage`).
 - **CLI**: The unified `cortex` binary can be found in the installation directory or downloaded separately. Add it to your PATH
 
+## User Interface
+
+### 🖥️ Professional UI Shell
+Cortex features a high-performance, IDE-like desktop interface designed for speed and clarity.
+- **Three-Region Layout**: A persistent top navigation bar, a collapsible left sidebar for collection exploration, and a central tabbed main area for request composition.
+- **Tab Management**: Support for multiple open requests, with color-coded HTTP method badges (GET, POST, etc.) and scratch tabs for quick experimentation.
+- **Fluid Interactions**: Smooth sidebar transitions with keyboard shortcut support (`⌘B` or `Ctrl+B`), glassmorphism effects, and micro-animations for a premium developer experience.
+
 ## File Formats
 
 ### 📁 Core File Formats

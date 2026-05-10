@@ -1,9 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { commands, type WorkspaceResponse, type Collection } from './bindings'
+import {
+  commands,
+  type WorkspaceResponse,
+  type Collection,
+  type RequestFileWrapper,
+} from './bindings'
 import { CollectionExplorer, SuccessToast } from './components/CollectionExplorer'
-import { WorkspaceHeader } from './components/WorkspaceHeader'
 import { ErrorToast } from './components/CollectionExplorer'
-import { AlertCircle, Loader2, X, Plus } from 'lucide-react'
+import { AlertCircle, Loader2, X, Plus, ChevronRight, ChevronDown } from 'lucide-react'
+import { Shell } from './components/shell/Shell'
+import { TopBar } from './components/shell/TopBar'
+import { Sidebar } from './components/shell/Sidebar'
+import { TabBar, type Tab } from './components/shell/TabBar'
+import { Composer } from './components/shell/Composer'
 
 // Simple modal for workspace name
 const NameModal: React.FC<{
@@ -58,14 +67,63 @@ function App() {
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [loadedCollections, setLoadedCollections] = useState<Record<string, Collection>>({})
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
   const [modalType, setModalType] = useState<'workspace' | 'collection' | null>(null)
 
+  // Shell & Tab State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [tabs, setTabs] = useState<Tab[]>([
+    { id: 'scratch-1', name: 'Untitled', method: 'GET', isScratch: true },
+  ])
+  const [activeTabId, setActiveTabId] = useState<string | null>('scratch-1')
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        setIsSidebarOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const handleSelectRequest = (req: RequestFileWrapper) => {
+    const existingTab = tabs.find((t) => t.path === req.path)
+    if (existingTab) {
+      setActiveTabId(existingTab.id)
+    } else {
+      const newTab: Tab = {
+        id: crypto.randomUUID(),
+        name: req.name,
+        method: req.content?.method || 'GET',
+        path: req.path,
+      }
+      setTabs((prev) => [...prev, newTab])
+      setActiveTabId(newTab.id)
+    }
+  }
+
+  const handleCloseTab = (id: string) => {
+    const newTabs = tabs.filter((t) => t.id !== id)
+    setTabs(newTabs)
+    if (activeTabId === id) {
+      setActiveTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null)
+    }
+  }
+
+  const [expandedCollections, setExpandedCollections] = useState<Record<string, boolean>>({})
+
+  const toggleCollection = (path: string) => {
+    setExpandedCollections((prev) => ({
+      ...prev,
+      [path]: prev[path] === false ? true : false,
+    }))
+  }
+
   const loadWorkspace = useCallback(async (path: string) => {
-    setIsLoading(true)
     setError(null)
     try {
       const res = await commands.loadWorkspace(path)
@@ -91,8 +149,6 @@ function App() {
       }
     } catch (e) {
       setError(`IPC Error: ${e}`)
-    } finally {
-      setIsLoading(false)
     }
   }, [])
 
@@ -194,63 +250,142 @@ function App() {
     }
   }
 
+  const activeTab = tabs.find((t) => t.id === activeTabId)
+
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 flex flex-col font-sans selection:bg-blue-500/30">
-      {/* Top Banner / Navigation */}
-      <div className="max-w-7xl mx-auto w-full px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between mb-8">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-black tracking-tighter bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 bg-clip-text text-transparent">
-              CORTEX
-            </h1>
-            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em]">
-              Agentic Development Platform
-            </p>
-          </div>
-          <div className="flex gap-4">
-            {isLoading && (
-              <div className="flex items-center gap-2 text-slate-500 text-xs font-medium bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-800">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Updating...
-              </div>
-            )}
-          </div>
-        </div>
-
-        {workspace ? (
-          <WorkspaceHeader
-            name={workspace.name}
-            onOpen={handleOpenWorkspace}
-            onCreate={() => setModalType('workspace')}
-            onAddCollection={handleAddCollection}
-            onCreateCollection={() => setModalType('collection')}
+      <Shell
+        isSidebarOpen={isSidebarOpen}
+        topBar={
+          <TopBar
+            workspaceName={workspace?.name || 'Cortex'}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
-        ) : (
-          <div className="bg-slate-900/50 border border-slate-800 border-dashed rounded-2xl p-12 text-center space-y-6">
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-white">No Workspace Open</h2>
-              <p className="text-slate-500 text-sm max-w-sm mx-auto">
-                Open an existing workspace or create a new one to start managing your agent
-                collections.
-              </p>
+        }
+        sidebar={
+          <Sidebar onAddCollection={workspace ? () => setModalType('collection') : undefined}>
+            <div className="space-y-6">
+              {workspace ? (
+                <>
+                  {workspace.collections.map((c) => {
+                    const isExpanded = expandedCollections[c.path] !== false
+                    return (
+                      <div key={c.path} className="space-y-1">
+                        <div
+                          className="flex items-center justify-between group px-2 py-1 hover:bg-slate-800/30 rounded-md transition-colors cursor-pointer"
+                          onClick={() => toggleCollection(c.path)}
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            {isExpanded ? (
+                              <ChevronDown className="w-3 h-3 text-slate-500 shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-3 h-3 text-slate-500 shrink-0" />
+                            )}
+                            <div
+                              className={`w-1 h-1 rounded-full ${c.error ? 'bg-red-500' : 'bg-emerald-500'} shadow-lg ${c.error ? 'shadow-red-500/40' : 'shadow-emerald-500/40'}`}
+                            />
+                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate group-hover:text-slate-200 transition-colors">
+                              {c.name || 'Unknown'}
+                            </h3>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRemoveCollection(c.path)
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 p-1 rounded transition-all"
+                            title="Remove from Workspace"
+                          >
+                            <AlertCircle className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="animate-in slide-in-from-top-1 duration-200">
+                            {c.error ? (
+                              <div className="px-2 pt-1">
+                                <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
+                                  <p className="text-[10px] text-red-400 leading-relaxed italic">
+                                    Error: {c.error}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : loadedCollections[c.path] ? (
+                              <CollectionExplorer
+                                rootPath={c.path}
+                                items={loadedCollections[c.path].items}
+                                onRefresh={() => handleRefreshCollection(c.path)}
+                                onSelectRequest={handleSelectRequest}
+                              />
+                            ) : (
+                              <div className="py-4 text-center">
+                                <Loader2 className="w-4 h-4 animate-spin text-slate-800 mx-auto" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {workspace.collections.length === 0 && (
+                    <div className="py-12 text-center space-y-4 px-4">
+                      <p className="text-[10px] text-slate-600 italic uppercase tracking-widest">
+                        No collections
+                      </p>
+                      <button
+                        onClick={handleAddCollection}
+                        className="text-[10px] font-bold text-blue-500 hover:text-blue-400 uppercase tracking-widest transition-colors"
+                      >
+                        + Add Collection
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="py-20 text-center space-y-6 px-6">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                      Workspace
+                    </p>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      No workspace open. Start by opening or creating one.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={handleOpenWorkspace}
+                      className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs font-semibold text-white transition-all"
+                    >
+                      Open Existing
+                    </button>
+                    <button
+                      onClick={() => setModalType('workspace')}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-all shadow-lg shadow-blue-600/10"
+                    >
+                      Create New
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-center gap-4">
-              <button
-                onClick={handleOpenWorkspace}
-                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-sm transition-all shadow-lg"
-              >
-                Open Workspace
-              </button>
-              <button
-                onClick={() => setModalType('workspace')}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-600/20"
-              >
-                Create New
-              </button>
+          </Sidebar>
+        }
+        main={
+          <div className="flex flex-col h-full overflow-hidden">
+            <TabBar
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onSelectTab={setActiveTabId}
+              onCloseTab={handleCloseTab}
+            />
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <Composer tab={activeTab} />
             </div>
           </div>
-        )}
-      </div>
+        }
+      />
 
       <NameModal
         isOpen={modalType !== null}
@@ -260,94 +395,9 @@ function App() {
         onConfirm={modalType === 'workspace' ? handleCreateWorkspace : handleCreateCollection}
       />
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-8 pb-12 overflow-hidden flex flex-col">
-        {workspace && (
-          <div className="grid grid-cols-12 gap-8 h-full overflow-hidden">
-            {/* Sidebar Explorer */}
-            <aside className="col-span-4 flex flex-col gap-6 overflow-hidden">
-              <div className="flex-1 bg-slate-900/40 border border-slate-800/60 rounded-2xl p-4 overflow-y-auto custom-scrollbar backdrop-blur-sm">
-                <div className="space-y-8">
-                  {workspace.collections.map((c) => (
-                    <div key={c.path} className="space-y-3">
-                      <div className="flex items-center justify-between group">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <div
-                            className={`w-1.5 h-1.5 rounded-full ${c.error ? 'bg-red-500' : 'bg-emerald-500'} shadow-lg ${c.error ? 'shadow-red-500/40' : 'shadow-emerald-500/40'}`}
-                          />
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">
-                            {c.name || 'Unknown Collection'}
-                          </h3>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveCollection(c.path)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 p-1 rounded transition-all"
-                          title="Remove from Workspace"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      {c.error ? (
-                        <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
-                          <p className="text-[10px] text-red-400 leading-relaxed italic">
-                            Error: {c.error}
-                          </p>
-                        </div>
-                      ) : loadedCollections[c.path] ? (
-                        <CollectionExplorer
-                          rootPath={c.path}
-                          items={loadedCollections[c.path].items}
-                          onRefresh={() => handleRefreshCollection(c.path)}
-                        />
-                      ) : (
-                        <div className="py-4 text-center">
-                          <Loader2 className="w-4 h-4 animate-spin text-slate-700 mx-auto" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {workspace.collections.length === 0 && (
-                    <div className="py-20 text-center space-y-4">
-                      <p className="text-xs text-slate-600 italic">
-                        No collections in this workspace
-                      </p>
-                      <button
-                        onClick={handleAddCollection}
-                        className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 uppercase tracking-widest"
-                      >
-                        + Add First Collection
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </aside>
-
-            {/* Main Stage */}
-            <section className="col-span-8 flex flex-col gap-8 overflow-hidden">
-              <div className="flex-1 bg-slate-900/20 border border-slate-800/40 border-dashed rounded-3xl flex flex-col items-center justify-center text-center p-12">
-                <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-6 border border-slate-700">
-                  <AlertCircle className="w-8 h-8 text-slate-600" />
-                </div>
-                <h3 className="text-lg font-medium text-slate-400">
-                  Select a request to view details
-                </h3>
-                <p className="text-sm text-slate-600 mt-2 max-w-xs">
-                  Once you select a .crx file from the explorer, its configuration and environment
-                  will appear here.
-                </p>
-              </div>
-            </section>
-          </div>
-        )}
-      </main>
-
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
       {success && <SuccessToast message={success} onClose={() => setSuccess(null)} />}
     </div>
   )
 }
-
 export default App

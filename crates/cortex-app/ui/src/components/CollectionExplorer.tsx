@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { commands, type CollectionItem } from '../bindings'
+import { commands, type CollectionItem, type RequestFileWrapper } from '../bindings'
 import {
   Folder as FolderIcon,
   FileText,
@@ -224,12 +224,14 @@ interface CollectionExplorerProps {
   rootPath: string
   items: CollectionItem[]
   onRefresh: () => void
+  onSelectRequest?: (req: RequestFileWrapper) => void
 }
 
 export const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
   rootPath,
   items,
   onRefresh,
+  onSelectRequest,
 }) => {
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' })
   const [error, setError] = useState<string | null>(null)
@@ -318,7 +320,9 @@ export const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
             <p className="text-xs text-slate-600 italic">Empty collection</p>
           </div>
         ) : (
-          items.map((item, idx) => <ItemNode key={idx} item={item} onSetDialog={setDialog} />)
+          items.map((item, idx) => (
+            <ItemNode key={idx} item={item} onSetDialog={setDialog} onSelect={onSelectRequest} />
+          ))
         )}
       </div>
     </>
@@ -332,9 +336,10 @@ export const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
 interface ItemNodeProps {
   item: CollectionItem
   onSetDialog: (d: DialogState) => void
+  onSelect?: (req: RequestFileWrapper) => void
 }
 
-const ItemNode: React.FC<ItemNodeProps> = ({ item, onSetDialog }) => {
+const ItemNode: React.FC<ItemNodeProps> = ({ item, onSetDialog, onSelect }) => {
   const [isOpen, setIsOpen] = useState(true)
 
   if (item.type === 'Folder') {
@@ -389,7 +394,7 @@ const ItemNode: React.FC<ItemNodeProps> = ({ item, onSetDialog }) => {
         {isOpen && (
           <div className="pl-3 border-l border-slate-800/50 ml-3.5 space-y-1 mt-1">
             {folder.items.map((child, idx) => (
-              <ItemNode key={idx} item={child} onSetDialog={onSetDialog} />
+              <ItemNode key={idx} item={child} onSetDialog={onSetDialog} onSelect={onSelect} />
             ))}
             {folder.items.length === 0 && (
               <span className="text-[10px] text-slate-600 italic px-2">Empty folder</span>
@@ -401,7 +406,10 @@ const ItemNode: React.FC<ItemNodeProps> = ({ item, onSetDialog }) => {
   } else {
     const req = item.data
     return (
-      <div className="flex items-center justify-between group px-2 py-1 hover:bg-slate-800/50 rounded-md transition-colors">
+      <div
+        className="flex items-center justify-between group px-2 py-1 hover:bg-slate-800/50 rounded-md transition-colors cursor-pointer"
+        onClick={() => onSelect?.(req)}
+      >
         <div className="flex items-center gap-2 overflow-hidden">
           {req.error ? (
             <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
