@@ -33,9 +33,17 @@ impl WorkspaceManifest {
 
     /// Saves the manifest to a file.
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
+        let path = path.as_ref();
         let yaml =
             self.to_yaml().map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        fs::write(path, yaml)
+        fs::write(path, yaml)?;
+
+        // Ensure .gitignore exists in the same directory
+        if let Some(parent) = path.parent() {
+            let _ = crate::gitignore::GitIgnoreManager::ensure_gitignore(parent);
+        }
+
+        Ok(())
     }
 
     /// Adds a collection path to the manifest if it doesn't already exist.
@@ -165,13 +173,17 @@ collections:
     }
 
     #[test]
-    fn test_save_workspace_manifest() {
+    fn test_save_workspace_manifest_with_gitignore() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("cortex-workspace.yaml");
-        let manifest = WorkspaceManifest::new("Save Test".to_string());
+        let manifest = WorkspaceManifest::new("GitIgnore Test".to_string());
         manifest.save(&path).unwrap();
+
         assert!(path.exists());
-        let content = fs::read_to_string(path).unwrap();
-        assert!(content.contains("name: Save Test"));
+        let gitignore_path = dir.path().join(".gitignore");
+        assert!(gitignore_path.exists());
+        let content = fs::read_to_string(gitignore_path).unwrap();
+        assert!(content.contains("# Cortex local-only files"));
+        assert!(content.contains(".env"));
     }
 }

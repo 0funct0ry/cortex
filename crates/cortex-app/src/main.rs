@@ -45,7 +45,8 @@ fn main() {
             commands::remove_collection_from_workspace,
             commands::get_last_workspace_path,
             commands::pick_file,
-            commands::pick_directory
+            commands::pick_directory,
+            commands::create_collection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -72,7 +73,8 @@ mod tests {
                 commands::remove_collection_from_workspace,
                 commands::get_last_workspace_path,
                 commands::pick_file,
-                commands::pick_directory
+                commands::pick_directory,
+                commands::create_collection
             ]);
 
         builder

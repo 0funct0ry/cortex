@@ -109,6 +109,26 @@ pub fn create_workspace(name: String, path: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn create_collection(name: String, path: String) -> Result<String, String> {
+    let manifest = cortex_core::collection::CollectionManifest::new(name);
+    let path = PathBuf::from(path);
+    if !path.exists() {
+        std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    }
+
+    let collection = cortex_core::collection::Collection {
+        path: path.clone(),
+        manifest,
+        environments: Vec::new(),
+        items: Vec::new(),
+    };
+
+    collection.save().map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn add_collection_to_workspace(
     workspace_path: String,
     collection_path: String,

@@ -148,6 +148,7 @@ Cortex uses a direct filesystem-to-UI mapping for collections.
 - **External Changes**: Cortex watches the filesystem for external changes and prompts for reload.
 - **Trash Integration**: Deleting a request moves the file to the OS Trash.
 - **Validation**: Invalid YAML or schema violations are flagged in the UI with detailed error messages.
+- **Auto-generated `.gitignore`**: When a new collection or workspace is created, Cortex automatically initializes a `.gitignore` file with sensible defaults (like ignoring `.env` and `.cortex-ai.yaml`) to prevent accidental commits of local secrets and configuration.
 
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.
@@ -185,7 +186,10 @@ settings:
 
 ### Workspace Manifest (`cortex-workspace.yaml`)
 
-A workspace allows you to group multiple collections, potentially from different repositories or directories, into a single project view. It is a local organizational artifact and is typically not committed to individual collection repositories.
+A workspace allows you to group multiple collections, potentially from different repositories or directories, into a single project view.
+- **Group Collections**: Organize related collections together.
+- **Persistence**: Workspace state and paths are persisted across sessions.
+- **Local Isolation**: Workspace manifests are typically local-only artifacts and are ignored by Git via the auto-generated `.gitignore`.
 
 Example `cortex-workspace.yaml` file:
 

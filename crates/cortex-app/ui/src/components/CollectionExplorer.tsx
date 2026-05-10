@@ -206,6 +206,16 @@ export const ErrorToast: React.FC<ErrorToastProps> = ({ message, onClose }) => (
   </div>
 )
 
+export const SuccessToast: React.FC<ErrorToastProps> = ({ message, onClose }) => (
+  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-emerald-900/90 border border-emerald-700 text-emerald-200 text-xs px-4 py-3 rounded-xl shadow-xl backdrop-blur-sm max-w-sm">
+    <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+    <span className="flex-1">{message}</span>
+    <button onClick={onClose} className="text-emerald-400 hover:text-white">
+      <X className="w-3.5 h-3.5" />
+    </button>
+  </div>
+)
+
 // ---------------------------------------------------------------------------
 // Main CollectionExplorer
 // ---------------------------------------------------------------------------

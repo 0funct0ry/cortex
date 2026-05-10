@@ -7,6 +7,7 @@ interface WorkspaceHeaderProps {
   onOpen: () => void
   onCreate: () => void
   onAddCollection: () => void
+  onCreateCollection: () => void
 }
 
 export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
@@ -14,6 +15,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onOpen,
   onCreate,
   onAddCollection,
+  onCreateCollection,
 }) => {
   return (
     <div className="flex items-center justify-between bg-slate-900/80 backdrop-blur-md border border-slate-800 px-6 py-4 rounded-2xl shadow-xl">
@@ -50,12 +52,21 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
         </Button>
         <div className="w-px h-6 bg-slate-800 mx-2" />
         <Button
+          variant="ghost"
           size="sm"
           onClick={onAddCollection}
+          className="text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+        >
+          <FolderOpen className="w-4 h-4 mr-2" />
+          Add Existing
+        </Button>
+        <Button
+          size="sm"
+          onClick={onCreateCollection}
           className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg shadow-emerald-600/20 px-4 transition-all"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add Collection
+          Create Collection
         </Button>
       </div>
     </div>

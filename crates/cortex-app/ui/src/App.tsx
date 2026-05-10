@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { commands, type WorkspaceResponse, type Collection } from './bindings'
-import { CollectionExplorer } from './components/CollectionExplorer'
+import { CollectionExplorer, SuccessToast } from './components/CollectionExplorer'
 import { WorkspaceHeader } from './components/WorkspaceHeader'
 import { ErrorToast } from './components/CollectionExplorer'
 import { AlertCircle, Loader2, X, Plus } from 'lucide-react'
@@ -8,23 +8,25 @@ import { AlertCircle, Loader2, X, Plus } from 'lucide-react'
 // Simple modal for workspace name
 const NameModal: React.FC<{
   isOpen: boolean
+  title: string
+  label: string
   onClose: () => void
   onConfirm: (name: string) => void
-}> = ({ isOpen, onClose, onConfirm }) => {
+}> = ({ isOpen, title, label, onClose, onConfirm }) => {
   const [name, setName] = useState('')
   if (!isOpen) return null
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
         <div className="flex justify-between items-center">
-          <h3 className="text-white font-bold">New Workspace</h3>
+          <h3 className="text-white font-bold">{title}</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white">
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            Workspace Name
+            {label}
           </label>
           <input
             autoFocus
@@ -58,8 +60,9 @@ function App() {
   const [loadedCollections, setLoadedCollections] = useState<Record<string, Collection>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  const [isNameModalOpen, setIsNameModalOpen] = useState(false)
+  const [modalType, setModalType] = useState<'workspace' | 'collection' | null>(null)
 
   const loadWorkspace = useCallback(async (path: string) => {
     setIsLoading(true)
@@ -113,16 +116,42 @@ function App() {
   }
 
   const handleCreateWorkspace = (name: string) => {
-    setIsNameModalOpen(false)
-    // Wrap in async to handle pickDirectory
+    setModalType(null)
     const run = async () => {
       const resDir = await commands.pickDirectory('Select Workspace Directory')
       if (resDir.status === 'ok' && resDir.data) {
         const res = await commands.createWorkspace(name, resDir.data)
         if (res.status === 'ok') {
           loadWorkspace(res.data)
+          setSuccess(`Workspace created and .gitignore initialized in ${resDir.data}`)
         } else {
           setError(`Failed to create workspace: ${res.error}`)
+        }
+      } else if (resDir.status === 'error') {
+        setError(`Directory picker error: ${resDir.error}`)
+      }
+    }
+    run()
+  }
+
+  const handleCreateCollection = (name: string) => {
+    setModalType(null)
+    const run = async () => {
+      if (!workspacePath) return
+      const resDir = await commands.pickDirectory('Select New Collection Directory')
+      if (resDir.status === 'ok' && resDir.data) {
+        const res = await commands.createCollection(name, resDir.data)
+        if (res.status === 'ok') {
+          // Now add it to the workspace
+          const addRes = await commands.addCollectionToWorkspace(workspacePath, res.data)
+          if (addRes.status === 'ok') {
+            loadWorkspace(workspacePath)
+            setSuccess(`Collection created and .gitignore initialized in ${resDir.data}`)
+          } else {
+            setError(`Failed to add new collection to workspace: ${addRes.error}`)
+          }
+        } else {
+          setError(`Failed to create collection: ${res.error}`)
         }
       } else if (resDir.status === 'error') {
         setError(`Directory picker error: ${resDir.error}`)
@@ -192,8 +221,9 @@ function App() {
           <WorkspaceHeader
             name={workspace.name}
             onOpen={handleOpenWorkspace}
-            onCreate={() => setIsNameModalOpen(true)}
+            onCreate={() => setModalType('workspace')}
             onAddCollection={handleAddCollection}
+            onCreateCollection={() => setModalType('collection')}
           />
         ) : (
           <div className="bg-slate-900/50 border border-slate-800 border-dashed rounded-2xl p-12 text-center space-y-6">
@@ -212,7 +242,7 @@ function App() {
                 Open Workspace
               </button>
               <button
-                onClick={() => setIsNameModalOpen(true)}
+                onClick={() => setModalType('workspace')}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-600/20"
               >
                 Create New
@@ -223,9 +253,11 @@ function App() {
       </div>
 
       <NameModal
-        isOpen={isNameModalOpen}
-        onClose={() => setIsNameModalOpen(false)}
-        onConfirm={handleCreateWorkspace}
+        isOpen={modalType !== null}
+        title={modalType === 'workspace' ? 'New Workspace' : 'New Collection'}
+        label={modalType === 'workspace' ? 'Workspace Name' : 'Collection Name'}
+        onClose={() => setModalType(null)}
+        onConfirm={modalType === 'workspace' ? handleCreateWorkspace : handleCreateCollection}
       />
 
       {/* Main Content */}
@@ -313,6 +345,7 @@ function App() {
       </main>
 
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
+      {success && <SuccessToast message={success} onClose={() => setSuccess(null)} />}
     </div>
   )
 }

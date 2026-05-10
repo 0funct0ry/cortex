@@ -1,6 +1,7 @@
 pub mod collection;
 pub mod crypto;
 pub mod environment;
+pub mod gitignore;
 pub mod request;
 pub mod workspace;
 

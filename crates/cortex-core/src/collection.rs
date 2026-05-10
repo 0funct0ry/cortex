@@ -172,6 +172,10 @@ impl Collection {
         let manifest_path = self.path.join("cortex.yaml");
         let yaml = self.manifest.to_yaml()?;
         fs::write(manifest_path, yaml)?;
+
+        // Ensure .gitignore exists in the collection root
+        let _ = crate::gitignore::GitIgnoreManager::ensure_gitignore(&self.path);
+
         Ok(())
     }
 
@@ -309,6 +313,24 @@ mod tests {
         let yaml = manifest.to_yaml().unwrap();
         let decoded = CollectionManifest::from_yaml(&yaml).unwrap();
         assert_eq!(manifest, decoded);
+    }
+
+    #[test]
+    fn test_save_collection_with_gitignore() {
+        let dir = tempdir().unwrap();
+        let manifest = CollectionManifest::new("Test Collection".to_string());
+        let collection = Collection {
+            path: dir.path().to_path_buf(),
+            manifest,
+            environments: Vec::new(),
+            items: Vec::new(),
+        };
+
+        collection.save().unwrap();
+        let gitignore_path = dir.path().join(".gitignore");
+        assert!(gitignore_path.exists());
+        let content = fs::read_to_string(gitignore_path).unwrap();
+        assert!(content.contains("# Cortex local-only files"));
     }
 
     #[test]
