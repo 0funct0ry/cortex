@@ -115,6 +115,12 @@ Reliable CI is critical. Intermittently failing (flaky) tests must be addressed 
    ```
 4. **Fix**: Flaky tests must be resolved or permanently removed within **one release cycle**.
 
+### Serialization Reliability
+To ensure data integrity, Cortex includes a robust round-trip serialization test suite. Every core data structure (Requests, Collections, Environments, and Workspaces) is continuously tested to ensure it can be serialized to YAML and deserialized back without any data loss or corruption. These tests cover:
+- **Unicode Support**: Ensures 🚀 and other non-ASCII characters are preserved.
+- **Edge Cases**: Validates long strings, special characters in headers, and complex script content.
+- **Secret Round-trips**: Verifies that encrypted variables are correctly handled through the serialization lifecycle.
+
 ## Releases
 
 Download the latest version of Cortex and the CLI from the [GitHub Releases](https://github.com/0funct0ry/cortex/releases) page.
