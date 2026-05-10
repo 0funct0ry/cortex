@@ -46,7 +46,11 @@ fn main() {
             commands::get_last_workspace_path,
             commands::pick_file,
             commands::pick_directory,
-            commands::create_collection
+            commands::create_collection,
+            commands::update_workspace_variables,
+            commands::update_collection_variables,
+            commands::get_resolved_variables,
+            commands::preview_template
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -74,7 +78,11 @@ mod tests {
                 commands::get_last_workspace_path,
                 commands::pick_file,
                 commands::pick_directory,
-                commands::create_collection
+                commands::create_collection,
+                commands::update_workspace_variables,
+                commands::update_collection_variables,
+                commands::get_resolved_variables,
+                commands::preview_template
             ]);
 
         builder

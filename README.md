@@ -163,6 +163,18 @@ Cortex uses a direct filesystem-to-UI mapping for collections.
 - **Trash Integration**: Deleting a request moves the file to the OS Trash.
 - **Validation**: Invalid YAML or schema violations are flagged in the UI with detailed error messages.
 - **Auto-generated `.gitignore`**: When a new collection or workspace is created, Cortex automatically initializes a `.gitignore` file with sensible defaults (like ignoring `.env` and `.cortex-ai.yaml`) to prevent accidental commits of local secrets and configuration.
+- **Variable Precedence**: Variables from different scopes resolve in a predictable order: **Runtime → Environment → Collection → Global (Workspace)**. Highest precedence always wins; no merging occurs.
+
+### 🧩 Variable & Template Engine
+Cortex includes a powerful variable resolution pipeline and template engine.
+- **Interpolation**: Use `{{variable_name}}` in request fields like URL, headers, and body.
+- **Precedence Model**:
+    1. **Runtime**: Variables set during execution (highest).
+    2. **Environment**: Variables defined in the active environment file.
+    3. **Collection**: Shared variables defined in the collection's `cortex.yaml`.
+    4. **Global**: Workspace-wide variables defined in `cortex-workspace.yaml` (lowest).
+- **Interactive Preview**: Hover over any variable in the request composer to see its resolved value and the scope it came from.
+- **Visual Warnings**: Unresolved variables are flagged with visual indicators and warnings.
 
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.

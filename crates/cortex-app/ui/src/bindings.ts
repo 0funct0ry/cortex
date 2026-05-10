@@ -114,6 +114,38 @@ async createCollection(name: string, path: string) : Promise<Result<string, stri
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async updateWorkspaceVariables(workspacePath: string, variables: { [key in string]: string }) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_workspace_variables", { workspacePath, variables }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateCollectionVariables(collectionPath: string, variables: { [key in string]: string }) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_collection_variables", { collectionPath, variables }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getResolvedVariables(workspacePath: string | null, collectionPath: string | null, environmentName: string | null) : Promise<Result<{ [key in string]: ResolvedVariable }, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_resolved_variables", { workspacePath, collectionPath, environmentName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async previewTemplate(text: string, workspacePath: string | null, collectionPath: string | null, environmentName: string | null) : Promise<Result<PreviewResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_template", { text, workspacePath, collectionPath, environmentName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -189,6 +221,7 @@ value: string;
 secret: boolean }
 export type Folder = { name: string; path: string; relative_path: string; items: CollectionItem[] }
 export type GreetResponse = { message: string }
+export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[] }
 export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
 /**
  * Represents the structure of a `.crx` request file.
@@ -243,10 +276,13 @@ tags?: string[] | null;
  */
 settings?: Settings | null }
 export type RequestFileWrapper = { name: string; path: string; relative_path: string; content: RequestFile | null; error: string | null }
+export type ResolvedVariable = { value: string; scope: VariableScope }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }
+export type UnresolvedVariableWarning = { name: string }
+export type VariableScope = "global" | "collection" | "environment" | "runtime"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
-export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[] }
+export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: { [key in string]: string } | null }
 
 /** tauri-specta globals **/
 

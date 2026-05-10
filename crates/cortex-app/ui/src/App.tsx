@@ -13,6 +13,8 @@ import { TopBar } from './components/shell/TopBar'
 import { Sidebar } from './components/shell/Sidebar'
 import { TabBar, type Tab } from './components/shell/TabBar'
 import { Composer } from './components/shell/Composer'
+import { VariableEditor } from './components/VariableEditor'
+import { Settings as SettingsIcon } from 'lucide-react'
 
 // Simple modal for workspace name
 const NameModal: React.FC<{
@@ -78,6 +80,12 @@ function App() {
     { id: 'scratch-1', name: 'Untitled', method: 'GET', isScratch: true },
   ])
   const [activeTabId, setActiveTabId] = useState<string | null>('scratch-1')
+  const [editingVariables, setEditingVariables] = useState<{
+    type: 'workspace' | 'collection'
+    path: string
+    name: string
+    vars: Record<string, string>
+  } | null>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -250,6 +258,37 @@ function App() {
     }
   }
 
+  const handleUpdateWorkspaceVariables = async (vars: Record<string, string>) => {
+    if (!workspacePath) return
+    try {
+      const res = await commands.updateWorkspaceVariables(workspacePath, vars)
+      if (res.status === 'ok') {
+        setEditingVariables(null)
+        loadWorkspace(workspacePath)
+        setSuccess('Workspace variables updated')
+      } else {
+        setError(`Update failed: ${res.error}`)
+      }
+    } catch (e) {
+      setError(`IPC Error: ${e}`)
+    }
+  }
+
+  const handleUpdateCollectionVariables = async (path: string, vars: Record<string, string>) => {
+    try {
+      const res = await commands.updateCollectionVariables(path, vars)
+      if (res.status === 'ok') {
+        setEditingVariables(null)
+        handleRefreshCollection(path)
+        setSuccess('Collection variables updated')
+      } else {
+        setError(`Update failed: ${res.error}`)
+      }
+    } catch (e) {
+      setError(`IPC Error: ${e}`)
+    }
+  }
+
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
   return (
@@ -266,6 +305,27 @@ function App() {
         sidebar={
           <Sidebar onAddCollection={workspace ? () => setModalType('collection') : undefined}>
             <div className="space-y-6">
+              {workspace && (
+                <div
+                  className="flex items-center justify-between group px-2 py-1 hover:bg-slate-800/30 rounded-md transition-colors cursor-pointer"
+                  onClick={() =>
+                    setEditingVariables({
+                      type: 'workspace',
+                      path: workspacePath!,
+                      name: workspace.name,
+                      vars: workspace.variables || {},
+                    })
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <SettingsIcon className="w-3.5 h-3.5 text-blue-500" />
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-200 transition-colors">
+                      Global Variables
+                    </h3>
+                  </div>
+                </div>
+              )}
+
               {workspace ? (
                 <>
                   {workspace.collections.map((c) => {
@@ -289,16 +349,36 @@ function App() {
                               {c.name || 'Unknown'}
                             </h3>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleRemoveCollection(c.path)
-                            }}
-                            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 p-1 rounded transition-all"
-                            title="Remove from Workspace"
-                          >
-                            <AlertCircle className="w-3 h-3" />
-                          </button>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const col = loadedCollections[c.path]
+                                if (col) {
+                                  setEditingVariables({
+                                    type: 'collection',
+                                    path: c.path,
+                                    name: col.manifest.name,
+                                    vars: col.manifest.variables || {},
+                                  })
+                                }
+                              }}
+                              className="text-slate-600 hover:text-blue-400 p-1 rounded"
+                              title="Collection Variables"
+                            >
+                              <SettingsIcon className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRemoveCollection(c.path)
+                              }}
+                              className="text-slate-600 hover:text-red-400 p-1 rounded"
+                              title="Remove from Workspace"
+                            >
+                              <AlertCircle className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
 
                         {isExpanded && (
@@ -381,7 +461,24 @@ function App() {
               onCloseTab={handleCloseTab}
             />
             <div className="flex-1 overflow-hidden flex flex-col">
-              <Composer tab={activeTab} />
+              <Composer
+                tab={activeTab}
+                workspacePath={workspacePath || undefined}
+                collectionPath={
+                  activeTab?.path && workspace
+                    ? workspace.collections.find((c) => {
+                        if (!c.path) return false
+                        // Robust prefix check
+                        const reqPath = activeTab.path!.replace(/\\/g, '/')
+                        const colPath = c.path.replace(/\\/g, '/')
+                        return (
+                          reqPath.startsWith(colPath) &&
+                          (reqPath.length === colPath.length || reqPath[colPath.length] === '/')
+                        )
+                      })?.path
+                    : undefined
+                }
+              />
             </div>
           </div>
         }
@@ -397,6 +494,25 @@ function App() {
 
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
       {success && <SuccessToast message={success} onClose={() => setSuccess(null)} />}
+
+      {editingVariables && (
+        <VariableEditor
+          title={
+            editingVariables.type === 'workspace'
+              ? `Global Variables: ${editingVariables.name}`
+              : `Collection Variables: ${editingVariables.name}`
+          }
+          initialVariables={editingVariables.vars}
+          onClose={() => setEditingVariables(null)}
+          onSave={(vars) => {
+            if (editingVariables.type === 'workspace') {
+              handleUpdateWorkspaceVariables(vars)
+            } else {
+              handleUpdateCollectionVariables(editingVariables.path, vars)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

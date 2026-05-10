@@ -22,6 +22,13 @@ pub struct WorkspaceCollectionResult {
 pub struct WorkspaceResponse {
     pub name: String,
     pub collections: Vec<WorkspaceCollectionResult>,
+    pub variables: Option<std::collections::BTreeMap<String, String>>,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct PreviewResponse {
+    pub text: String,
+    pub warnings: Vec<cortex_core::variables::UnresolvedVariableWarning>,
 }
 
 #[tauri::command]
@@ -86,12 +93,20 @@ pub fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
         .collections
         .into_iter()
         .map(|(path, result)| match result {
-            Ok(c) => WorkspaceCollectionResult { path, name: Some(c.manifest.name), error: None },
+            Ok(c) => WorkspaceCollectionResult {
+                path: c.path.to_string_lossy().to_string(),
+                name: Some(c.manifest.name),
+                error: None,
+            },
             Err(e) => WorkspaceCollectionResult { path, name: None, error: Some(e.to_string()) },
         })
         .collect();
 
-    Ok(WorkspaceResponse { name: workspace.manifest.name, collections })
+    Ok(WorkspaceResponse {
+        name: workspace.manifest.name,
+        collections,
+        variables: workspace.manifest.variables,
+    })
 }
 
 #[tauri::command]
@@ -188,4 +203,104 @@ pub async fn pick_directory(
     use tauri_plugin_dialog::DialogExt;
     let dir = app.dialog().file().set_title(&title).blocking_pick_folder();
     Ok(dir.map(|p| p.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_workspace_variables(
+    workspace_path: String,
+    variables: std::collections::BTreeMap<String, String>,
+) -> Result<(), String> {
+    let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
+    let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+
+    manifest.variables = Some(variables);
+    manifest.save(&workspace_path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_collection_variables(
+    collection_path: String,
+    variables: std::collections::BTreeMap<String, String>,
+) -> Result<(), String> {
+    let mut collection = Collection::load(&collection_path).map_err(|e| e.to_string())?;
+    collection.manifest.variables = Some(variables);
+    collection.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn populate_resolver(
+    resolver: &mut cortex_core::variables::VariableResolver,
+    workspace_path: Option<String>,
+    collection_path: Option<String>,
+    environment_name: Option<String>,
+) -> Result<(), String> {
+    // 1. Global (Workspace)
+    if let Some(wp) = workspace_path {
+        let path = PathBuf::from(wp);
+        let abs_path = if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir().map(|d| d.join(&path)).unwrap_or(path)
+        };
+
+        // Handle if abs_path is a directory
+        let manifest_path =
+            if abs_path.is_dir() { abs_path.join("cortex-workspace.yaml") } else { abs_path };
+
+        if manifest_path.exists() {
+            let content = std::fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
+            let manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+            if let Some(vars) = manifest.variables {
+                resolver.global_vars = vars;
+            }
+        }
+    }
+
+    // 2. Collection
+    if let Some(cp) = collection_path {
+        let collection = Collection::load(&cp).map_err(|e| e.to_string())?;
+        if let Some(vars) = collection.manifest.variables {
+            resolver.collection_vars = vars;
+        }
+
+        // 3. Environment
+        if let Some(env_name) = environment_name {
+            if let Some(env) = collection.environments.iter().find(|e| e.name == env_name) {
+                for var in &env.variables {
+                    resolver.env_vars.insert(var.name.clone(), var.value.clone());
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_resolved_variables(
+    workspace_path: Option<String>,
+    collection_path: Option<String>,
+    environment_name: Option<String>,
+) -> Result<std::collections::BTreeMap<String, cortex_core::variables::ResolvedVariable>, String> {
+    let mut resolver = cortex_core::variables::VariableResolver::new();
+    populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
+    Ok(resolver.get_all_resolved())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn preview_template(
+    text: String,
+    workspace_path: Option<String>,
+    collection_path: Option<String>,
+    environment_name: Option<String>,
+) -> Result<PreviewResponse, String> {
+    let mut resolver = cortex_core::variables::VariableResolver::new();
+    populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
+    let (interpolated, warnings) = resolver.interpolate(&text);
+    Ok(PreviewResponse { text: interpolated, warnings })
 }

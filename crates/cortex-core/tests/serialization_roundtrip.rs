@@ -117,10 +117,8 @@ fn test_environment_file_roundtrip_with_secrets() {
 
     // 4. Decrypt secrets
     decoded.decrypt_secrets(&key).expect("Decryption failed");
-    assert_eq!(decoded.variables[1].value, original_secret);
-
-    // Verify public variable remains unchanged
     assert_eq!(decoded.variables[0].value, "https://api.production.com");
+    assert_eq!(decoded.variables[1].value, original_secret);
 }
 
 #[test]
@@ -134,6 +132,7 @@ fn test_workspace_manifest_roundtrip() {
             "/absolute/path/to/collection".to_string(),
             "./unicode-🚀-path".to_string(),
         ],
+        variables: None,
     };
 
     let yaml = manifest.to_yaml().expect("Failed to serialize WorkspaceManifest");

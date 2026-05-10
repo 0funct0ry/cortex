@@ -1,6 +1,7 @@
 use crate::collection::{Collection, CollectionError};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -14,11 +15,14 @@ pub struct WorkspaceManifest {
     pub name: String,
     /// List of paths to collection directories (relative to workspace file or absolute)
     pub collections: Vec<String>,
+    /// Global variables for the workspace
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variables: Option<BTreeMap<String, String>>,
 }
 
 impl WorkspaceManifest {
     pub fn new(name: String) -> Self {
-        Self { version: "1".to_string(), name, collections: Vec::new() }
+        Self { version: "1".to_string(), name, collections: Vec::new(), variables: None }
     }
 
     /// Serializes the manifest to a YAML string.
@@ -114,6 +118,7 @@ mod tests {
             version: "1".to_string(),
             name: "My Workspace".to_string(),
             collections: vec!["./col1".to_string(), "/absolute/path/to/col2".to_string()],
+            variables: None,
         };
 
         let yaml = manifest.to_yaml().unwrap();
