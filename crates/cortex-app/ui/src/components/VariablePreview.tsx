@@ -1,6 +1,7 @@
 import React from 'react'
 import { type ResolvedVariable, type VariableScope } from '../bindings'
 import { cn } from '../lib/utils'
+import { AlertCircle } from 'lucide-react'
 
 interface VariablePreviewProps {
   name: string
@@ -17,13 +18,13 @@ const scopeColors: Record<VariableScope, string> = {
 
 export const VariablePreview: React.FC<VariablePreviewProps> = ({ name, resolved }) => {
   return (
-    <div className="absolute z-[60] bottom-full left-0 mb-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-200">
-      <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+    <div className="absolute z-[60] bottom-full left-0 mb-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-slate-500 font-bold uppercase tracking-widest">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
             Variable
           </span>
-          <span className="text-xs font-mono text-white font-bold">
+          <span className="text-sm font-mono text-blue-400 font-bold">
             {'{{'}
             {name}
             {'}}'}
@@ -32,7 +33,7 @@ export const VariablePreview: React.FC<VariablePreviewProps> = ({ name, resolved
         {resolved && (
           <span
             className={cn(
-              'text-[9px] font-bold uppercase tracking-tighter px-1.5 py-0.5 rounded border',
+              'text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-full border',
               scopeColors[resolved.scope]
             )}
           >
@@ -40,15 +41,27 @@ export const VariablePreview: React.FC<VariablePreviewProps> = ({ name, resolved
           </span>
         )}
       </div>
-      <div className="p-3 bg-slate-950/50">
-        <span className="text-[10px] font-mono text-slate-600 block mb-1">Resolved Value</span>
+      <div className="p-4 bg-slate-950/50">
+        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest block mb-2">
+          Resolved Value
+        </span>
         {resolved ? (
-          <p className="text-sm text-slate-200 font-mono break-all leading-relaxed">
-            {resolved.value}
-          </p>
+          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <p className="text-xs text-slate-200 font-mono break-all leading-relaxed whitespace-pre-wrap">
+              {resolved.value}
+            </p>
+          </div>
         ) : (
-          <p className="text-sm text-red-400 italic">Unresolved variable</p>
+          <div className="flex items-center gap-2 text-red-400 py-1">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <p className="text-xs font-medium italic">Unresolved variable</p>
+          </div>
         )}
+      </div>
+      <div className="px-4 py-2 bg-slate-900/30 border-t border-slate-800/50">
+        <p className="text-[9px] text-slate-500 italic">
+          Source: {resolved ? `${resolved.scope} scope` : 'None'}
+        </p>
       </div>
     </div>
   )

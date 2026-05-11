@@ -25,7 +25,7 @@ pub struct CollectionManifest {
     pub headers: Option<BTreeMap<String, String>>,
     /// Collection-level variables
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub variables: Option<BTreeMap<String, String>>,
+    pub variables: Option<Vec<crate::variables::Variable>>,
 }
 
 impl CollectionManifest {
@@ -298,8 +298,13 @@ mod tests {
 
     #[test]
     fn test_manifest_roundtrip() {
-        let mut variables = BTreeMap::new();
-        variables.insert("base_url".to_string(), "https://api.example.com".to_string());
+        let mut variables = Vec::new();
+        variables.push(crate::variables::Variable {
+            name: "base_url".to_string(),
+            value: "https://api.example.com".to_string(),
+            secret: false,
+            enabled: true,
+        });
 
         let manifest = CollectionManifest {
             version: "1".to_string(),

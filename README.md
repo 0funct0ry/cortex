@@ -173,8 +173,11 @@ Cortex includes a powerful variable resolution pipeline and template engine.
     2. **Environment**: Variables defined in the active environment file.
     3. **Collection**: Shared variables defined in the collection's `cortex.yaml`.
     4. **Global**: Workspace-wide variables defined in `cortex-workspace.yaml` (lowest).
-- **Interactive Preview**: Hover over any variable in the request composer to see its resolved value and the scope it came from.
-- **Visual Warnings**: Unresolved variables are flagged with visual indicators and warnings.
+- **Unified Management**: A dedicated "Variables" panel accessible from the sidebar and environment switcher provides a central place to manage variables at all scopes.
+- **Secret Masking**: Support for marking variables as secrets. Secret values are masked in the UI with `••••••••` and can be toggled for visibility. They are stored with AES-GCM-256 encryption in environment files.
+- **Enabled Toggles**: Easily enable or disable variables without deleting them to test different scenarios.
+- **Interactive Preview**: Hover over any variable in the request composer to see its resolved value and the source scope it came from.
+- **Visual Warnings**: Unresolved variables are flagged with visual indicators and warnings in the composer.
 
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.

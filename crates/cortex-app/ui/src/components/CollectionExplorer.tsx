@@ -83,6 +83,9 @@ const CreateDialog: React.FC<CreateDialogProps> = ({ onConfirm, onClose }) => {
             placeholder="e.g. get-users"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
         <div className="flex gap-2 justify-end pt-1">
@@ -134,6 +137,9 @@ const RenameDialog: React.FC<RenameDialogProps> = ({ currentName, onConfirm, onC
             className="w-full bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
         <div className="flex gap-2 justify-end pt-1">

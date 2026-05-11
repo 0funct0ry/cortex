@@ -22,7 +22,7 @@ pub struct WorkspaceCollectionResult {
 pub struct WorkspaceResponse {
     pub name: String,
     pub collections: Vec<WorkspaceCollectionResult>,
-    pub variables: Option<std::collections::BTreeMap<String, String>>,
+    pub variables: Option<Vec<cortex_core::variables::Variable>>,
 }
 
 #[derive(Serialize, Deserialize, Type)]
@@ -209,7 +209,7 @@ pub async fn pick_directory(
 #[specta::specta]
 pub fn update_workspace_variables(
     workspace_path: String,
-    variables: std::collections::BTreeMap<String, String>,
+    variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
     let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
     let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
@@ -223,11 +223,39 @@ pub fn update_workspace_variables(
 #[specta::specta]
 pub fn update_collection_variables(
     collection_path: String,
-    variables: std::collections::BTreeMap<String, String>,
+    variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
     let mut collection = Collection::load(&collection_path).map_err(|e| e.to_string())?;
     collection.manifest.variables = Some(variables);
     collection.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_environment_variables(
+    collection_path: String,
+    environment_name: String,
+    variables: Vec<cortex_core::variables::Variable>,
+) -> Result<(), String> {
+    let collection = Collection::load(&collection_path).map_err(|e| e.to_string())?;
+    let env_dir = collection.path.join("environments");
+    if !env_dir.exists() {
+        std::fs::create_dir_all(&env_dir).map_err(|e| e.to_string())?;
+    }
+
+    let env_path = env_dir.join(format!("{}.yaml", environment_name));
+
+    let mut env = if env_path.exists() {
+        let content = std::fs::read_to_string(&env_path).map_err(|e| e.to_string())?;
+        cortex_core::environment::EnvironmentFile::from_yaml(&content).map_err(|e| e.to_string())?
+    } else {
+        cortex_core::environment::EnvironmentFile::new(environment_name)
+    };
+
+    env.variables = variables;
+    let yaml = env.to_yaml().map_err(|e| e.to_string())?;
+    std::fs::write(env_path, yaml).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -246,31 +274,37 @@ fn populate_resolver(
             std::env::current_dir().map(|d| d.join(&path)).unwrap_or(path)
         };
 
-        // Handle if abs_path is a directory
         let manifest_path =
             if abs_path.is_dir() { abs_path.join("cortex-workspace.yaml") } else { abs_path };
 
         if manifest_path.exists() {
-            let content = std::fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
-            let manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
-            if let Some(vars) = manifest.variables {
-                resolver.global_vars = vars;
+            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                if let Ok(manifest) = WorkspaceManifest::from_yaml(&content) {
+                    if let Some(vars) = manifest.variables {
+                        for var in vars {
+                            resolver.global_vars.insert(var.name.clone(), var);
+                        }
+                    }
+                }
             }
         }
     }
 
     // 2. Collection
     if let Some(cp) = collection_path {
-        let collection = Collection::load(&cp).map_err(|e| e.to_string())?;
-        if let Some(vars) = collection.manifest.variables {
-            resolver.collection_vars = vars;
-        }
+        if let Ok(collection) = Collection::load(&cp) {
+            if let Some(vars) = collection.manifest.variables {
+                for var in vars {
+                    resolver.collection_vars.insert(var.name.clone(), var);
+                }
+            }
 
-        // 3. Environment
-        if let Some(env_name) = environment_name {
-            if let Some(env) = collection.environments.iter().find(|e| e.name == env_name) {
-                for var in &env.variables {
-                    resolver.env_vars.insert(var.name.clone(), var.value.clone());
+            // 3. Environment
+            if let Some(en) = environment_name {
+                if let Some(env) = collection.environments.iter().find(|e| e.name == en) {
+                    for var in &env.variables {
+                        resolver.env_vars.insert(var.name.clone(), var.clone());
+                    }
                 }
             }
         }

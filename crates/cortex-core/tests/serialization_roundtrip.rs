@@ -1,6 +1,7 @@
 use cortex_core::collection::CollectionManifest;
-use cortex_core::environment::{EnvironmentFile, EnvironmentVariable};
+use cortex_core::environment::EnvironmentFile;
 use cortex_core::request::{AuthRef, RequestBody, RequestFile, Scripts, Settings};
+use cortex_core::variables::Variable;
 use cortex_core::workspace::WorkspaceManifest;
 use std::collections::BTreeMap;
 
@@ -53,9 +54,19 @@ fn test_request_file_roundtrip() {
 
 #[test]
 fn test_collection_manifest_roundtrip() {
-    let mut variables = BTreeMap::new();
-    variables.insert("base_url".to_string(), "https://api.example.com".to_string());
-    variables.insert("api_key".to_string(), "secret-123".to_string());
+    let mut variables = Vec::new();
+    variables.push(Variable {
+        name: "base_url".to_string(),
+        value: "https://api.example.com".to_string(),
+        secret: false,
+        enabled: true,
+    });
+    variables.push(Variable {
+        name: "api_key".to_string(),
+        value: "secret-123".to_string(),
+        secret: true,
+        enabled: true,
+    });
 
     let mut headers = BTreeMap::new();
     headers.insert("User-Agent".to_string(), "Cortex/1.0".to_string());
@@ -88,17 +99,19 @@ fn test_environment_file_roundtrip_with_secrets() {
     let key = [0u8; 32]; // Test key
     let mut env = EnvironmentFile::new("Production 🌍".to_string());
 
-    env.variables.push(EnvironmentVariable {
+    env.variables.push(Variable {
         name: "PUBLIC_URL".to_string(),
         value: "https://api.production.com".to_string(),
         secret: false,
+        enabled: true,
     });
 
     let original_secret = "super-secret-password-🚀-!@#";
-    env.variables.push(EnvironmentVariable {
+    env.variables.push(Variable {
         name: "DB_PASSWORD".to_string(),
         value: original_secret.to_string(),
         secret: true,
+        enabled: true,
     });
 
     // 1. Encrypt secrets before serialization
@@ -123,6 +136,14 @@ fn test_environment_file_roundtrip_with_secrets() {
 
 #[test]
 fn test_workspace_manifest_roundtrip() {
+    let mut variables = Vec::new();
+    variables.push(Variable {
+        name: "global_var".to_string(),
+        value: "global_val".to_string(),
+        secret: false,
+        enabled: true,
+    });
+
     let manifest = WorkspaceManifest {
         version: "1".to_string(),
         name: "Main Workspace 🛠️".to_string(),
@@ -132,7 +153,7 @@ fn test_workspace_manifest_roundtrip() {
             "/absolute/path/to/collection".to_string(),
             "./unicode-🚀-path".to_string(),
         ],
-        variables: None,
+        variables: Some(variables),
     };
 
     let yaml = manifest.to_yaml().expect("Failed to serialize WorkspaceManifest");

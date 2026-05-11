@@ -23,6 +23,20 @@ impl std::fmt::Display for VariableScope {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct Variable {
+    pub name: String,
+    pub value: String,
+    #[serde(default)]
+    pub secret: bool,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 pub struct ResolvedVariable {
     pub value: String,
     pub scope: VariableScope,
@@ -35,10 +49,10 @@ pub struct UnresolvedVariableWarning {
 
 #[derive(Default)]
 pub struct VariableResolver {
-    pub global_vars: BTreeMap<String, String>,
-    pub collection_vars: BTreeMap<String, String>,
-    pub env_vars: BTreeMap<String, String>,
-    pub runtime_vars: BTreeMap<String, String>,
+    pub global_vars: BTreeMap<String, Variable>,
+    pub collection_vars: BTreeMap<String, Variable>,
+    pub env_vars: BTreeMap<String, Variable>,
+    pub runtime_vars: BTreeMap<String, Variable>,
 }
 
 impl VariableResolver {
@@ -48,20 +62,38 @@ impl VariableResolver {
 
     pub fn resolve(&self, key: &str) -> Option<ResolvedVariable> {
         // Precedence: Runtime -> Environment -> Collection -> Global
-        if let Some(val) = self.runtime_vars.get(key) {
-            return Some(ResolvedVariable { value: val.clone(), scope: VariableScope::Runtime });
+        // Only resolve if enabled
+        if let Some(var) = self.runtime_vars.get(key) {
+            if var.enabled {
+                return Some(ResolvedVariable {
+                    value: var.value.clone(),
+                    scope: VariableScope::Runtime,
+                });
+            }
         }
-        if let Some(val) = self.env_vars.get(key) {
-            return Some(ResolvedVariable {
-                value: val.clone(),
-                scope: VariableScope::Environment,
-            });
+        if let Some(var) = self.env_vars.get(key) {
+            if var.enabled {
+                return Some(ResolvedVariable {
+                    value: var.value.clone(),
+                    scope: VariableScope::Environment,
+                });
+            }
         }
-        if let Some(val) = self.collection_vars.get(key) {
-            return Some(ResolvedVariable { value: val.clone(), scope: VariableScope::Collection });
+        if let Some(var) = self.collection_vars.get(key) {
+            if var.enabled {
+                return Some(ResolvedVariable {
+                    value: var.value.clone(),
+                    scope: VariableScope::Collection,
+                });
+            }
         }
-        if let Some(val) = self.global_vars.get(key) {
-            return Some(ResolvedVariable { value: val.clone(), scope: VariableScope::Global });
+        if let Some(var) = self.global_vars.get(key) {
+            if var.enabled {
+                return Some(ResolvedVariable {
+                    value: var.value.clone(),
+                    scope: VariableScope::Global,
+                });
+            }
         }
         None
     }
@@ -106,29 +138,38 @@ impl VariableResolver {
         let mut all = BTreeMap::new();
 
         // Start from lowest precedence and override
+        // Only include enabled variables
         for (k, v) in &self.global_vars {
-            all.insert(
-                k.clone(),
-                ResolvedVariable { value: v.clone(), scope: VariableScope::Global },
-            );
+            if v.enabled {
+                all.insert(
+                    k.clone(),
+                    ResolvedVariable { value: v.value.clone(), scope: VariableScope::Global },
+                );
+            }
         }
         for (k, v) in &self.collection_vars {
-            all.insert(
-                k.clone(),
-                ResolvedVariable { value: v.clone(), scope: VariableScope::Collection },
-            );
+            if v.enabled {
+                all.insert(
+                    k.clone(),
+                    ResolvedVariable { value: v.value.clone(), scope: VariableScope::Collection },
+                );
+            }
         }
         for (k, v) in &self.env_vars {
-            all.insert(
-                k.clone(),
-                ResolvedVariable { value: v.clone(), scope: VariableScope::Environment },
-            );
+            if v.enabled {
+                all.insert(
+                    k.clone(),
+                    ResolvedVariable { value: v.value.clone(), scope: VariableScope::Environment },
+                );
+            }
         }
         for (k, v) in &self.runtime_vars {
-            all.insert(
-                k.clone(),
-                ResolvedVariable { value: v.clone(), scope: VariableScope::Runtime },
-            );
+            if v.enabled {
+                all.insert(
+                    k.clone(),
+                    ResolvedVariable { value: v.value.clone(), scope: VariableScope::Runtime },
+                );
+            }
         }
 
         all
@@ -142,11 +183,51 @@ mod tests {
     #[test]
     fn test_precedence() {
         let mut resolver = VariableResolver::new();
-        resolver.global_vars.insert("a".to_string(), "global".to_string());
-        resolver.collection_vars.insert("a".to_string(), "collection".to_string());
-        resolver.collection_vars.insert("b".to_string(), "collection".to_string());
-        resolver.env_vars.insert("b".to_string(), "env".to_string());
-        resolver.runtime_vars.insert("c".to_string(), "runtime".to_string());
+        resolver.global_vars.insert(
+            "a".to_string(),
+            Variable {
+                name: "a".to_string(),
+                value: "global".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
+        resolver.collection_vars.insert(
+            "a".to_string(),
+            Variable {
+                name: "a".to_string(),
+                value: "collection".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
+        resolver.collection_vars.insert(
+            "b".to_string(),
+            Variable {
+                name: "b".to_string(),
+                value: "collection".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
+        resolver.env_vars.insert(
+            "b".to_string(),
+            Variable {
+                name: "b".to_string(),
+                value: "env".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
+        resolver.runtime_vars.insert(
+            "c".to_string(),
+            Variable {
+                name: "c".to_string(),
+                value: "runtime".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
 
         // a should be collection (overrides global)
         let res_a = resolver.resolve("a").unwrap();
@@ -170,8 +251,24 @@ mod tests {
     #[test]
     fn test_interpolation() {
         let mut resolver = VariableResolver::new();
-        resolver.global_vars.insert("base_url".to_string(), "https://api.com".to_string());
-        resolver.env_vars.insert("token".to_string(), "secret".to_string());
+        resolver.global_vars.insert(
+            "base_url".to_string(),
+            Variable {
+                name: "base_url".to_string(),
+                value: "https://api.com".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
+        resolver.env_vars.insert(
+            "token".to_string(),
+            Variable {
+                name: "token".to_string(),
+                value: "secret".to_string(),
+                secret: true,
+                enabled: true,
+            },
+        );
 
         let (interpolated, warnings) =
             resolver.interpolate("{{base_url}}/v1/users?token={{token}}&other={{missing}}");
@@ -184,13 +281,55 @@ mod tests {
     #[test]
     fn test_get_all_resolved() {
         let mut resolver = VariableResolver::new();
-        resolver.global_vars.insert("a".to_string(), "global".to_string());
-        resolver.collection_vars.insert("a".to_string(), "collection".to_string());
-        resolver.env_vars.insert("b".to_string(), "env".to_string());
+        resolver.global_vars.insert(
+            "a".to_string(),
+            Variable {
+                name: "a".to_string(),
+                value: "global".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
+        resolver.collection_vars.insert(
+            "a".to_string(),
+            Variable {
+                name: "a".to_string(),
+                value: "collection".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
+        resolver.env_vars.insert(
+            "b".to_string(),
+            Variable {
+                name: "b".to_string(),
+                value: "env".to_string(),
+                secret: false,
+                enabled: true,
+            },
+        );
 
         let all = resolver.get_all_resolved();
         assert_eq!(all.len(), 2);
         assert_eq!(all.get("a").unwrap().value, "collection");
         assert_eq!(all.get("b").unwrap().value, "env");
+    }
+
+    #[test]
+    fn test_enabled_toggle() {
+        let mut resolver = VariableResolver::new();
+        resolver.global_vars.insert(
+            "a".to_string(),
+            Variable {
+                name: "a".to_string(),
+                value: "val".to_string(),
+                secret: false,
+                enabled: false,
+            },
+        );
+
+        assert!(resolver.resolve("a").is_none());
+        let (interpolated, _) = resolver.interpolate("{{a}}");
+        assert_eq!(interpolated, "{{a}}");
     }
 }

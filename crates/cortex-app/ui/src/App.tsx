@@ -13,8 +13,9 @@ import { TopBar } from './components/shell/TopBar'
 import { Sidebar } from './components/shell/Sidebar'
 import { TabBar, type Tab } from './components/shell/TabBar'
 import { Composer } from './components/shell/Composer'
-import { VariableEditor } from './components/VariableEditor'
-import { Settings as SettingsIcon } from 'lucide-react'
+import { VariablePanel } from './components/VariablePanel'
+import { Database } from 'lucide-react'
+import { type EnvironmentFile, type Variable } from './bindings'
 
 // Simple modal for workspace name
 const NameModal: React.FC<{
@@ -45,6 +46,9 @@ const NameModal: React.FC<{
             placeholder="e.g. My Projects"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
         <div className="flex justify-end gap-3 pt-2">
@@ -80,12 +84,10 @@ function App() {
     { id: 'scratch-1', name: 'Untitled', method: 'GET', isScratch: true },
   ])
   const [activeTabId, setActiveTabId] = useState<string | null>('scratch-1')
-  const [editingVariables, setEditingVariables] = useState<{
-    type: 'workspace' | 'collection'
-    path: string
-    name: string
-    vars: Record<string, string>
-  } | null>(null)
+  const [showVariablePanel, setShowVariablePanel] = useState(false)
+  const [variablePanelTab, setVariablePanelTab] = useState<'global' | 'collection' | 'environment'>(
+    'global'
+  )
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -258,34 +260,10 @@ function App() {
     }
   }
 
-  const handleUpdateWorkspaceVariables = async (vars: Record<string, string>) => {
-    if (!workspacePath) return
-    try {
-      const res = await commands.updateWorkspaceVariables(workspacePath, vars)
-      if (res.status === 'ok') {
-        setEditingVariables(null)
-        loadWorkspace(workspacePath)
-        setSuccess('Workspace variables updated')
-      } else {
-        setError(`Update failed: ${res.error}`)
-      }
-    } catch (e) {
-      setError(`IPC Error: ${e}`)
-    }
-  }
-
-  const handleUpdateCollectionVariables = async (path: string, vars: Record<string, string>) => {
-    try {
-      const res = await commands.updateCollectionVariables(path, vars)
-      if (res.status === 'ok') {
-        setEditingVariables(null)
-        handleRefreshCollection(path)
-        setSuccess('Collection variables updated')
-      } else {
-        setError(`Update failed: ${res.error}`)
-      }
-    } catch (e) {
-      setError(`IPC Error: ${e}`)
+  const handleUpdateVariables = () => {
+    // Refresh data after variable updates
+    if (workspacePath) {
+      loadWorkspace(workspacePath)
     }
   }
 
@@ -300,6 +278,10 @@ function App() {
             workspaceName={workspace?.name || 'Cortex'}
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            onOpenVariables={() => {
+              setVariablePanelTab('environment')
+              setShowVariablePanel(true)
+            }}
           />
         }
         sidebar={
@@ -308,19 +290,15 @@ function App() {
               {workspace && (
                 <div
                   className="flex items-center justify-between group px-2 py-1 hover:bg-slate-800/30 rounded-md transition-colors cursor-pointer"
-                  onClick={() =>
-                    setEditingVariables({
-                      type: 'workspace',
-                      path: workspacePath!,
-                      name: workspace.name,
-                      vars: workspace.variables || {},
-                    })
-                  }
+                  onClick={() => {
+                    setVariablePanelTab('global')
+                    setShowVariablePanel(true)
+                  }}
                 >
                   <div className="flex items-center gap-2">
-                    <SettingsIcon className="w-3.5 h-3.5 text-blue-500" />
+                    <Database className="w-3.5 h-3.5 text-blue-500" />
                     <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-200 transition-colors">
-                      Global Variables
+                      Variables
                     </h3>
                   </div>
                 </div>
@@ -353,20 +331,13 @@ function App() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                const col = loadedCollections[c.path]
-                                if (col) {
-                                  setEditingVariables({
-                                    type: 'collection',
-                                    path: c.path,
-                                    name: col.manifest.name,
-                                    vars: col.manifest.variables || {},
-                                  })
-                                }
+                                setVariablePanelTab('collection')
+                                setShowVariablePanel(true)
                               }}
                               className="text-slate-600 hover:text-blue-400 p-1 rounded"
                               title="Collection Variables"
                             >
-                              <SettingsIcon className="w-3 h-3" />
+                              <Database className="w-3 h-3" />
                             </button>
                             <button
                               onClick={(e) => {
@@ -495,22 +466,28 @@ function App() {
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
       {success && <SuccessToast message={success} onClose={() => setSuccess(null)} />}
 
-      {editingVariables && (
-        <VariableEditor
-          title={
-            editingVariables.type === 'workspace'
-              ? `Global Variables: ${editingVariables.name}`
-              : `Collection Variables: ${editingVariables.name}`
-          }
-          initialVariables={editingVariables.vars}
-          onClose={() => setEditingVariables(null)}
-          onSave={(vars) => {
-            if (editingVariables.type === 'workspace') {
-              handleUpdateWorkspaceVariables(vars)
-            } else {
-              handleUpdateCollectionVariables(editingVariables.path, vars)
-            }
-          }}
+      {showVariablePanel && workspacePath && (
+        <VariablePanel
+          workspacePath={workspacePath}
+          workspaceName={workspace?.name || 'Workspace'}
+          loadedCollections={Object.entries(loadedCollections).reduce(
+            (acc, [path, col]) => {
+              acc[path] = {
+                name: col.manifest.name,
+                path: path,
+                variables: col.manifest.variables || [],
+                environments: col.environments,
+              }
+              return acc
+            },
+            {} as Record<
+              string,
+              { name: string; path: string; variables: Variable[]; environments: EnvironmentFile[] }
+            >
+          )}
+          initialTab={variablePanelTab}
+          onClose={() => setShowVariablePanel(false)}
+          onUpdate={handleUpdateVariables}
         />
       )}
     </div>

@@ -6,6 +6,7 @@ interface TopBarProps {
   workspaceName: string
   isSidebarOpen: boolean
   onToggleSidebar: () => void
+  onOpenVariables: () => void
   environmentName?: string
 }
 
@@ -13,6 +14,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   workspaceName,
   isSidebarOpen,
   onToggleSidebar,
+  onOpenVariables,
   environmentName = 'No Environment',
 }) => {
   return (
@@ -37,7 +39,11 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all group">
+        <div
+          onClick={onOpenVariables}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all group"
+          title="Switch Environment / Manage Variables"
+        >
           <Monitor className="w-3 h-3 text-slate-500 group-hover:text-blue-400 transition-colors" />
           <span className="text-[11px] font-medium text-slate-400 group-hover:text-slate-200 transition-colors">
             {environmentName}

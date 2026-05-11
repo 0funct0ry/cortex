@@ -10,23 +10,7 @@ pub struct EnvironmentFile {
     /// Human-readable name of the environment
     pub name: String,
     /// List of environment variables
-    pub variables: Vec<EnvironmentVariable>,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
-#[serde(deny_unknown_fields)]
-pub struct EnvironmentVariable {
-    /// Variable name
-    pub name: String,
-    /// Variable value (plaintext or encrypted)
-    pub value: String,
-    /// Whether the value should be treated as a secret
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub secret: bool,
-}
-
-fn is_false(b: &bool) -> bool {
-    !*b
+    pub variables: Vec<crate::variables::Variable>,
 }
 
 impl EnvironmentFile {
@@ -72,15 +56,17 @@ mod tests {
     #[test]
     fn test_environment_serialization() {
         let mut env = EnvironmentFile::new("production".to_string());
-        env.variables.push(EnvironmentVariable {
+        env.variables.push(crate::variables::Variable {
             name: "API_URL".to_string(),
             value: "https://api.example.com".to_string(),
             secret: false,
+            enabled: true,
         });
-        env.variables.push(EnvironmentVariable {
+        env.variables.push(crate::variables::Variable {
             name: "API_KEY".to_string(),
             value: "super-secret-token".to_string(),
             secret: true,
+            enabled: true,
         });
 
         let yaml = env.to_yaml().unwrap();
@@ -94,10 +80,11 @@ mod tests {
     fn test_encryption_roundtrip() {
         let key = [0u8; 32];
         let mut env = EnvironmentFile::new("test".to_string());
-        env.variables.push(EnvironmentVariable {
+        env.variables.push(crate::variables::Variable {
             name: "PASSWORD".to_string(),
             value: "mypassword".to_string(),
             secret: true,
+            enabled: true,
         });
 
         // Encrypt
@@ -118,15 +105,17 @@ mod tests {
     fn test_mixed_variables() {
         let key = [0u8; 32];
         let mut env = EnvironmentFile::new("mixed".to_string());
-        env.variables.push(EnvironmentVariable {
+        env.variables.push(crate::variables::Variable {
             name: "PUBLIC".to_string(),
             value: "public_val".to_string(),
             secret: false,
+            enabled: true,
         });
-        env.variables.push(EnvironmentVariable {
+        env.variables.push(crate::variables::Variable {
             name: "PRIVATE".to_string(),
             value: "private_val".to_string(),
             secret: true,
+            enabled: true,
         });
 
         env.encrypt_secrets(&key).unwrap();

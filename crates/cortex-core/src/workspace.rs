@@ -1,7 +1,6 @@
 use crate::collection::{Collection, CollectionError};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -17,7 +16,7 @@ pub struct WorkspaceManifest {
     pub collections: Vec<String>,
     /// Global variables for the workspace
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub variables: Option<BTreeMap<String, String>>,
+    pub variables: Option<Vec<crate::variables::Variable>>,
 }
 
 impl WorkspaceManifest {

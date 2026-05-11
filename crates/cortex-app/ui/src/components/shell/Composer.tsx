@@ -171,6 +171,9 @@ export const Composer: React.FC<ComposerProps> = ({
                 placeholder="https://api.example.com/v1/{{resource}}"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
 
               {/* Variable Preview Popover */}

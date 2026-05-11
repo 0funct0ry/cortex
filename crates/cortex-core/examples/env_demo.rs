@@ -1,20 +1,23 @@
 // Example of environment management
-use cortex_core::environment::{EnvironmentFile, EnvironmentVariable};
+use cortex_core::environment::EnvironmentFile;
+use cortex_core::variables::Variable;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key = [0u8; 32]; // Mock 32-byte key
 
     println!("--- Step 1: Create a new Environment ---");
     let mut env = EnvironmentFile::new("production".to_string());
-    env.variables.push(EnvironmentVariable {
+    env.variables.push(Variable {
         name: "DB_PASSWORD".to_string(),
         value: "super-secret-password".to_string(),
         secret: true,
+        enabled: true,
     });
-    env.variables.push(EnvironmentVariable {
+    env.variables.push(Variable {
         name: "API_URL".to_string(),
         value: "https://api.example.com".to_string(),
         secret: false,
+        enabled: true,
     });
 
     println!("Original Environment:\n{}", env.to_yaml()?);

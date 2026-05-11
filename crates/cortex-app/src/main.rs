@@ -49,6 +49,7 @@ fn main() {
             commands::create_collection,
             commands::update_workspace_variables,
             commands::update_collection_variables,
+            commands::update_environment_variables,
             commands::get_resolved_variables,
             commands::preview_template
         ])
@@ -81,6 +82,7 @@ mod tests {
                 commands::create_collection,
                 commands::update_workspace_variables,
                 commands::update_collection_variables,
+                commands::update_environment_variables,
                 commands::get_resolved_variables,
                 commands::preview_template
             ]);

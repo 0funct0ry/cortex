@@ -115,7 +115,7 @@ async createCollection(name: string, path: string) : Promise<Result<string, stri
     else return { status: "error", error: e  as any };
 }
 },
-async updateWorkspaceVariables(workspacePath: string, variables: { [key in string]: string }) : Promise<Result<null, string>> {
+async updateWorkspaceVariables(workspacePath: string, variables: Variable[]) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_workspace_variables", { workspacePath, variables }) };
 } catch (e) {
@@ -123,9 +123,17 @@ async updateWorkspaceVariables(workspacePath: string, variables: { [key in strin
     else return { status: "error", error: e  as any };
 }
 },
-async updateCollectionVariables(collectionPath: string, variables: { [key in string]: string }) : Promise<Result<null, string>> {
+async updateCollectionVariables(collectionPath: string, variables: Variable[]) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_collection_variables", { collectionPath, variables }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateEnvironmentVariables(collectionPath: string, environmentName: string, variables: Variable[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_environment_variables", { collectionPath, environmentName, variables }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -192,7 +200,7 @@ headers?: { [key in string]: string } | null;
 /**
  * Collection-level variables
  */
-variables?: { [key in string]: string } | null }
+variables?: Variable[] | null }
 export type EnvironmentFile = { 
 /**
  * Schema version (e.g., "1")
@@ -205,20 +213,7 @@ name: string;
 /**
  * List of environment variables
  */
-variables: EnvironmentVariable[] }
-export type EnvironmentVariable = { 
-/**
- * Variable name
- */
-name: string; 
-/**
- * Variable value (plaintext or encrypted)
- */
-value: string; 
-/**
- * Whether the value should be treated as a secret
- */
-secret: boolean }
+variables: Variable[] }
 export type Folder = { name: string; path: string; relative_path: string; items: CollectionItem[] }
 export type GreetResponse = { message: string }
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[] }
@@ -280,9 +275,10 @@ export type ResolvedVariable = { value: string; scope: VariableScope }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }
 export type UnresolvedVariableWarning = { name: string }
+export type Variable = { name: string; value: string; secret?: boolean; enabled?: boolean }
 export type VariableScope = "global" | "collection" | "environment" | "runtime"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
-export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: { [key in string]: string } | null }
+export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null }
 
 /** tauri-specta globals **/
 
