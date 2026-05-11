@@ -45,6 +45,12 @@ pub fn load_collection(path: String) -> Result<Collection, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn load_collection_manifest(path: String) -> Result<Collection, String> {
+    Collection::load_manifest(path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn save_request(request: RequestFile, path: String) -> Result<(), String> {
     Collection::save_request(&request, &PathBuf::from(path)).map_err(|e| e.to_string())
 }
@@ -100,6 +106,25 @@ pub fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
             },
             Err(e) => WorkspaceCollectionResult { path, name: None, error: Some(e.to_string()) },
         })
+        .collect();
+
+    Ok(WorkspaceResponse {
+        name: workspace.manifest.name,
+        collections,
+        variables: workspace.manifest.variables,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn load_workspace_manifest(path: String) -> Result<WorkspaceResponse, String> {
+    let workspace = Workspace::load_manifest(&path).map_err(|e| e.to_string())?;
+
+    let collections = workspace
+        .manifest
+        .collections
+        .iter()
+        .map(|c| WorkspaceCollectionResult { path: c.clone(), name: None, error: None })
         .collect();
 
     Ok(WorkspaceResponse {
@@ -225,7 +250,7 @@ pub fn update_collection_variables(
     collection_path: String,
     variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
-    let mut collection = Collection::load(&collection_path).map_err(|e| e.to_string())?;
+    let mut collection = Collection::load_manifest(&collection_path).map_err(|e| e.to_string())?;
     collection.manifest.variables = Some(variables);
     collection.save().map_err(|e| e.to_string())?;
     Ok(())
@@ -238,7 +263,7 @@ pub fn update_environment_variables(
     environment_name: String,
     variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
-    let collection = Collection::load(&collection_path).map_err(|e| e.to_string())?;
+    let collection = Collection::load_manifest(&collection_path).map_err(|e| e.to_string())?;
     let env_dir = collection.path.join("environments");
     if !env_dir.exists() {
         std::fs::create_dir_all(&env_dir).map_err(|e| e.to_string())?;
@@ -254,6 +279,8 @@ pub fn update_environment_variables(
     };
 
     env.variables = variables;
+    let key = cortex_core::crypto::get_app_key();
+    let _ = env.encrypt_secrets(&key);
     let yaml = env.to_yaml().map_err(|e| e.to_string())?;
     std::fs::write(env_path, yaml).map_err(|e| e.to_string())?;
     Ok(())
@@ -335,6 +362,6 @@ pub fn preview_template(
 ) -> Result<PreviewResponse, String> {
     let mut resolver = cortex_core::variables::VariableResolver::new();
     populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
-    let (interpolated, warnings) = resolver.interpolate(&text);
+    let (interpolated, warnings) = resolver.interpolate_masked(&text);
     Ok(PreviewResponse { text: interpolated, warnings })
 }

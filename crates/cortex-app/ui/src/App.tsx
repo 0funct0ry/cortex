@@ -126,11 +126,17 @@ function App() {
 
   const [expandedCollections, setExpandedCollections] = useState<Record<string, boolean>>({})
 
-  const toggleCollection = (path: string) => {
+  const toggleCollection = async (path: string) => {
+    const isExpanding =
+      expandedCollections[path] === false || expandedCollections[path] === undefined
     setExpandedCollections((prev) => ({
       ...prev,
-      [path]: prev[path] === false ? true : false,
+      [path]: isExpanding,
     }))
+
+    if (isExpanding && !loadedCollections[path]) {
+      handleRefreshCollection(path)
+    }
   }
 
   const loadWorkspace = useCallback(async (path: string) => {
@@ -140,20 +146,6 @@ function App() {
       if (res.status === 'ok') {
         setWorkspace(res.data)
         setWorkspacePath(path)
-
-        // Load all collections in parallel
-        const collections: Record<string, Collection> = {}
-        await Promise.all(
-          res.data.collections.map(async (c) => {
-            if (!c.error) {
-              const cRes = await commands.loadCollection(c.path)
-              if (cRes.status === 'ok') {
-                collections[c.path] = cRes.data
-              }
-            }
-          })
-        )
-        setLoadedCollections(collections)
       } else {
         setError(`Failed to load workspace: ${res.error}`)
       }
@@ -263,7 +255,24 @@ function App() {
   const handleUpdateVariables = () => {
     // Refresh data after variable updates
     if (workspacePath) {
-      loadWorkspace(workspacePath)
+      // Just reload the manifest, not the whole tree
+      const run = async () => {
+        const res = await commands.loadWorkspaceManifest(workspacePath)
+        if (res.status === 'ok') {
+          setWorkspace((prev) => {
+            if (!prev) return res.data
+            // Preserve collection names if possible
+            return {
+              ...res.data,
+              collections: res.data.collections.map((c) => {
+                const existing = prev.collections.find((ec) => ec.path === c.path)
+                return existing ? { ...c, name: existing.name || c.name } : c
+              }),
+            }
+          })
+        }
+      }
+      run()
     }
   }
 
@@ -470,6 +479,7 @@ function App() {
         <VariablePanel
           workspacePath={workspacePath}
           workspaceName={workspace?.name || 'Workspace'}
+          globalVariables={workspace?.variables || []}
           loadedCollections={Object.entries(loadedCollections).reduce(
             (acc, [path, col]) => {
               acc[path] = {

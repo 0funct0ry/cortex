@@ -154,6 +154,22 @@ async previewTemplate(text: string, workspacePath: string | null, collectionPath
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async loadCollectionManifest(path: string) : Promise<Result<Collection, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_collection_manifest", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async loadWorkspaceManifest(path: string) : Promise<Result<WorkspaceResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_workspace_manifest", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -271,7 +287,7 @@ tags?: string[] | null;
  */
 settings?: Settings | null }
 export type RequestFileWrapper = { name: string; path: string; relative_path: string; content: RequestFile | null; error: string | null }
-export type ResolvedVariable = { value: string; scope: VariableScope }
+export type ResolvedVariable = { value: string; scope: VariableScope; secret: boolean }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }
 export type UnresolvedVariableWarning = { name: string }

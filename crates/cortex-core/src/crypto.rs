@@ -87,6 +87,13 @@ pub fn derive_key(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     key
 }
 
+/// Returns a stable application key for internal encryption.
+/// In a real application, this would be retrieved from a secure vault or derived from a user-provided password.
+pub fn get_app_key() -> [u8; 32] {
+    // For now, use a stable derived key.
+    derive_key("cortex-internal-stable-passphrase", b"cortex-app-salt-v1")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

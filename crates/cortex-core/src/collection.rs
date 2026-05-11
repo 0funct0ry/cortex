@@ -49,6 +49,30 @@ impl CollectionManifest {
     pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
         serde_yaml::from_str(yaml)
     }
+
+    /// Encrypts all variables marked as secrets that are not already encrypted.
+    pub fn encrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), crate::crypto::CryptoError> {
+        if let Some(vars) = &mut self.variables {
+            for var in vars {
+                if var.secret && !var.value.starts_with(crate::crypto::PREFIX) {
+                    var.value = crate::crypto::encrypt(&var.value, key)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Decrypts all variables marked as secrets.
+    pub fn decrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), crate::crypto::CryptoError> {
+        if let Some(vars) = &mut self.variables {
+            for var in vars {
+                if var.secret && var.value.starts_with(crate::crypto::PREFIX) {
+                    var.value = crate::crypto::decrypt(&var.value, key)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -91,6 +115,7 @@ pub enum CollectionError {
     MissingManifest(PathBuf),
     IoError(std::io::Error),
     YamlError(serde_yaml::Error),
+    CryptoError(crate::crypto::CryptoError),
     InvalidPath(String),
 }
 
@@ -106,6 +131,7 @@ impl std::fmt::Display for CollectionError {
             }
             CollectionError::IoError(err) => write!(f, "IO error: {}", err),
             CollectionError::YamlError(err) => write!(f, "YAML error: {}", err),
+            CollectionError::CryptoError(err) => write!(f, "Crypto error: {}", err),
             CollectionError::InvalidPath(msg) => write!(f, "Invalid path: {}", msg),
         }
     }
@@ -144,7 +170,11 @@ impl Collection {
         }
 
         let content = fs::read_to_string(&manifest_path)?;
-        let manifest = CollectionManifest::from_yaml(&content)?;
+        let mut manifest = CollectionManifest::from_yaml(&content)?;
+
+        // Decrypt secrets
+        let key = crate::crypto::get_app_key();
+        let _ = manifest.decrypt_secrets(&key);
 
         let mut environments = Vec::new();
         let env_dir = path.join("environments");
@@ -156,7 +186,8 @@ impl Collection {
                     && (path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
                 {
                     let content = fs::read_to_string(&path)?;
-                    let env = EnvironmentFile::from_yaml(&content)?;
+                    let mut env = EnvironmentFile::from_yaml(&content)?;
+                    let _ = env.decrypt_secrets(&key);
                     environments.push(env);
                 }
             }
@@ -167,10 +198,59 @@ impl Collection {
         Ok(Self { path, manifest, environments, items })
     }
 
+    /// Loads only the manifest and environments from a collection directory, skipping the items tree.
+    pub fn load_manifest<P: AsRef<Path>>(path: P) -> Result<Self, CollectionError> {
+        let path = path.as_ref().to_path_buf();
+
+        if !path.exists() {
+            return Err(CollectionError::NotFound(path));
+        }
+
+        if !path.is_dir() {
+            return Err(CollectionError::NotADirectory(path));
+        }
+
+        let manifest_path = path.join("cortex.yaml");
+        if !manifest_path.exists() {
+            return Err(CollectionError::MissingManifest(path));
+        }
+
+        let content = fs::read_to_string(&manifest_path)?;
+        let mut manifest = CollectionManifest::from_yaml(&content)?;
+
+        // Decrypt secrets
+        let key = crate::crypto::get_app_key();
+        let _ = manifest.decrypt_secrets(&key);
+
+        let mut environments = Vec::new();
+        let env_dir = path.join("environments");
+        if env_dir.exists() && env_dir.is_dir() {
+            for entry in fs::read_dir(env_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file()
+                    && (path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
+                {
+                    let content = fs::read_to_string(&path)?;
+                    let mut env = EnvironmentFile::from_yaml(&content)?;
+                    let _ = env.decrypt_secrets(&key);
+                    environments.push(env);
+                }
+            }
+        }
+
+        Ok(Self { path, manifest, environments, items: Vec::new() })
+    }
+
     /// Saves the manifest back to disk.
     pub fn save(&self) -> Result<(), CollectionError> {
         let manifest_path = self.path.join("cortex.yaml");
-        let yaml = self.manifest.to_yaml()?;
+
+        let mut manifest = self.manifest.clone();
+        let key = crate::crypto::get_app_key();
+        manifest.encrypt_secrets(&key).map_err(CollectionError::CryptoError)?;
+
+        let yaml = manifest.to_yaml()?;
         fs::write(manifest_path, yaml)?;
 
         // Ensure .gitignore exists in the collection root

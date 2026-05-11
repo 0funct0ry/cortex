@@ -10,6 +10,7 @@ import {
   Monitor,
   AlertCircle,
   FilePlus,
+  Shield,
 } from 'lucide-react'
 import { useCallback } from 'react'
 import { commands, type Variable, type VariableScope, type EnvironmentFile } from '../bindings'
@@ -25,6 +26,7 @@ interface VariablePanelProps {
   onClose: () => void
   onUpdate: () => void
   initialTab?: VariableScope
+  globalVariables: Variable[]
 }
 
 type TabType = 'global' | 'collection' | 'environment'
@@ -36,6 +38,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   onClose,
   onUpdate,
   initialTab = 'global',
+  globalVariables,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab as TabType)
   const [selectedCollectionPath, setSelectedCollectionPath] = useState<string | null>(
@@ -44,10 +47,19 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   const [selectedEnvironmentName, setSelectedEnvironmentName] = useState<string | null>(null)
 
   const [variables, setVariables] = useState<Variable[]>([])
+  const [dirtyScopes, setDirtyScopes] = useState<Record<string, Variable[]>>({})
   const [revealSecrets, setRevealSecrets] = useState<Record<number, boolean>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [isCreatingEnv, setIsCreatingEnv] = useState(false)
   const [newEnvName, setNewEnvName] = useState('')
+
+  const getScopeKey = useCallback(() => {
+    if (activeTab === 'global') return 'global'
+    if (activeTab === 'collection') return `col:${selectedCollectionPath}`
+    if (activeTab === 'environment')
+      return `env:${selectedCollectionPath}:${selectedEnvironmentName}`
+    return ''
+  }, [activeTab, selectedCollectionPath, selectedEnvironmentName])
 
   // Sync selectedCollectionPath if it's null and loadedCollections is now available
   useEffect(() => {
@@ -59,38 +71,57 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
 
   // Helper to fetch/sync variables
   const syncVariables = useCallback(async () => {
-    if (activeTab === 'global' && workspacePath) {
-      const res = await commands.loadWorkspace(workspacePath)
-      if (res.status === 'ok') {
-        setVariables(res.data.variables || [])
-      }
+    const key = getScopeKey()
+    if (dirtyScopes[key]) {
+      setVariables(dirtyScopes[key])
+      return
+    }
+
+    if (activeTab === 'global') {
+      setVariables(globalVariables || [])
     } else if (activeTab === 'collection' && selectedCollectionPath) {
-      const res = await commands.loadCollection(selectedCollectionPath)
-      if (res.status === 'ok') {
-        setVariables(res.data.manifest.variables || [])
+      const col = loadedCollections[selectedCollectionPath]
+      if (col) {
+        setVariables(col.variables || [])
+      } else {
+        const res = await commands.loadCollectionManifest(selectedCollectionPath)
+        if (res.status === 'ok') {
+          setVariables(res.data.manifest.variables || [])
+        }
       }
     } else if (activeTab === 'environment' && selectedCollectionPath) {
-      // If no environment is selected but some are available, select the first one
+      const col = loadedCollections[selectedCollectionPath]
       let envName = selectedEnvironmentName
-      if (!envName) {
-        const environments = loadedCollections[selectedCollectionPath]?.environments || []
-        if (environments.length > 0) {
-          envName = environments[0].name
-          setSelectedEnvironmentName(envName)
-        }
+
+      if (!envName && col && col.environments.length > 0) {
+        envName = col.environments[0].name
+        setSelectedEnvironmentName(envName)
       }
 
       if (envName) {
-        const res = await commands.loadCollection(selectedCollectionPath)
-        if (res.status === 'ok') {
-          const env = res.data.environments.find((e) => e.name === envName)
+        if (col) {
+          const env = col.environments.find((e) => e.name === envName)
           setVariables(env?.variables || [])
+        } else {
+          const res = await commands.loadCollectionManifest(selectedCollectionPath)
+          if (res.status === 'ok') {
+            const env = res.data.environments.find((e) => e.name === envName)
+            setVariables(env?.variables || [])
+          }
         }
       } else {
         setVariables([])
       }
     }
-  }, [activeTab, workspacePath, selectedCollectionPath, selectedEnvironmentName, loadedCollections])
+  }, [
+    activeTab,
+    globalVariables,
+    selectedCollectionPath,
+    selectedEnvironmentName,
+    loadedCollections,
+    getScopeKey,
+    dirtyScopes,
+  ])
 
   useEffect(() => {
     let active = true
@@ -106,41 +137,51 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
     }
   }, [syncVariables])
 
+  const updateLocal = (newVars: Variable[]) => {
+    setVariables(newVars)
+    setDirtyScopes((prev) => ({
+      ...prev,
+      [getScopeKey()]: newVars,
+    }))
+  }
+
   const handleAdd = () => {
-    setVariables([...variables, { name: '', value: '', secret: false, enabled: true }])
+    updateLocal([...variables, { name: '', value: '', secret: false, enabled: true }])
   }
 
   const handleRemove = (index: number) => {
-    const newVars = variables.filter((_, i) => i !== index)
-    setVariables(newVars)
-    saveVariables(newVars)
+    updateLocal(variables.filter((_, i) => i !== index))
   }
 
   const handleChange = (index: number, field: keyof Variable, val: string | boolean) => {
     const newVars = [...variables]
     newVars[index] = { ...newVars[index], [field]: val }
-    setVariables(newVars)
-    // Debounce save? The requirements say "immediately".
-    saveVariables(newVars)
+    updateLocal(newVars)
   }
 
-  const saveVariables = async (varsToSave: Variable[]) => {
+  const handleSaveAll = async () => {
     setIsSaving(true)
     try {
-      if (activeTab === 'global' && workspacePath) {
-        await commands.updateWorkspaceVariables(workspacePath, varsToSave)
-      } else if (activeTab === 'collection' && selectedCollectionPath) {
-        await commands.updateCollectionVariables(selectedCollectionPath, varsToSave)
-      } else if (activeTab === 'environment' && selectedCollectionPath && selectedEnvironmentName) {
-        await commands.updateEnvironmentVariables(
-          selectedCollectionPath,
-          selectedEnvironmentName,
-          varsToSave
-        )
+      // Save all dirty scopes
+      for (const [key, vars] of Object.entries(dirtyScopes)) {
+        if (key === 'global' && workspacePath) {
+          await commands.updateWorkspaceVariables(workspacePath, vars)
+        } else if (key.startsWith('col:')) {
+          const path = key.substring(4)
+          await commands.updateCollectionVariables(path, vars)
+        } else if (key.startsWith('env:')) {
+          const parts = key.substring(4).split(':')
+          if (parts.length >= 2) {
+            const [path, envName] = parts
+            await commands.updateEnvironmentVariables(path, envName, vars)
+          }
+        }
       }
       onUpdate()
+      onClose()
     } catch (e) {
       console.error('Failed to save variables:', e)
+      alert(`Failed to save: ${e}`)
     } finally {
       setIsSaving(false)
     }
@@ -375,7 +416,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                         )}
                         title={v.secret ? 'Unmark as secret' : 'Mark as secret'}
                       >
-                        <AlertCircle className="w-4 h-4" />
+                        <Shield className="w-4 h-4" />
                       </button>
                     </div>
                     <div className="flex justify-center">
@@ -418,9 +459,16 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
         <div className="p-6 border-t border-slate-800 flex justify-end gap-3 bg-slate-900/50">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-all shadow-lg"
+            className="px-6 py-2.5 text-xs font-bold text-slate-400 hover:text-white transition-all"
           >
-            Close Panel
+            Cancel
+          </button>
+          <button
+            onClick={handleSaveAll}
+            disabled={isSaving}
+            className="px-8 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>

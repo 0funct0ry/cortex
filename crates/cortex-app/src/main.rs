@@ -51,7 +51,9 @@ fn main() {
             commands::update_collection_variables,
             commands::update_environment_variables,
             commands::get_resolved_variables,
-            commands::preview_template
+            commands::preview_template,
+            commands::load_collection_manifest,
+            commands::load_workspace_manifest
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -84,7 +86,9 @@ mod tests {
                 commands::update_collection_variables,
                 commands::update_environment_variables,
                 commands::get_resolved_variables,
-                commands::preview_template
+                commands::preview_template,
+                commands::load_collection_manifest,
+                commands::load_workspace_manifest
             ]);
 
         builder

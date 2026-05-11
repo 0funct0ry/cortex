@@ -34,11 +34,41 @@ impl WorkspaceManifest {
         serde_yaml::from_str(yaml)
     }
 
+    /// Encrypts all variables marked as secrets that are not already encrypted.
+    pub fn encrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), crate::crypto::CryptoError> {
+        if let Some(vars) = &mut self.variables {
+            for var in vars {
+                if var.secret && !var.value.starts_with(crate::crypto::PREFIX) {
+                    var.value = crate::crypto::encrypt(&var.value, key)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Decrypts all variables marked as secrets.
+    pub fn decrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), crate::crypto::CryptoError> {
+        if let Some(vars) = &mut self.variables {
+            for var in vars {
+                if var.secret && var.value.starts_with(crate::crypto::PREFIX) {
+                    var.value = crate::crypto::decrypt(&var.value, key)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Saves the manifest to a file.
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
         let path = path.as_ref();
-        let yaml =
-            self.to_yaml().map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let mut manifest = self.clone();
+        let key = crate::crypto::get_app_key();
+        manifest.encrypt_secrets(&key).map_err(std::io::Error::other)?;
+
+        let yaml = manifest
+            .to_yaml()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         fs::write(path, yaml)?;
 
         // Ensure .gitignore exists in the same directory
@@ -81,8 +111,12 @@ impl Workspace {
             if path.is_absolute() { path.clone() } else { std::env::current_dir()?.join(&path) };
 
         let content = fs::read_to_string(&absolute_path)?;
-        let manifest: WorkspaceManifest = serde_yaml::from_str(&content)
+        let mut manifest: WorkspaceManifest = serde_yaml::from_str(&content)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        // Decrypt secrets
+        let key = crate::crypto::get_app_key();
+        let _ = manifest.decrypt_secrets(&key);
 
         let workspace_dir = absolute_path.parent().unwrap_or(Path::new("."));
 
@@ -102,6 +136,23 @@ impl Workspace {
             .collect();
 
         Ok(Self { path: absolute_path, manifest, collections })
+    }
+
+    /// Loads only the workspace manifest, skipping the collections.
+    pub fn load_manifest<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
+        let path = path.as_ref().to_path_buf();
+        let absolute_path =
+            if path.is_absolute() { path.clone() } else { std::env::current_dir()?.join(&path) };
+
+        let content = fs::read_to_string(&absolute_path)?;
+        let mut manifest: WorkspaceManifest = serde_yaml::from_str(&content)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        // Decrypt secrets
+        let key = crate::crypto::get_app_key();
+        let _ = manifest.decrypt_secrets(&key);
+
+        Ok(Self { path: absolute_path, manifest, collections: Vec::new() })
     }
 }
 

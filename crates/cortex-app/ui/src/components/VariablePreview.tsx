@@ -48,7 +48,7 @@ export const VariablePreview: React.FC<VariablePreviewProps> = ({ name, resolved
         {resolved ? (
           <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
             <p className="text-xs text-slate-200 font-mono break-all leading-relaxed whitespace-pre-wrap">
-              {resolved.value}
+              {resolved.secret ? '********' : resolved.value}
             </p>
           </div>
         ) : (

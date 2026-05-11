@@ -148,12 +148,10 @@ Cortex features a high-performance, IDE-like desktop interface designed for spee
 - **Request Files (`.crx`)**: Standalone YAML files for individual API requests.
 - **Environments (`environments/*.yaml`)**: Environment-specific variables with support for encrypted secrets.
 
-### 🔐 Secret Management
-Cortex supports transparent encryption for sensitive variables (like API keys) to allow safe version control.
-- Mark a variable as `secret: true` in an environment file.
+- Mark a variable as `secret: true` in any scope (Global, Collection, or Environment).
 - Cortex encrypts the value using **AES-GCM-256** before saving to disk.
 - Encrypted values are stored as `ENC(v1:...)` blobs.
-- Requires a master key (provided via `CORTEX_MASTER_KEY` environment variable) for decryption.
+- Values are automatically decrypted in memory for execution and when explicitly revealed in the UI.
 
 ### 📂 Collection Filesystem Layer
 Cortex uses a direct filesystem-to-UI mapping for collections.
@@ -174,7 +172,7 @@ Cortex includes a powerful variable resolution pipeline and template engine.
     3. **Collection**: Shared variables defined in the collection's `cortex.yaml`.
     4. **Global**: Workspace-wide variables defined in `cortex-workspace.yaml` (lowest).
 - **Unified Management**: A dedicated "Variables" panel accessible from the sidebar and environment switcher provides a central place to manage variables at all scopes.
-- **Secret Masking**: Support for marking variables as secrets. Secret values are masked in the UI with `••••••••` and can be toggled for visibility. They are stored with AES-GCM-256 encryption in environment files.
+- **Secret Masking**: Support for marking any variable as a secret. Secret values are masked in the UI with `********` across the editor, request previews, and reports. Masked values can be toggled for visibility in the Variable Management panel. All secrets are stored with **AES-GCM-256** encryption at rest.
 - **Enabled Toggles**: Easily enable or disable variables without deleting them to test different scenarios.
 - **Interactive Preview**: Hover over any variable in the request composer to see its resolved value and the source scope it came from.
 - **Visual Warnings**: Unresolved variables are flagged with visual indicators and warnings in the composer.
