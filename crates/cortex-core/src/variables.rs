@@ -30,6 +30,13 @@ pub struct Variable {
     pub secret: bool,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// If true, the user is asked to supply a value before each collection run.
+    /// The `value` field serves as the pre-filled default shown in the prompt dialog.
+    #[serde(default)]
+    pub prompt: bool,
+    /// Optional hint shown beneath the input in the prompt dialog.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -230,6 +237,37 @@ impl VariableResolver {
 
         all
     }
+
+    /// Returns all enabled prompt variables from the collection and environment scopes
+    /// that do not already have a runtime (ephemeral) override.
+    ///
+    /// These are the variables the user must be asked to fill in before a collection run.
+    pub fn pending_prompt_variables(&self) -> Vec<&Variable> {
+        let mut pending = Vec::new();
+
+        // Check collection-scope prompt variables
+        for var in self.collection_vars.values() {
+            if var.prompt && var.enabled && !self.runtime_vars.contains_key(&var.name) {
+                pending.push(var);
+            }
+        }
+
+        // Check env-scope prompt variables (may overlap with collection; env takes precedence)
+        for var in self.env_vars.values() {
+            if var.prompt && var.enabled && !self.runtime_vars.contains_key(&var.name) {
+                // Replace any collection-level entry for the same name
+                if let Some(pos) = pending.iter().position(|v| v.name == var.name) {
+                    pending[pos] = var;
+                } else {
+                    pending.push(var);
+                }
+            }
+        }
+
+        // Sort by name for stable, predictable ordering in the dialog
+        pending.sort_by(|a, b| a.name.cmp(&b.name));
+        pending
+    }
 }
 
 #[cfg(test)]
@@ -246,6 +284,8 @@ mod tests {
                 value: "global".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.collection_vars.insert(
@@ -255,6 +295,8 @@ mod tests {
                 value: "collection".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.collection_vars.insert(
@@ -264,6 +306,8 @@ mod tests {
                 value: "collection".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.env_vars.insert(
@@ -273,6 +317,8 @@ mod tests {
                 value: "env".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.runtime_vars.insert(
@@ -282,6 +328,8 @@ mod tests {
                 value: "runtime".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
 
@@ -317,6 +365,8 @@ mod tests {
                 value: "https://api.com".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.env_vars.insert(
@@ -326,6 +376,8 @@ mod tests {
                 value: "secret".to_string(),
                 secret: true,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
 
@@ -347,6 +399,8 @@ mod tests {
                 value: "global".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.collection_vars.insert(
@@ -356,6 +410,8 @@ mod tests {
                 value: "collection".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.env_vars.insert(
@@ -365,6 +421,8 @@ mod tests {
                 value: "env".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
 
@@ -386,6 +444,8 @@ mod tests {
                 value: "val".to_string(),
                 secret: false,
                 enabled: false,
+                prompt: false,
+                description: None,
             },
         );
 
@@ -405,6 +465,8 @@ mod tests {
             value: value.to_string(),
             secret: false,
             enabled,
+            prompt: false,
+            description: None,
         };
 
         resolver.global_vars.insert("API_KEY".to_string(), make("global-key", true));
@@ -446,6 +508,8 @@ mod tests {
                 value: "super-secret".to_string(),
                 secret: true,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
         resolver.global_vars.insert(
@@ -455,6 +519,8 @@ mod tests {
                 value: "123".to_string(),
                 secret: false,
                 enabled: true,
+                prompt: false,
+                description: None,
             },
         );
 
@@ -463,5 +529,121 @@ mod tests {
 
         let (normal, _) = resolver.interpolate("ID: {{public_id}}, Key: {{api_key}}");
         assert_eq!(normal, "ID: 123, Key: super-secret");
+    }
+
+    #[test]
+    fn test_prompt_variable_field_serialization() {
+        // A prompt variable with a description round-trips through YAML correctly.
+        let var = Variable {
+            name: "region".to_string(),
+            value: "us-east-1".to_string(),
+            secret: false,
+            enabled: true,
+            prompt: true,
+            description: Some("AWS region to deploy to".to_string()),
+        };
+        let yaml = serde_yaml::to_string(&var).expect("serialize");
+        let back: Variable = serde_yaml::from_str(&yaml).expect("deserialize");
+        assert_eq!(back.prompt, true);
+        assert_eq!(back.description.as_deref(), Some("AWS region to deploy to"));
+        assert_eq!(back.value, "us-east-1");
+
+        // A plain variable (no prompt fields in YAML) deserializes with prompt=false.
+        let plain_yaml = "name: token\nvalue: abc\n";
+        let plain: Variable = serde_yaml::from_str(plain_yaml).expect("deserialize plain");
+        assert!(!plain.prompt);
+        assert!(plain.description.is_none());
+
+        // description is omitted from serialized YAML when None (skip_serializing_if).
+        let no_desc = Variable {
+            name: "x".to_string(),
+            value: "y".to_string(),
+            secret: false,
+            enabled: true,
+            prompt: true,
+            description: None,
+        };
+        let no_desc_yaml = serde_yaml::to_string(&no_desc).expect("serialize no_desc");
+        assert!(!no_desc_yaml.contains("description"));
+    }
+
+    #[test]
+    fn test_pending_prompt_variables() {
+        let make_prompt = |name: &str, value: &str| Variable {
+            name: name.to_string(),
+            value: value.to_string(),
+            secret: false,
+            enabled: true,
+            prompt: true,
+            description: None,
+        };
+        let make_plain = |name: &str| Variable {
+            name: name.to_string(),
+            value: "x".to_string(),
+            secret: false,
+            enabled: true,
+            prompt: false,
+            description: None,
+        };
+
+        let mut resolver = VariableResolver::new();
+        resolver.collection_vars.insert("region".to_string(), make_prompt("region", "us-east-1"));
+        resolver.collection_vars.insert("env".to_string(), make_prompt("env", "staging"));
+        resolver.collection_vars.insert("plain".to_string(), make_plain("plain"));
+
+        // All prompt vars pending — no runtime override yet
+        let pending = resolver.pending_prompt_variables();
+        assert_eq!(pending.len(), 2);
+        let names: Vec<&str> = pending.iter().map(|v| v.name.as_str()).collect();
+        assert!(names.contains(&"region"));
+        assert!(names.contains(&"env"));
+
+        // Satisfy "region" via runtime override — it should drop from pending
+        resolver.runtime_vars.insert(
+            "region".to_string(),
+            Variable {
+                name: "region".to_string(),
+                value: "eu-west-1".to_string(),
+                secret: false,
+                enabled: true,
+                prompt: false,
+                description: None,
+            },
+        );
+        let pending2 = resolver.pending_prompt_variables();
+        assert_eq!(pending2.len(), 1);
+        assert_eq!(pending2[0].name, "env");
+
+        // Env-scope prompt variable overrides collection-scope entry for same name
+        resolver.env_vars.insert(
+            "env".to_string(),
+            Variable {
+                name: "env".to_string(),
+                value: "production".to_string(),
+                secret: false,
+                enabled: true,
+                prompt: true,
+                description: Some("Target environment".to_string()),
+            },
+        );
+        let pending3 = resolver.pending_prompt_variables();
+        assert_eq!(pending3.len(), 1);
+        assert_eq!(pending3[0].value, "production"); // env-scope value wins
+        assert_eq!(pending3[0].description.as_deref(), Some("Target environment"));
+
+        // Disabled prompt vars are excluded
+        resolver.collection_vars.insert(
+            "disabled".to_string(),
+            Variable {
+                name: "disabled".to_string(),
+                value: "".to_string(),
+                secret: false,
+                enabled: false,
+                prompt: true,
+                description: None,
+            },
+        );
+        let pending4 = resolver.pending_prompt_variables();
+        assert!(!pending4.iter().any(|v| v.name == "disabled"));
     }
 }

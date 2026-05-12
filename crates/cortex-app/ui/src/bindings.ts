@@ -198,6 +198,21 @@ async setEphemeralVariable(name: string, value: string, secret: boolean) : Promi
  */
 async removeEphemeralVariable(name: string) : Promise<void> {
     await TAURI_INVOKE("remove_ephemeral_variable", { name });
+},
+/**
+ * Returns all enabled prompt variables from the given collection / environment
+ * that do not yet have a runtime (ephemeral) override in the current session.
+ * 
+ * The frontend calls this before starting a collection run to determine which
+ * variables still need user input.
+ */
+async getPromptVariables(collectionPath: string, environmentName: string | null) : Promise<Result<Variable[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_prompt_variables", { collectionPath, environmentName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -319,7 +334,16 @@ export type ResolvedVariable = { value: string; scope: VariableScope; secret: bo
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }
 export type UnresolvedVariableWarning = { name: string }
-export type Variable = { name: string; value: string; secret?: boolean; enabled?: boolean }
+export type Variable = { name: string; value: string; secret?: boolean; enabled?: boolean; 
+/**
+ * If true, the user is asked to supply a value before each collection run.
+ * The `value` field serves as the pre-filled default shown in the prompt dialog.
+ */
+prompt?: boolean; 
+/**
+ * Optional hint shown beneath the input in the prompt dialog.
+ */
+description?: string | null }
 export type VariableScope = "global" | "collection" | "environment" | "runtime"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
 export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null }

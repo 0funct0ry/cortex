@@ -61,12 +61,16 @@ mod tests {
             value: "https://api.example.com".to_string(),
             secret: false,
             enabled: true,
+            prompt: false,
+            description: None,
         });
         env.variables.push(crate::variables::Variable {
             name: "API_KEY".to_string(),
             value: "super-secret-token".to_string(),
             secret: true,
             enabled: true,
+            prompt: false,
+            description: None,
         });
 
         let yaml = env.to_yaml().unwrap();
@@ -85,6 +89,8 @@ mod tests {
             value: "mypassword".to_string(),
             secret: true,
             enabled: true,
+            prompt: false,
+            description: None,
         });
 
         // Encrypt
@@ -110,12 +116,16 @@ mod tests {
             value: "public_val".to_string(),
             secret: false,
             enabled: true,
+            prompt: false,
+            description: None,
         });
         env.variables.push(crate::variables::Variable {
             name: "PRIVATE".to_string(),
             value: "private_val".to_string(),
             secret: true,
             enabled: true,
+            prompt: false,
+            description: None,
         });
 
         env.encrypt_secrets(&key).unwrap();

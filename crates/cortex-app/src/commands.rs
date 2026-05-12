@@ -365,7 +365,14 @@ pub fn set_ephemeral_variable(
     secret: bool,
     store: tauri::State<EphemeralStore>,
 ) {
-    let var = Variable { name: name.clone(), value, secret, enabled: true };
+    let var = Variable {
+        name: name.clone(),
+        value,
+        secret,
+        enabled: true,
+        prompt: false,
+        description: None,
+    };
     store.0.lock().unwrap().insert(name, var);
 }
 
@@ -378,6 +385,50 @@ pub fn remove_ephemeral_variable(name: String, store: tauri::State<EphemeralStor
 }
 
 // ---------------------------------------------------------------------------
+
+/// Returns all enabled prompt variables from the given collection / environment
+/// that do not yet have a runtime (ephemeral) override in the current session.
+///
+/// The frontend calls this before starting a collection run to determine which
+/// variables still need user input.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_prompt_variables(
+    collection_path: String,
+    environment_name: Option<String>,
+    store: tauri::State<'_, EphemeralStore>,
+) -> Result<Vec<Variable>, String> {
+    let ephemeral_vars: Vec<Variable> = store.0.lock().unwrap().values().cloned().collect();
+    tauri::async_runtime::spawn_blocking(move || {
+        let collection = cortex_core::collection::Collection::load_manifest(&collection_path)
+            .map_err(|e| e.to_string())?;
+
+        let mut resolver = cortex_core::variables::VariableResolver::new();
+
+        if let Some(vars) = collection.manifest.variables {
+            for var in vars {
+                resolver.collection_vars.insert(var.name.clone(), var);
+            }
+        }
+
+        if let Some(en) = environment_name {
+            if let Some(env) = collection.environments.iter().find(|e| e.name == en) {
+                for var in &env.variables {
+                    resolver.env_vars.insert(var.name.clone(), var.clone());
+                }
+            }
+        }
+
+        for var in ephemeral_vars {
+            resolver.runtime_vars.insert(var.name.clone(), var);
+        }
+
+        let pending = resolver.pending_prompt_variables().into_iter().cloned().collect::<Vec<_>>();
+        Ok(pending)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 
 fn populate_resolver(
     resolver: &mut cortex_core::variables::VariableResolver,

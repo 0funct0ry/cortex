@@ -12,6 +12,7 @@ import {
   FilePlus,
   Shield,
   Zap,
+  Terminal,
 } from 'lucide-react'
 import { useCallback } from 'react'
 import { commands, type Variable, type VariableScope, type EnvironmentFile } from '../bindings'
@@ -85,17 +86,25 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
       setVariables(globalVariables || [])
     } else if (activeTab === 'session') {
       setVariables(ephemeralVariables || [])
-    } else if (activeTab === 'collection' && selectedCollectionPath) {
-      const col = loadedCollections[selectedCollectionPath]
-      if (col) {
-        setVariables(col.variables || [])
+    } else if (activeTab === 'collection') {
+      if (!selectedCollectionPath) {
+        setVariables([])
       } else {
-        const res = await commands.loadCollectionManifest(selectedCollectionPath)
-        if (res.status === 'ok') {
-          setVariables(res.data.manifest.variables || [])
+        const col = loadedCollections[selectedCollectionPath]
+        if (col) {
+          setVariables(col.variables || [])
+        } else {
+          const res = await commands.loadCollectionManifest(selectedCollectionPath)
+          if (res.status === 'ok') {
+            setVariables(res.data.manifest.variables || [])
+          }
         }
       }
-    } else if (activeTab === 'environment' && selectedCollectionPath) {
+    } else if (activeTab === 'environment') {
+      if (!selectedCollectionPath) {
+        setVariables([])
+        return
+      }
       const col = loadedCollections[selectedCollectionPath]
       let envName = selectedEnvironmentName
 
@@ -152,15 +161,20 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
     }))
   }
 
+  const isPromptTab = activeTab === 'collection' || activeTab === 'environment'
+
   const handleAdd = () => {
-    updateLocal([...variables, { name: '', value: '', secret: false, enabled: true }])
+    updateLocal([
+      ...variables,
+      { name: '', value: '', secret: false, enabled: true, prompt: false, description: null },
+    ])
   }
 
   const handleRemove = (index: number) => {
     updateLocal(variables.filter((_, i) => i !== index))
   }
 
-  const handleChange = (index: number, field: keyof Variable, val: string | boolean) => {
+  const handleChange = (index: number, field: keyof Variable, val: string | boolean | null) => {
     const newVars = [...variables]
     newVars[index] = { ...newVars[index], [field]: val }
     updateLocal(newVars)
@@ -436,10 +450,18 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-[1fr_2fr_80px_60px_40px] gap-4 px-4 pb-2 border-b border-slate-800/50">
+              <div
+                className={cn(
+                  'grid gap-4 px-4 pb-2 border-b border-slate-800/50',
+                  isPromptTab
+                    ? 'grid-cols-[1fr_2fr_80px_80px_60px_40px]'
+                    : 'grid-cols-[1fr_2fr_80px_60px_40px]'
+                )}
+              >
                 <HeaderLabel label="Key Name" />
                 <HeaderLabel label="Current Value" />
                 <HeaderLabel label="Secret" className="text-center" />
+                {isPromptTab && <HeaderLabel label="Prompt" className="text-center" />}
                 <HeaderLabel label="Enabled" className="text-center" />
                 <div />
               </div>
@@ -448,8 +470,11 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                   <div
                     key={idx}
                     className={cn(
-                      'grid grid-cols-[1fr_2fr_80px_60px_40px] gap-4 items-center group animate-in slide-in-from-left-2 duration-200',
-                      isSessionTab && 'relative pl-2'
+                      'grid gap-4 items-start group animate-in slide-in-from-left-2 duration-200',
+                      isPromptTab
+                        ? 'grid-cols-[1fr_2fr_80px_80px_60px_40px]'
+                        : 'grid-cols-[1fr_2fr_80px_60px_40px]',
+                      (isSessionTab || (isPromptTab && v.prompt)) && 'relative pl-2'
                     )}
                     style={{ animationDelay: `${idx * 30}ms` }}
                   >
@@ -457,13 +482,20 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                     {isSessionTab && (
                       <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-amber-500/50 rounded-full" />
                     )}
-                    <div className="relative">
+                    {/* Indigo left stripe for prompt variables */}
+                    {isPromptTab && v.prompt && (
+                      <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-indigo-500/60 rounded-full" />
+                    )}
+                    {/* Name cell — stacks description input below when prompt is active */}
+                    <div className="flex flex-col gap-1.5">
                       <input
                         className={cn(
                           'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder:text-slate-700 focus:outline-none focus:ring-2 transition-all',
                           isSessionTab
                             ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50'
-                            : 'border-slate-800 focus:ring-blue-500/50'
+                            : isPromptTab && v.prompt
+                              ? 'border-indigo-800/40 focus:ring-indigo-500/30 focus:border-indigo-600/50'
+                              : 'border-slate-800 focus:ring-blue-500/50'
                         )}
                         placeholder="VAR_NAME"
                         value={v.name}
@@ -472,6 +504,17 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                         autoCorrect="off"
                         spellCheck={false}
                       />
+                      {isPromptTab && v.prompt && (
+                        <input
+                          className="w-full bg-slate-950 border border-indigo-800/30 rounded-xl px-4 py-2 text-xs text-slate-400 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600/40 transition-all"
+                          placeholder="Hint shown in prompt dialog (optional)"
+                          value={v.description ?? ''}
+                          onChange={(e) => handleChange(idx, 'description', e.target.value || null)}
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                        />
+                      )}
                     </div>
                     <div className="relative group/value">
                       <input
@@ -483,9 +526,11 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                             : 'text-white',
                           isSessionTab
                             ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50 focus:outline-none focus:ring-2'
-                            : 'border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50'
+                            : isPromptTab && v.prompt
+                              ? 'border-indigo-800/40 focus:ring-indigo-500/30 focus:border-indigo-600/50 focus:outline-none focus:ring-2'
+                              : 'border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50'
                         )}
-                        placeholder="value"
+                        placeholder={v.prompt ? 'default value (pre-filled in dialog)' : 'value'}
                         value={v.value}
                         onChange={(e) => handleChange(idx, 'value', e.target.value)}
                         autoCapitalize="none"
@@ -505,7 +550,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                         </button>
                       )}
                     </div>
-                    <div className="flex justify-center">
+                    <div className="flex justify-center pt-1">
                       <button
                         onClick={() => handleChange(idx, 'secret', !v.secret)}
                         className={cn(
@@ -519,7 +564,27 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                         <Shield className="w-4 h-4" />
                       </button>
                     </div>
-                    <div className="flex justify-center">
+                    {isPromptTab && (
+                      <div className="flex justify-center pt-1">
+                        <button
+                          onClick={() => handleChange(idx, 'prompt', !v.prompt)}
+                          className={cn(
+                            'p-2 rounded-xl border transition-all',
+                            v.prompt
+                              ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
+                              : 'bg-slate-950 border-slate-800 text-slate-600 hover:border-slate-700'
+                          )}
+                          title={
+                            v.prompt
+                              ? 'Remove prompt — value will not be asked at run time'
+                              : 'Mark as prompt — user will be asked for a value before each run'
+                          }
+                        >
+                          <Terminal className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex justify-center pt-1">
                       <button
                         onClick={() => handleChange(idx, 'enabled', !v.enabled)}
                         className={cn(
@@ -527,7 +592,9 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                           v.enabled
                             ? isSessionTab
                               ? 'bg-amber-500'
-                              : 'bg-blue-600'
+                              : isPromptTab && v.prompt
+                                ? 'bg-indigo-600'
+                                : 'bg-blue-600'
                             : 'bg-slate-800'
                         )}
                       >
@@ -541,7 +608,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                     </div>
                     <button
                       onClick={() => handleRemove(idx)}
-                      className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                      className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all opacity-0 group-hover:opacity-100 mt-1"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

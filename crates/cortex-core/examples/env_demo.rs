@@ -12,12 +12,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         value: "super-secret-password".to_string(),
         secret: true,
         enabled: true,
+        prompt: false,
+        description: None,
     });
     env.variables.push(Variable {
         name: "API_URL".to_string(),
         value: "https://api.example.com".to_string(),
         secret: false,
         enabled: true,
+        prompt: false,
+        description: None,
     });
 
     println!("Original Environment:\n{}", env.to_yaml()?);

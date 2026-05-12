@@ -59,6 +59,7 @@ fn main() {
             commands::set_ephemeral_variables,
             commands::set_ephemeral_variable,
             commands::remove_ephemeral_variable,
+            commands::get_prompt_variables,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -98,6 +99,7 @@ mod tests {
                 commands::set_ephemeral_variables,
                 commands::set_ephemeral_variable,
                 commands::remove_ephemeral_variable,
+                commands::get_prompt_variables,
             ]);
 
         builder

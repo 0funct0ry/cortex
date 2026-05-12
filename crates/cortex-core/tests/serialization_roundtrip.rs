@@ -60,12 +60,16 @@ fn test_collection_manifest_roundtrip() {
         value: "https://api.example.com".to_string(),
         secret: false,
         enabled: true,
+        prompt: false,
+        description: None,
     });
     variables.push(Variable {
         name: "api_key".to_string(),
         value: "secret-123".to_string(),
         secret: true,
         enabled: true,
+        prompt: false,
+        description: None,
     });
 
     let mut headers = BTreeMap::new();
@@ -104,6 +108,8 @@ fn test_environment_file_roundtrip_with_secrets() {
         value: "https://api.production.com".to_string(),
         secret: false,
         enabled: true,
+        prompt: false,
+        description: None,
     });
 
     let original_secret = "super-secret-password-🚀-!@#";
@@ -112,6 +118,8 @@ fn test_environment_file_roundtrip_with_secrets() {
         value: original_secret.to_string(),
         secret: true,
         enabled: true,
+        prompt: false,
+        description: None,
     });
 
     // 1. Encrypt secrets before serialization
@@ -142,6 +150,8 @@ fn test_workspace_manifest_roundtrip() {
         value: "global_val".to_string(),
         secret: false,
         enabled: true,
+        prompt: false,
+        description: None,
     });
 
     let manifest = WorkspaceManifest {

@@ -411,6 +411,8 @@ mod tests {
             value: "https://api.example.com".to_string(),
             secret: false,
             enabled: true,
+            prompt: false,
+            description: None,
         });
 
         let manifest = CollectionManifest {

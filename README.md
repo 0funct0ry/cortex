@@ -174,6 +174,7 @@ Cortex includes a powerful variable resolution pipeline and template engine.
 - **Unified Management**: A dedicated "Variables" panel accessible from the sidebar and environment switcher provides a central place to manage variables at all scopes, including the **Session** tab (⚡ amber accent).
 - **Secret Masking**: Support for marking any variable as a secret. Secret values are masked in the UI with `********` across the editor, request previews, and reports. Masked values can be toggled for visibility in the Variable Management panel. All secrets are stored with **AES-GCM-256** encryption at rest.
 - **Enabled Toggles**: Easily enable or disable variables without deleting them to test different scenarios.
+- **Prompt Variables**: Mark a collection or environment variable as a `prompt` type to ask the user for a value right before each collection run. The entered value is used for that run only and is never written to disk. An optional description/hint can be provided to guide the user.
 - **Interactive Preview**: Hover over any variable in the request composer to see its resolved value and the source scope it came from.
 - **Visual Warnings**: Unresolved variables are flagged with visual indicators and warnings in the composer.
 
@@ -216,6 +217,67 @@ const vars = await commands.getEphemeralVariables();
 ```
 
 Session variables set by scripts are immediately visible to all subsequent requests and to `preview_template` / `get_resolved_variables` without any page reload.
+
+#### 🎯 Prompt Variables
+
+Prompt variables allow collection authors to define variables that ask the user for a value at the start of each collection run, without requiring edits to environment files beforehand.
+
+| Property | Behaviour |
+|---|---|
+| **Scope** | Collection or Environment (defined in manifest) |
+| **Resolved scope** | Runtime — injected into the Session scope before the run |
+| **Persistence** | None — values are never saved to disk |
+| **Default value** | The `value` field pre-fills the input in the dialog |
+| **Description** | Optional hint shown beneath the input in the dialog |
+| **UI accent** | Indigo / Terminal icon in the Variables panel |
+
+**Defining a prompt variable in the Variables panel**
+
+1. Open the **Variables** panel and switch to the **Collection** or **Environment** tab.
+2. Add a variable (or select an existing one).
+3. Click the **Terminal** (Prompt) toggle in the **Prompt** column. The row gains an indigo left stripe.
+4. Optionally fill in a hint in the **Description** field that appears below the name.
+5. Set a `value` to pre-fill the dialog with a default (the user can override it).
+6. Click **Save Changes**.
+
+**Defining a prompt variable in YAML**
+
+```yaml
+# Inside cortex.yaml (collection) or an environment file
+variables:
+  - name: DEPLOY_ENV
+    value: staging          # pre-filled default shown in the dialog
+    prompt: true
+    description: "Which environment should this deployment target?"
+    enabled: true
+  - name: API_VERSION
+    value: ""               # no default — user must enter a value
+    prompt: true
+    description: "e.g. v2 or v3"
+    enabled: true
+```
+
+**Running a collection with prompt variables**
+
+1. Hover over the collection name in the sidebar.
+2. Click the **Play** icon (indigo on hover) — the pre-run Prompt Variables dialog appears.
+3. Review each variable name and hint, then enter the desired values.
+4. Click **Start Run** (or press Enter). Values are injected into the Session scope and the run proceeds.
+5. If any required field (no default) is left blank, the dialog highlights it with an error and blocks the run.
+6. Press **Escape** to cancel without starting the run.
+
+**CLI usage — non-interactive mode**
+
+In CLI mode, supply prompt variable values via the repeatable `--env-var` flag:
+
+```bash
+cortex run --request my-request \
+  --env-var DEPLOY_ENV=production \
+  --env-var API_VERSION=v3
+```
+
+- Values are accepted in `KEY=VALUE` form; the first `=` is the delimiter, so values may contain `=`.
+- If a prompt variable has no default and is not supplied via `--env-var`, the CLI exits with a descriptive error listing the missing variables.
 
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.

@@ -6,7 +6,7 @@ import { AlertCircle } from 'lucide-react'
 interface VariablePreviewProps {
   name: string
   resolved?: ResolvedVariable
-  onClose: () => void
+  onClose?: () => void
 }
 
 const scopeColors: Record<VariableScope, string> = {

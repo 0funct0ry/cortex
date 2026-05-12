@@ -14,7 +14,8 @@ import { Sidebar } from './components/shell/Sidebar'
 import { TabBar, type Tab } from './components/shell/TabBar'
 import { Composer } from './components/shell/Composer'
 import { VariablePanel } from './components/VariablePanel'
-import { Database } from 'lucide-react'
+import { PromptVariableDialog } from './components/PromptVariableDialog'
+import { Database, Play } from 'lucide-react'
 import { type EnvironmentFile, type Variable } from './bindings'
 
 // Simple modal for workspace name
@@ -89,6 +90,11 @@ function App() {
     'global' | 'collection' | 'environment' | 'session'
   >('global')
   const [ephemeralVars, setEphemeralVars] = useState<Variable[]>([])
+  const [promptDialogState, setPromptDialogState] = useState<{
+    variables: Variable[]
+    collectionPath: string
+    environmentName: string | null
+  } | null>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -309,6 +315,37 @@ function App() {
     run()
   }
 
+  const handleRunWithPrompt = async (collectionPath: string, environmentName: string | null) => {
+    const res = await commands.getPromptVariables(collectionPath, environmentName)
+    if (res.status === 'error') {
+      setError(`Failed to check prompt variables: ${res.error}`)
+      return
+    }
+    if (res.data.length === 0) {
+      // No prompt variables — proceed directly (full runner is a future story)
+      setSuccess('Collection run started (no prompt variables required)')
+      return
+    }
+    setPromptDialogState({ variables: res.data, collectionPath, environmentName })
+  }
+
+  const handlePromptConfirm = async (values: Record<string, string>) => {
+    if (!promptDialogState) return
+    // Inject the user-supplied values into the ephemeral store as runtime overrides
+    for (const [name, value] of Object.entries(values)) {
+      const originalVar = promptDialogState.variables.find((v) => v.name === name)
+      await commands.setEphemeralVariable(name, value, originalVar?.secret ?? false)
+    }
+    // Refresh local ephemeral state so the variable panel reflects the new values
+    const fresh = await commands.getEphemeralVariables()
+    setEphemeralVars(fresh)
+    setPromptDialogState(null)
+    // Full collection runner is a future story; indicate readiness
+    setSuccess(
+      `Prompt variables set for ${promptDialogState.collectionPath.split('/').pop() ?? 'collection'}. Ready to run.`
+    )
+  }
+
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
   return (
@@ -373,6 +410,16 @@ function App() {
                             </h3>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRunWithPrompt(c.path, null)
+                              }}
+                              className="text-slate-600 hover:text-indigo-400 p-1 rounded"
+                              title="Run Collection"
+                            >
+                              <Play className="w-3 h-3" />
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -510,6 +557,14 @@ function App() {
 
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
       {success && <SuccessToast message={success} onClose={() => setSuccess(null)} />}
+
+      {promptDialogState && (
+        <PromptVariableDialog
+          variables={promptDialogState.variables}
+          onConfirm={handlePromptConfirm}
+          onCancel={() => setPromptDialogState(null)}
+        />
+      )}
 
       {showVariablePanel && workspacePath && (
         <VariablePanel

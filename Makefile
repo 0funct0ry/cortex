@@ -62,7 +62,7 @@ lint-ui: ## Run eslint for the frontend
 
 .PHONY: type-check
 type-check: ## run typescript type-check
-	cd $(UI_DIR) && npx tsc --noEmit
+	cd $(UI_DIR) && npx tsc -b --noEmit
 
 .PHONY: fmt
 fmt: fmt-rust fmt-ui ## Format all code
