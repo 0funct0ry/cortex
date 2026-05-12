@@ -4,3 +4,4 @@ target/
 internal-docs
 
 /sample-collection/
+.claude/

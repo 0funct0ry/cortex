@@ -1,10 +1,24 @@
+use cortex_core::variables::Variable;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct AppSettings {
     pub last_workspace_path: Option<String>,
+}
+
+/// In-memory store for ephemeral (session-scoped) variables.
+/// These are never written to disk and are cleared when the app exits.
+/// Scripts can upsert individual entries; the UI replaces the whole set on save.
+pub struct EphemeralStore(pub Mutex<BTreeMap<String, Variable>>);
+
+impl EphemeralStore {
+    pub fn new() -> Self {
+        Self(Mutex::new(BTreeMap::new()))
+    }
 }
 
 impl AppSettings {

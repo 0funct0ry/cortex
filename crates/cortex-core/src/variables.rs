@@ -395,6 +395,48 @@ mod tests {
     }
 
     #[test]
+    fn test_ephemeral_runtime_override() {
+        // Ephemeral variables live at Runtime scope and override all other scopes.
+        let mut resolver = VariableResolver::new();
+
+        // Same key at every scope level
+        let make = |value: &str, enabled: bool| Variable {
+            name: "API_KEY".to_string(),
+            value: value.to_string(),
+            secret: false,
+            enabled,
+        };
+
+        resolver.global_vars.insert("API_KEY".to_string(), make("global-key", true));
+        resolver.collection_vars.insert("API_KEY".to_string(), make("collection-key", true));
+        resolver.env_vars.insert("API_KEY".to_string(), make("env-key", true));
+        // Ephemeral (session) variable sits at runtime level
+        resolver.runtime_vars.insert("API_KEY".to_string(), make("ephemeral-key", true));
+
+        let resolved = resolver.resolve("API_KEY").unwrap();
+        assert_eq!(resolved.value, "ephemeral-key");
+        assert_eq!(resolved.scope, VariableScope::Runtime);
+
+        // When the ephemeral var is disabled, fall through to environment
+        resolver.runtime_vars.insert("API_KEY".to_string(), make("ephemeral-key", false));
+        let resolved = resolver.resolve("API_KEY").unwrap();
+        assert_eq!(resolved.value, "env-key");
+        assert_eq!(resolved.scope, VariableScope::Environment);
+
+        // Removing the ephemeral var entirely falls through to environment
+        resolver.runtime_vars.clear();
+        let resolved = resolver.resolve("API_KEY").unwrap();
+        assert_eq!(resolved.value, "env-key");
+        assert_eq!(resolved.scope, VariableScope::Environment);
+
+        // Interpolation reflects runtime override
+        resolver.runtime_vars.insert("API_KEY".to_string(), make("session-token", true));
+        let (text, warnings) = resolver.interpolate("Bearer {{API_KEY}}");
+        assert_eq!(text, "Bearer session-token");
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
     fn test_masked_interpolation() {
         let mut resolver = VariableResolver::new();
         resolver.global_vars.insert(

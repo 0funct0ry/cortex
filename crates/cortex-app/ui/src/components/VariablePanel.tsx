@@ -11,6 +11,7 @@ import {
   AlertCircle,
   FilePlus,
   Shield,
+  Zap,
 } from 'lucide-react'
 import { useCallback } from 'react'
 import { commands, type Variable, type VariableScope, type EnvironmentFile } from '../bindings'
@@ -25,11 +26,12 @@ interface VariablePanelProps {
   >
   onClose: () => void
   onUpdate: () => void
-  initialTab?: VariableScope
+  initialTab?: VariableScope | 'session'
   globalVariables: Variable[]
+  ephemeralVariables: Variable[]
 }
 
-type TabType = 'global' | 'collection' | 'environment'
+type TabType = 'global' | 'collection' | 'environment' | 'session'
 
 export const VariablePanel: React.FC<VariablePanelProps> = ({
   workspacePath,
@@ -39,6 +41,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   onUpdate,
   initialTab = 'global',
   globalVariables,
+  ephemeralVariables,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab as TabType)
   const [selectedCollectionPath, setSelectedCollectionPath] = useState<string | null>(
@@ -58,6 +61,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
     if (activeTab === 'collection') return `col:${selectedCollectionPath}`
     if (activeTab === 'environment')
       return `env:${selectedCollectionPath}:${selectedEnvironmentName}`
+    if (activeTab === 'session') return 'session'
     return ''
   }, [activeTab, selectedCollectionPath, selectedEnvironmentName])
 
@@ -69,7 +73,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
     }
   }, [loadedCollections, selectedCollectionPath])
 
-  // Helper to fetch/sync variables
+  // Helper to fetch/sync variables for the active scope
   const syncVariables = useCallback(async () => {
     const key = getScopeKey()
     if (dirtyScopes[key]) {
@@ -79,6 +83,8 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
 
     if (activeTab === 'global') {
       setVariables(globalVariables || [])
+    } else if (activeTab === 'session') {
+      setVariables(ephemeralVariables || [])
     } else if (activeTab === 'collection' && selectedCollectionPath) {
       const col = loadedCollections[selectedCollectionPath]
       if (col) {
@@ -116,6 +122,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   }, [
     activeTab,
     globalVariables,
+    ephemeralVariables,
     selectedCollectionPath,
     selectedEnvironmentName,
     loadedCollections,
@@ -128,7 +135,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
     const load = async () => {
       await syncVariables()
       if (active) {
-        // We could set a loaded state here if we had one
+        // loaded
       }
     }
     load()
@@ -162,20 +169,19 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   const handleSaveAll = async () => {
     setIsSaving(true)
     try {
-      // Save all dirty scopes, checking each Result explicitly.
-      // Commands return Result<null, string> — errors are values, not thrown exceptions,
-      // so we must check .status ourselves rather than relying on try/catch.
       for (const [key, vars] of Object.entries(dirtyScopes)) {
-        let res: { status: string; error?: unknown }
+        let res: { status: string; error?: unknown } | null = null
 
         if (key === 'global' && workspacePath) {
           res = await commands.updateWorkspaceVariables(workspacePath, vars)
+        } else if (key === 'session') {
+          // Ephemeral vars are pushed to Tauri managed state — never written to disk.
+          await commands.setEphemeralVariables(vars)
         } else if (key.startsWith('col:')) {
           const path = key.substring(4)
           res = await commands.updateCollectionVariables(path, vars)
         } else if (key.startsWith('env:')) {
-          // Key format: "env:<collectionPath>:<envName>"
-          // Split only on the LAST colon so paths with colons (Windows) still work.
+          // Split on the last colon so paths with colons (Windows) still work.
           const withoutPrefix = key.substring(4)
           const lastColon = withoutPrefix.lastIndexOf(':')
           if (lastColon === -1) continue
@@ -186,7 +192,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
           continue
         }
 
-        if (res.status === 'error') {
+        if (res && res.status === 'error') {
           throw new Error(String(res.error))
         }
       }
@@ -205,6 +211,17 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
     setRevealSecrets((prev) => ({ ...prev, [index]: !prev[index] }))
   }
 
+  // Count of active (enabled) ephemeral variables for the badge
+  const activeEphemeralCount = ephemeralVariables.filter((v) => v.enabled).length
+  // Account for in-session edits not yet saved
+  const dirtySessionVars = dirtyScopes['session']
+  const displayEphemeralCount =
+    dirtySessionVars !== undefined
+      ? dirtySessionVars.filter((v) => v.enabled).length
+      : activeEphemeralCount
+
+  const isSessionTab = activeTab === 'session'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh] overflow-hidden">
@@ -214,6 +231,12 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
             <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
               Variable Management
               {isSaving && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
+              {displayEphemeralCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 rounded-full">
+                  <Zap className="w-2.5 h-2.5" />
+                  {displayEphemeralCount} session
+                </span>
+              )}
             </h3>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
               {workspaceName} • {activeTab} Scope
@@ -247,6 +270,14 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
               onClick={() => setActiveTab('environment')}
               icon={<Monitor className="w-3.5 h-3.5" />}
               label="Environment"
+            />
+            <TabButton
+              active={activeTab === 'session'}
+              onClick={() => setActiveTab('session')}
+              icon={<Zap className="w-3.5 h-3.5" />}
+              label="Session"
+              variant="session"
+              badge={displayEphemeralCount > 0 ? displayEphemeralCount : undefined}
             />
           </div>
 
@@ -352,17 +383,55 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
           )}
         </div>
 
+        {/* Session tab callout banner */}
+        {isSessionTab && (
+          <div className="mx-6 mt-4 flex items-start gap-3 px-4 py-3 bg-amber-500/8 border border-amber-500/20 rounded-2xl">
+            <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-amber-400">Session Variables</p>
+              <p className="text-[10px] text-amber-400/70 mt-0.5 leading-relaxed">
+                These variables exist only for the current session and are{' '}
+                <strong>never written to disk</strong>. They override all other scopes and disappear
+                when Cortex is closed. Scripts can also create session variables at runtime.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           {variables.length === 0 ? (
-            <div className="py-20 text-center border-2 border-dashed border-slate-800 rounded-3xl group hover:border-slate-700 transition-colors">
-              <AlertCircle className="w-8 h-8 text-slate-700 mx-auto mb-4 group-hover:text-slate-600 transition-colors" />
-              <p className="text-sm text-slate-500 italic">No variables defined in this scope.</p>
+            <div
+              className={cn(
+                'py-20 text-center border-2 border-dashed rounded-3xl group transition-colors',
+                isSessionTab
+                  ? 'border-amber-800/40 hover:border-amber-700/50'
+                  : 'border-slate-800 hover:border-slate-700'
+              )}
+            >
+              <AlertCircle
+                className={cn(
+                  'w-8 h-8 mx-auto mb-4 transition-colors',
+                  isSessionTab
+                    ? 'text-amber-800 group-hover:text-amber-700'
+                    : 'text-slate-700 group-hover:text-slate-600'
+                )}
+              />
+              <p className="text-sm text-slate-500 italic">
+                {isSessionTab
+                  ? 'No session variables active.'
+                  : 'No variables defined in this scope.'}
+              </p>
               <button
                 onClick={handleAdd}
-                className="mt-4 text-xs font-bold text-blue-500 hover:text-blue-400 uppercase tracking-widest transition-colors"
+                className={cn(
+                  'mt-4 text-xs font-bold uppercase tracking-widest transition-colors',
+                  isSessionTab
+                    ? 'text-amber-500 hover:text-amber-400'
+                    : 'text-blue-500 hover:text-blue-400'
+                )}
               >
-                Create your first variable
+                {isSessionTab ? 'Create your first session variable' : 'Create your first variable'}
               </button>
             </div>
           ) : (
@@ -378,26 +447,43 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                 {variables.map((v, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-[1fr_2fr_80px_60px_40px] gap-4 items-center group animate-in slide-in-from-left-2 duration-200"
+                    className={cn(
+                      'grid grid-cols-[1fr_2fr_80px_60px_40px] gap-4 items-center group animate-in slide-in-from-left-2 duration-200',
+                      isSessionTab && 'relative pl-2'
+                    )}
                     style={{ animationDelay: `${idx * 30}ms` }}
                   >
-                    <input
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                      placeholder="VAR_NAME"
-                      value={v.name}
-                      onChange={(e) => handleChange(idx, 'name', e.target.value)}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                    />
+                    {/* Amber left stripe for session variables */}
+                    {isSessionTab && (
+                      <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-amber-500/50 rounded-full" />
+                    )}
+                    <div className="relative">
+                      <input
+                        className={cn(
+                          'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder:text-slate-700 focus:outline-none focus:ring-2 transition-all',
+                          isSessionTab
+                            ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50'
+                            : 'border-slate-800 focus:ring-blue-500/50'
+                        )}
+                        placeholder="VAR_NAME"
+                        value={v.name}
+                        onChange={(e) => handleChange(idx, 'name', e.target.value)}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                      />
+                    </div>
                     <div className="relative group/value">
                       <input
                         type={v.secret && !revealSecrets[idx] ? 'password' : 'text'}
                         className={cn(
-                          'w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm font-mono transition-all pr-10',
+                          'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm font-mono transition-all pr-10',
                           v.secret && !revealSecrets[idx]
                             ? 'text-slate-500 tracking-[0.3em]'
-                            : 'text-white'
+                            : 'text-white',
+                          isSessionTab
+                            ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50 focus:outline-none focus:ring-2'
+                            : 'border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50'
                         )}
                         placeholder="value"
                         value={v.value}
@@ -438,7 +524,11 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                         onClick={() => handleChange(idx, 'enabled', !v.enabled)}
                         className={cn(
                           'relative w-10 h-5 rounded-full transition-all duration-300',
-                          v.enabled ? 'bg-blue-600' : 'bg-slate-800'
+                          v.enabled
+                            ? isSessionTab
+                              ? 'bg-amber-500'
+                              : 'bg-blue-600'
+                            : 'bg-slate-800'
                         )}
                       >
                         <div
@@ -463,27 +553,47 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
 
           <button
             onClick={handleAdd}
-            className="mt-6 flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-500 hover:text-blue-400 hover:bg-blue-500/5 rounded-xl uppercase tracking-widest transition-all"
+            className={cn(
+              'mt-6 flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl uppercase tracking-widest transition-all',
+              isSessionTab
+                ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/5'
+                : 'text-blue-500 hover:text-blue-400 hover:bg-blue-500/5'
+            )}
           >
-            <Plus className="w-3.5 h-3.5" /> Add New Variable
+            <Plus className="w-3.5 h-3.5" /> Add{isSessionTab ? ' Session' : ' New'} Variable
           </button>
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-800 flex justify-end gap-3 bg-slate-900/50">
-          <button
-            onClick={onClose}
-            className="px-6 py-2.5 text-xs font-bold text-slate-400 hover:text-white transition-all"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSaveAll}
-            disabled={isSaving}
-            className="px-8 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </button>
+        <div className="p-6 border-t border-slate-800 flex items-center justify-between gap-3 bg-slate-900/50">
+          {isSessionTab ? (
+            <p className="text-[10px] text-amber-500/60 flex items-center gap-1.5">
+              <Zap className="w-3 h-3" />
+              Session variables are never saved to disk and clear on restart.
+            </p>
+          ) : (
+            <div />
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 text-xs font-bold text-slate-400 hover:text-white transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveAll}
+              disabled={isSaving}
+              className={cn(
+                'px-8 py-2.5 text-xs font-bold text-white rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2',
+                isSessionTab
+                  ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20'
+                  : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'
+              )}
+            >
+              {isSaving ? 'Saving...' : isSessionTab ? 'Apply to Session' : 'Save Changes'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -495,16 +605,29 @@ const TabButton: React.FC<{
   onClick: () => void
   icon: React.ReactNode
   label: string
-}> = ({ active, onClick, icon, label }) => (
+  variant?: 'default' | 'session'
+  badge?: number
+}> = ({ active, onClick, icon, label, variant = 'default', badge }) => (
   <button
     onClick={onClick}
     className={cn(
-      'flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all',
-      active ? 'bg-slate-800 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'
+      'flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all relative',
+      active
+        ? variant === 'session'
+          ? 'bg-amber-500/15 text-amber-400 shadow-xl'
+          : 'bg-slate-800 text-white shadow-xl'
+        : variant === 'session'
+          ? 'text-amber-600 hover:text-amber-400'
+          : 'text-slate-500 hover:text-slate-300'
     )}
   >
     {icon}
     {label}
+    {badge !== undefined && (
+      <span className="ml-0.5 w-4 h-4 flex items-center justify-center text-[9px] font-black bg-amber-500/30 text-amber-400 rounded-full">
+        {badge}
+      </span>
+    )}
   </button>
 )
 

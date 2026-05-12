@@ -1,6 +1,7 @@
-use crate::state::AppSettings;
+use crate::state::{AppSettings, EphemeralStore};
 use cortex_core::collection::Collection;
 use cortex_core::request::RequestFile;
+use cortex_core::variables::Variable;
 use cortex_core::workspace::{Workspace, WorkspaceManifest};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -330,11 +331,60 @@ pub async fn update_environment_variables(
     .map_err(|e| e.to_string())?
 }
 
+// ---------------------------------------------------------------------------
+// Ephemeral (session) variable commands
+// ---------------------------------------------------------------------------
+
+/// Returns all current ephemeral variables ordered by name.
+/// The store lives only for the duration of the process — closing the app clears it.
+#[tauri::command]
+#[specta::specta]
+pub fn get_ephemeral_variables(store: tauri::State<EphemeralStore>) -> Vec<Variable> {
+    store.0.lock().unwrap().values().cloned().collect()
+}
+
+/// Atomically replaces the entire ephemeral variable set.
+/// Used by the variable panel "Save Changes" action for the Session scope.
+#[tauri::command]
+#[specta::specta]
+pub fn set_ephemeral_variables(variables: Vec<Variable>, store: tauri::State<EphemeralStore>) {
+    let mut locked = store.0.lock().unwrap();
+    locked.clear();
+    for var in variables {
+        locked.insert(var.name.clone(), var);
+    }
+}
+
+/// Upserts a single ephemeral variable by name.
+/// Intended for script use — allows runtime injection of one-time values.
+#[tauri::command]
+#[specta::specta]
+pub fn set_ephemeral_variable(
+    name: String,
+    value: String,
+    secret: bool,
+    store: tauri::State<EphemeralStore>,
+) {
+    let var = Variable { name: name.clone(), value, secret, enabled: true };
+    store.0.lock().unwrap().insert(name, var);
+}
+
+/// Removes a single ephemeral variable by name.
+/// Intended for script use.
+#[tauri::command]
+#[specta::specta]
+pub fn remove_ephemeral_variable(name: String, store: tauri::State<EphemeralStore>) {
+    store.0.lock().unwrap().remove(&name);
+}
+
+// ---------------------------------------------------------------------------
+
 fn populate_resolver(
     resolver: &mut cortex_core::variables::VariableResolver,
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    ephemeral_vars: Vec<Variable>,
 ) -> Result<(), String> {
     // 1. Global (Workspace)
     if let Some(wp) = workspace_path {
@@ -381,6 +431,12 @@ fn populate_resolver(
         }
     }
 
+    // 4. Ephemeral / Session — Runtime scope, highest precedence.
+    // These are never read from disk; they come from the in-process EphemeralStore.
+    for var in ephemeral_vars {
+        resolver.runtime_vars.insert(var.name.clone(), var);
+    }
+
     Ok(())
 }
 
@@ -390,10 +446,19 @@ pub async fn get_resolved_variables(
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    store: tauri::State<'_, EphemeralStore>,
 ) -> Result<std::collections::BTreeMap<String, cortex_core::variables::ResolvedVariable>, String> {
+    // Snapshot the ephemeral store before entering spawn_blocking (State is not Send).
+    let ephemeral_vars: Vec<Variable> = store.0.lock().unwrap().values().cloned().collect();
     tauri::async_runtime::spawn_blocking(move || {
         let mut resolver = cortex_core::variables::VariableResolver::new();
-        populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
+        populate_resolver(
+            &mut resolver,
+            workspace_path,
+            collection_path,
+            environment_name,
+            ephemeral_vars,
+        )?;
         Ok(resolver.get_all_resolved())
     })
     .await
@@ -407,10 +472,19 @@ pub async fn preview_template(
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    store: tauri::State<'_, EphemeralStore>,
 ) -> Result<PreviewResponse, String> {
+    // Snapshot the ephemeral store before entering spawn_blocking (State is not Send).
+    let ephemeral_vars: Vec<Variable> = store.0.lock().unwrap().values().cloned().collect();
     tauri::async_runtime::spawn_blocking(move || {
         let mut resolver = cortex_core::variables::VariableResolver::new();
-        populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
+        populate_resolver(
+            &mut resolver,
+            workspace_path,
+            collection_path,
+            environment_name,
+            ephemeral_vars,
+        )?;
         let (interpolated, warnings) = resolver.interpolate_masked(&text);
         Ok(PreviewResponse { text: interpolated, warnings })
     })

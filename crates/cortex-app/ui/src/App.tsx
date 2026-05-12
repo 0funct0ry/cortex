@@ -85,9 +85,10 @@ function App() {
   ])
   const [activeTabId, setActiveTabId] = useState<string | null>('scratch-1')
   const [showVariablePanel, setShowVariablePanel] = useState(false)
-  const [variablePanelTab, setVariablePanelTab] = useState<'global' | 'collection' | 'environment'>(
-    'global'
-  )
+  const [variablePanelTab, setVariablePanelTab] = useState<
+    'global' | 'collection' | 'environment' | 'session'
+  >('global')
+  const [ephemeralVars, setEphemeralVars] = useState<Variable[]>([])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -156,7 +157,12 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
-      const lastPath = await commands.getLastWorkspacePath()
+      // Load the last workspace and current session variables in parallel.
+      const [lastPath, sessionVars] = await Promise.all([
+        commands.getLastWorkspacePath(),
+        commands.getEphemeralVariables(),
+      ])
+      setEphemeralVars(sessionVars)
       if (lastPath) {
         loadWorkspace(lastPath)
       }
@@ -271,7 +277,11 @@ function App() {
         })
       }
 
-      // 2. Reload manifest+environments for every already-expanded collection so the
+      // 2. Refresh ephemeral vars so the panel reflects any script-created session vars.
+      const fresh = await commands.getEphemeralVariables()
+      setEphemeralVars(fresh)
+
+      // 3. Reload manifest+environments for every already-expanded collection so the
       //    variable panel shows fresh data next time it opens. We preserve the items
       //    tree (request files) to avoid a full reload of the sidebar tree.
       const paths = Object.keys(loadedCollections)
@@ -506,6 +516,7 @@ function App() {
           workspacePath={workspacePath}
           workspaceName={workspace?.name || 'Workspace'}
           globalVariables={workspace?.variables || []}
+          ephemeralVariables={ephemeralVars}
           loadedCollections={Object.entries(loadedCollections).reduce(
             (acc, [path, col]) => {
               acc[path] = {

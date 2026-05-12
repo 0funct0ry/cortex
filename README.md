@@ -167,15 +167,55 @@ Cortex uses a direct filesystem-to-UI mapping for collections.
 Cortex includes a powerful variable resolution pipeline and template engine.
 - **Interpolation**: Use `{{variable_name}}` in request fields like URL, headers, and body.
 - **Precedence Model**:
-    1. **Runtime**: Variables set during execution (highest).
+    1. **Session (Ephemeral / Runtime)**: In-memory variables that live only for the current app session — never written to disk (highest).
     2. **Environment**: Variables defined in the active environment file.
     3. **Collection**: Shared variables defined in the collection's `cortex.yaml`.
     4. **Global**: Workspace-wide variables defined in `cortex-workspace.yaml` (lowest).
-- **Unified Management**: A dedicated "Variables" panel accessible from the sidebar and environment switcher provides a central place to manage variables at all scopes.
+- **Unified Management**: A dedicated "Variables" panel accessible from the sidebar and environment switcher provides a central place to manage variables at all scopes, including the **Session** tab (⚡ amber accent).
 - **Secret Masking**: Support for marking any variable as a secret. Secret values are masked in the UI with `********` across the editor, request previews, and reports. Masked values can be toggled for visibility in the Variable Management panel. All secrets are stored with **AES-GCM-256** encryption at rest.
 - **Enabled Toggles**: Easily enable or disable variables without deleting them to test different scenarios.
 - **Interactive Preview**: Hover over any variable in the request composer to see its resolved value and the source scope it came from.
 - **Visual Warnings**: Unresolved variables are flagged with visual indicators and warnings in the composer.
+
+#### ⚡ Session (Ephemeral) Variables
+Session variables are held exclusively in memory and are **never written to disk**. They are cleared automatically when the app is closed or restarted, making them ideal for short-lived tokens, one-off overrides, or any sensitive value you do not want persisted.
+
+| Property | Behaviour |
+|---|---|
+| **Scope** | Runtime — highest precedence, overrides all other scopes |
+| **Persistence** | None — cleared on app exit |
+| **Encryption** | Not applicable (never stored) |
+| **Secrets** | Supported — masked with `********` in all previews |
+| **UI accent** | Amber / ⚡ Zap icon in the Variables panel |
+
+**Creating session variables via the UI**
+
+1. Open the **Variables** panel (sidebar → globe icon, or the environment pill in the toolbar).
+2. Select the **Session** tab (⚡ amber).
+3. Add rows, set names, values, and optionally toggle **Secret**.
+4. Click **Apply to Session** — variables are stored in the backend process immediately.
+
+**Script API**
+
+Pre- and post-request scripts can read and write session variables through the Tauri IPC layer:
+
+```typescript
+// Upsert a single session variable (e.g. from a post-response script)
+await commands.setEphemeralVariable("access_token", responseBody.token, /* secret */ true);
+
+// Remove a session variable by name
+await commands.removeEphemeralVariable("access_token");
+
+// Replace the entire session variable set atomically
+await commands.setEphemeralVariables([
+  { name: "access_token", value: "…", secret: true, enabled: true },
+]);
+
+// Read all current session variables
+const vars = await commands.getEphemeralVariables();
+```
+
+Session variables set by scripts are immediately visible to all subsequent requests and to `preview_template` / `get_resolved_variables` without any page reload.
 
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.

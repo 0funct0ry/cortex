@@ -30,6 +30,7 @@ fn main() {
     }
 
     tauri::Builder::default()
+        .manage(state::EphemeralStore::new())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::greet,
@@ -53,7 +54,11 @@ fn main() {
             commands::get_resolved_variables,
             commands::preview_template,
             commands::load_collection_manifest,
-            commands::load_workspace_manifest
+            commands::load_workspace_manifest,
+            commands::get_ephemeral_variables,
+            commands::set_ephemeral_variables,
+            commands::set_ephemeral_variable,
+            commands::remove_ephemeral_variable,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -88,7 +93,11 @@ mod tests {
                 commands::get_resolved_variables,
                 commands::preview_template,
                 commands::load_collection_manifest,
-                commands::load_workspace_manifest
+                commands::load_workspace_manifest,
+                commands::get_ephemeral_variables,
+                commands::set_ephemeral_variables,
+                commands::set_ephemeral_variable,
+                commands::remove_ephemeral_variable,
             ]);
 
         builder

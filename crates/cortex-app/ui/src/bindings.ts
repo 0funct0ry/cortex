@@ -170,6 +170,34 @@ async loadWorkspaceManifest(path: string) : Promise<Result<WorkspaceResponse, st
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Returns all current ephemeral variables ordered by name.
+ * The store lives only for the duration of the process — closing the app clears it.
+ */
+async getEphemeralVariables() : Promise<Variable[]> {
+    return await TAURI_INVOKE("get_ephemeral_variables");
+},
+/**
+ * Atomically replaces the entire ephemeral variable set.
+ * Used by the variable panel "Save Changes" action for the Session scope.
+ */
+async setEphemeralVariables(variables: Variable[]) : Promise<void> {
+    await TAURI_INVOKE("set_ephemeral_variables", { variables });
+},
+/**
+ * Upserts a single ephemeral variable by name.
+ * Intended for script use — allows runtime injection of one-time values.
+ */
+async setEphemeralVariable(name: string, value: string, secret: boolean) : Promise<void> {
+    await TAURI_INVOKE("set_ephemeral_variable", { name, value, secret });
+},
+/**
+ * Removes a single ephemeral variable by name.
+ * Intended for script use.
+ */
+async removeEphemeralVariable(name: string) : Promise<void> {
+    await TAURI_INVOKE("remove_ephemeral_variable", { name });
 }
 }
 
