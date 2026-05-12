@@ -253,27 +253,50 @@ function App() {
   }
 
   const handleUpdateVariables = () => {
-    // Refresh data after variable updates
-    if (workspacePath) {
-      // Just reload the manifest, not the whole tree
-      const run = async () => {
-        const res = await commands.loadWorkspaceManifest(workspacePath)
-        if (res.status === 'ok') {
-          setWorkspace((prev) => {
-            if (!prev) return res.data
-            // Preserve collection names if possible
-            return {
-              ...res.data,
-              collections: res.data.collections.map((c) => {
-                const existing = prev.collections.find((ec) => ec.path === c.path)
-                return existing ? { ...c, name: existing.name || c.name } : c
-              }),
-            }
-          })
-        }
+    if (!workspacePath) return
+
+    const run = async () => {
+      // 1. Reload workspace manifest so global variables are current.
+      const wsRes = await commands.loadWorkspaceManifest(workspacePath)
+      if (wsRes.status === 'ok') {
+        setWorkspace((prev) => {
+          if (!prev) return wsRes.data
+          return {
+            ...wsRes.data,
+            collections: wsRes.data.collections.map((c) => {
+              const existing = prev.collections.find((ec) => ec.path === c.path)
+              return existing ? { ...c, name: existing.name || c.name } : c
+            }),
+          }
+        })
       }
-      run()
+
+      // 2. Reload manifest+environments for every already-expanded collection so the
+      //    variable panel shows fresh data next time it opens. We preserve the items
+      //    tree (request files) to avoid a full reload of the sidebar tree.
+      const paths = Object.keys(loadedCollections)
+      if (paths.length === 0) return
+
+      const refreshed = await Promise.all(
+        paths.map(async (colPath) => {
+          const res = await commands.loadCollectionManifest(colPath)
+          return { colPath, res }
+        })
+      )
+
+      setLoadedCollections((prev) => {
+        const next = { ...prev }
+        for (const { colPath, res } of refreshed) {
+          if (res.status === 'ok' && next[colPath]) {
+            // Merge fresh manifest/environments in; keep the existing items tree.
+            next[colPath] = { ...res.data, items: next[colPath].items }
+          }
+        }
+        return next
+      })
     }
+
+    run()
   }
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
@@ -316,7 +339,10 @@ function App() {
               {workspace ? (
                 <>
                   {workspace.collections.map((c) => {
-                    const isExpanded = expandedCollections[c.path] !== false
+                    // Explicitly require true so collections start collapsed on workspace load.
+                    // Previously `!== false` made undefined (unclicked) collections appear
+                    // expanded, showing the spinner forever with no load ever triggered.
+                    const isExpanded = expandedCollections[c.path] === true
                     return (
                       <div key={c.path} className="space-y-1">
                         <div

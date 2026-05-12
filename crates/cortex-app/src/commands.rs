@@ -39,20 +39,30 @@ pub fn greet(name: &str) -> GreetResponse {
 
 #[tauri::command]
 #[specta::specta]
-pub fn load_collection(path: String) -> Result<Collection, String> {
-    Collection::load(path).map_err(|e| e.to_string())
+pub async fn load_collection(path: String) -> Result<Collection, String> {
+    tauri::async_runtime::spawn_blocking(move || Collection::load(path).map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn load_collection_manifest(path: String) -> Result<Collection, String> {
-    Collection::load_manifest(path).map_err(|e| e.to_string())
+pub async fn load_collection_manifest(path: String) -> Result<Collection, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        Collection::load_manifest(path).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_request(request: RequestFile, path: String) -> Result<(), String> {
-    Collection::save_request(&request, &PathBuf::from(path)).map_err(|e| e.to_string())
+pub async fn save_request(request: RequestFile, path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        Collection::save_request(&request, &PathBuf::from(path)).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -87,24 +97,47 @@ pub fn move_item(path: String, new_parent: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
-    let workspace = Workspace::load(&path).map_err(|e| e.to_string())?;
+pub async fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || load_workspace_blocking(path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
+    // Load only the workspace manifest — skips loading every collection's request tree.
+    let workspace = Workspace::load_manifest(&path).map_err(|e| e.to_string())?;
 
     // Remember this workspace
     let mut settings = AppSettings::load();
     settings.last_workspace_path = Some(path);
     let _ = settings.save();
 
+    let workspace_dir = workspace.path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf();
+
+    // Resolve each collection name with a manifest-only load (no environments, no item tree).
     let collections = workspace
+        .manifest
         .collections
-        .into_iter()
-        .map(|(path, result)| match result {
-            Ok(c) => WorkspaceCollectionResult {
-                path: c.path.to_string_lossy().to_string(),
-                name: Some(c.manifest.name),
-                error: None,
-            },
-            Err(e) => WorkspaceCollectionResult { path, name: None, error: Some(e.to_string()) },
+        .iter()
+        .map(|col_path_str| {
+            let col_path = std::path::Path::new(col_path_str);
+            let full_path = if col_path.is_absolute() {
+                col_path.to_path_buf()
+            } else {
+                workspace_dir.join(col_path)
+            };
+            match Collection::load_manifest_no_envs(&full_path) {
+                Ok(c) => WorkspaceCollectionResult {
+                    path: c.path.to_string_lossy().to_string(),
+                    name: Some(c.manifest.name),
+                    error: None,
+                },
+                Err(e) => WorkspaceCollectionResult {
+                    path: col_path_str.clone(),
+                    name: None,
+                    error: Some(e.to_string()),
+                },
+            }
         })
         .collect();
 
@@ -232,58 +265,69 @@ pub async fn pick_directory(
 
 #[tauri::command]
 #[specta::specta]
-pub fn update_workspace_variables(
+pub async fn update_workspace_variables(
     workspace_path: String,
     variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
-    let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
-    let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
-
-    manifest.variables = Some(variables);
-    manifest.save(&workspace_path).map_err(|e| e.to_string())?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
+        let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+        manifest.variables = Some(variables);
+        manifest.save(&workspace_path).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn update_collection_variables(
+pub async fn update_collection_variables(
     collection_path: String,
     variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
-    let mut collection = Collection::load_manifest(&collection_path).map_err(|e| e.to_string())?;
-    collection.manifest.variables = Some(variables);
-    collection.save().map_err(|e| e.to_string())?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.variables = Some(variables);
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn update_environment_variables(
+pub async fn update_environment_variables(
     collection_path: String,
     environment_name: String,
     variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
-    let collection = Collection::load_manifest(&collection_path).map_err(|e| e.to_string())?;
-    let env_dir = collection.path.join("environments");
-    if !env_dir.exists() {
-        std::fs::create_dir_all(&env_dir).map_err(|e| e.to_string())?;
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        // Resolve the environments directory from the collection path without loading envs.
+        let col_path = std::path::PathBuf::from(&collection_path);
+        let env_dir = col_path.join("environments");
+        if !env_dir.exists() {
+            std::fs::create_dir_all(&env_dir).map_err(|e| e.to_string())?;
+        }
 
-    let env_path = env_dir.join(format!("{}.yaml", environment_name));
+        let env_path = env_dir.join(format!("{}.yaml", environment_name));
 
-    let mut env = if env_path.exists() {
-        let content = std::fs::read_to_string(&env_path).map_err(|e| e.to_string())?;
-        cortex_core::environment::EnvironmentFile::from_yaml(&content).map_err(|e| e.to_string())?
-    } else {
-        cortex_core::environment::EnvironmentFile::new(environment_name)
-    };
+        let mut env = if env_path.exists() {
+            let content = std::fs::read_to_string(&env_path).map_err(|e| e.to_string())?;
+            cortex_core::environment::EnvironmentFile::from_yaml(&content)
+                .map_err(|e| e.to_string())?
+        } else {
+            cortex_core::environment::EnvironmentFile::new(environment_name)
+        };
 
-    env.variables = variables;
-    let key = cortex_core::crypto::get_app_key();
-    let _ = env.encrypt_secrets(&key);
-    let yaml = env.to_yaml().map_err(|e| e.to_string())?;
-    std::fs::write(env_path, yaml).map_err(|e| e.to_string())?;
-    Ok(())
+        env.variables = variables;
+        let key = cortex_core::crypto::get_app_key();
+        let _ = env.encrypt_secrets(&key);
+        let yaml = env.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(env_path, yaml).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn populate_resolver(
@@ -319,7 +363,7 @@ fn populate_resolver(
 
     // 2. Collection
     if let Some(cp) = collection_path {
-        if let Ok(collection) = Collection::load(&cp) {
+        if let Ok(collection) = Collection::load_manifest(&cp) {
             if let Some(vars) = collection.manifest.variables {
                 for var in vars {
                     resolver.collection_vars.insert(var.name.clone(), var);
@@ -342,26 +386,34 @@ fn populate_resolver(
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_resolved_variables(
+pub async fn get_resolved_variables(
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
 ) -> Result<std::collections::BTreeMap<String, cortex_core::variables::ResolvedVariable>, String> {
-    let mut resolver = cortex_core::variables::VariableResolver::new();
-    populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
-    Ok(resolver.get_all_resolved())
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut resolver = cortex_core::variables::VariableResolver::new();
+        populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
+        Ok(resolver.get_all_resolved())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn preview_template(
+pub async fn preview_template(
     text: String,
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
 ) -> Result<PreviewResponse, String> {
-    let mut resolver = cortex_core::variables::VariableResolver::new();
-    populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
-    let (interpolated, warnings) = resolver.interpolate_masked(&text);
-    Ok(PreviewResponse { text: interpolated, warnings })
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut resolver = cortex_core::variables::VariableResolver::new();
+        populate_resolver(&mut resolver, workspace_path, collection_path, environment_name)?;
+        let (interpolated, warnings) = resolver.interpolate_masked(&text);
+        Ok(PreviewResponse { text: interpolated, warnings })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

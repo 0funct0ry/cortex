@@ -7,6 +7,7 @@ use hmac::Hmac;
 use rand::{rngs::OsRng, RngCore};
 use sha2::Sha256;
 use std::fmt;
+use std::sync::OnceLock;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -87,11 +88,12 @@ pub fn derive_key(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     key
 }
 
-/// Returns a stable application key for internal encryption.
-/// In a real application, this would be retrieved from a secure vault or derived from a user-provided password.
+/// Returns a stable application key for internal encryption, derived once and cached for the
+/// process lifetime. PBKDF2 at 100k rounds is intentionally slow; recomputing it on every
+/// load/save adds hundreds of ms of latency per operation.
 pub fn get_app_key() -> [u8; 32] {
-    // For now, use a stable derived key.
-    derive_key("cortex-internal-stable-passphrase", b"cortex-app-salt-v1")
+    static KEY: OnceLock<[u8; 32]> = OnceLock::new();
+    *KEY.get_or_init(|| derive_key("cortex-internal-stable-passphrase", b"cortex-app-salt-v1"))
 }
 
 #[cfg(test)]

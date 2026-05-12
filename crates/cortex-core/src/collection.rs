@@ -198,6 +198,33 @@ impl Collection {
         Ok(Self { path, manifest, environments, items })
     }
 
+    /// Loads only the manifest from a collection directory, skipping environments and the items tree.
+    /// Use this when only the collection name or manifest-level variables are needed.
+    pub fn load_manifest_no_envs<P: AsRef<Path>>(path: P) -> Result<Self, CollectionError> {
+        let path = path.as_ref().to_path_buf();
+
+        if !path.exists() {
+            return Err(CollectionError::NotFound(path));
+        }
+
+        if !path.is_dir() {
+            return Err(CollectionError::NotADirectory(path));
+        }
+
+        let manifest_path = path.join("cortex.yaml");
+        if !manifest_path.exists() {
+            return Err(CollectionError::MissingManifest(path));
+        }
+
+        let content = fs::read_to_string(&manifest_path)?;
+        let mut manifest = CollectionManifest::from_yaml(&content)?;
+
+        let key = crate::crypto::get_app_key();
+        let _ = manifest.decrypt_secrets(&key);
+
+        Ok(Self { path, manifest, environments: Vec::new(), items: Vec::new() })
+    }
+
     /// Loads only the manifest and environments from a collection directory, skipping the items tree.
     pub fn load_manifest<P: AsRef<Path>>(path: P) -> Result<Self, CollectionError> {
         let path = path.as_ref().to_path_buf();

@@ -1,16 +1,32 @@
+use std::collections::HashSet;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 pub const CORTEX_SECTION_HEADER: &str = "# Cortex local-only files";
 pub const DEFAULT_ENTRIES: &[&str] = &[".env", ".cortex-ai.yaml"];
+
+/// Tracks directories whose .gitignore has already been verified this process run so we avoid
+/// redundant file reads on every save.
+static INITIALIZED_DIRS: Mutex<Option<HashSet<PathBuf>>> = Mutex::new(None);
 
 pub struct GitIgnoreManager;
 
 impl GitIgnoreManager {
     /// Ensures that the .gitignore file in the given directory contains the required Cortex entries.
     /// If the file doesn't exist, it's created. If it exists, entries are appended if missing.
+    /// After the first successful run for a given directory the result is cached and subsequent
+    /// calls return immediately without any I/O.
     pub fn ensure_gitignore(dir: &Path) -> Result<bool, std::io::Error> {
+        let canonical = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+        {
+            let mut guard = INITIALIZED_DIRS.lock().unwrap();
+            let set = guard.get_or_insert_with(HashSet::new);
+            if set.contains(&canonical) {
+                return Ok(false);
+            }
+        }
         let path = dir.join(".gitignore");
         let mut updated = false;
 
@@ -20,6 +36,7 @@ impl GitIgnoreManager {
             for entry in DEFAULT_ENTRIES {
                 writeln!(file, "{}", entry)?;
             }
+            INITIALIZED_DIRS.lock().unwrap().get_or_insert_with(HashSet::new).insert(canonical);
             return Ok(true);
         }
 
@@ -51,8 +68,6 @@ impl GitIgnoreManager {
             let mut file = fs::OpenOptions::new().append(true).open(&path)?;
 
             if !has_header {
-                // If there's no header, we add it.
-                // We might want to add a newline before if the file is not empty and doesn't end with one.
                 if !lines.is_empty() && !lines.last().unwrap().is_empty() {
                     writeln!(file)?;
                 }
@@ -66,6 +81,7 @@ impl GitIgnoreManager {
             }
         }
 
+        INITIALIZED_DIRS.lock().unwrap().get_or_insert_with(HashSet::new).insert(canonical);
         Ok(updated)
     }
 }

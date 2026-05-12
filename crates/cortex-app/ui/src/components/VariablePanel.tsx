@@ -162,21 +162,35 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   const handleSaveAll = async () => {
     setIsSaving(true)
     try {
-      // Save all dirty scopes
+      // Save all dirty scopes, checking each Result explicitly.
+      // Commands return Result<null, string> — errors are values, not thrown exceptions,
+      // so we must check .status ourselves rather than relying on try/catch.
       for (const [key, vars] of Object.entries(dirtyScopes)) {
+        let res: { status: string; error?: unknown }
+
         if (key === 'global' && workspacePath) {
-          await commands.updateWorkspaceVariables(workspacePath, vars)
+          res = await commands.updateWorkspaceVariables(workspacePath, vars)
         } else if (key.startsWith('col:')) {
           const path = key.substring(4)
-          await commands.updateCollectionVariables(path, vars)
+          res = await commands.updateCollectionVariables(path, vars)
         } else if (key.startsWith('env:')) {
-          const parts = key.substring(4).split(':')
-          if (parts.length >= 2) {
-            const [path, envName] = parts
-            await commands.updateEnvironmentVariables(path, envName, vars)
-          }
+          // Key format: "env:<collectionPath>:<envName>"
+          // Split only on the LAST colon so paths with colons (Windows) still work.
+          const withoutPrefix = key.substring(4)
+          const lastColon = withoutPrefix.lastIndexOf(':')
+          if (lastColon === -1) continue
+          const path = withoutPrefix.substring(0, lastColon)
+          const envName = withoutPrefix.substring(lastColon + 1)
+          res = await commands.updateEnvironmentVariables(path, envName, vars)
+        } else {
+          continue
+        }
+
+        if (res.status === 'error') {
+          throw new Error(String(res.error))
         }
       }
+
       onUpdate()
       onClose()
     } catch (e) {
