@@ -114,6 +114,10 @@ pub struct RequestHistoryEntry {
     pub executed_at: String, // ISO 8601 timestamp
     pub status_code: Option<u16>,
     pub response_body: Option<String>,
+    #[serde(default)]
+    pub headers: BTreeMap<String, String>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 impl RequestHistoryEntry {

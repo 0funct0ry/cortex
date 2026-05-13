@@ -64,6 +64,7 @@ fn main() {
             commands::send_request,
             commands::get_request_history,
             commands::clear_request_history,
+            commands::preview_request_headers,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -107,6 +108,7 @@ mod tests {
                 commands::send_request,
                 commands::get_request_history,
                 commands::clear_request_history,
+                commands::preview_request_headers,
             ]);
 
         builder

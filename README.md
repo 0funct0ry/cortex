@@ -146,6 +146,7 @@ Cortex features a high-performance, IDE-like desktop interface designed for spee
 - **Workspace Manifest (`cortex-workspace.yaml`)**: Groups multiple collections into a single organizational unit. Includes UI support for creating, switching, and persisting workspaces.
 - **Collection Manifest (`cortex.yaml`)**: Root configuration for a collection.
 - **Request Files (`.crx`)**: Standalone YAML files for individual API requests.
+- **Folder Manifest (`folder.yaml`)**: Optional folder-level override file supporting shared parameters (e.g. inherited headers) across child items.
 - **Environments (`environments/*.yaml`)**: Environment-specific variables with support for encrypted secrets.
 
 - Mark a variable as `secret: true` in any scope (Global, Collection, or Environment).
@@ -166,6 +167,7 @@ Cortex uses a direct filesystem-to-UI mapping for collections.
 ### 🧩 Variable & Template Engine
 Cortex includes a powerful variable resolution pipeline and template engine.
 - **Interpolation**: Use `{{variable_name}}` in request fields like URL, headers, and body.
+- **Header Key Interpolation**: Variable placeholders are completely evaluated inside HTTP header keys (supporting exact precedence matching and full uppercase names like `{{AUTH_HEADER}}`). Headers whose final resolved keys evaluate to empty strings are automatically stripped from outgoing requests, displaying distinct warnings in the live preview panel and run logs.
 - **Precedence Model**:
     1. **Session (Ephemeral / Runtime)**: In-memory variables that live only for the current app session — never written to disk (highest).
     2. **Environment**: Variables defined in the active environment file.

@@ -104,11 +104,30 @@ pub struct RequestFileWrapper {
     pub error: Option<String>,
 }
 
+/// Represents the optional `folder.yaml` configuration inside a folder directory.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+#[serde(deny_unknown_fields)]
+pub struct FolderManifest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<BTreeMap<String, String>>,
+}
+
+impl FolderManifest {
+    pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        serde_yaml::from_str(yaml)
+    }
+    pub fn to_yaml(&self) -> Result<String, serde_yaml::Error> {
+        serde_yaml::to_string(self)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Folder {
     pub name: String,
     pub path: PathBuf,
     pub relative_path: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<FolderManifest>,
     pub items: Vec<CollectionItem>,
 }
 
@@ -375,10 +394,19 @@ fn load_tree(
                 continue;
             }
             let children = load_tree(base_path, &path)?;
+            let manifest_path = path.join("folder.yaml");
+            let manifest = if manifest_path.exists() {
+                fs::read_to_string(&manifest_path)
+                    .ok()
+                    .and_then(|s| FolderManifest::from_yaml(&s).ok())
+            } else {
+                None
+            };
             items.push(CollectionItem::Folder(Folder {
                 name,
                 path,
                 relative_path,
+                manifest,
                 items: children,
             }));
         } else if path.extension().is_some_and(|ext| ext == "crx") {
@@ -508,5 +536,15 @@ description: \"Description\"
 
         let content = fs::read_to_string(path).unwrap();
         assert!(content.contains("name: New Request"));
+    }
+
+    #[test]
+    fn test_folder_manifest_roundtrip() {
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Folder-Level".to_string(), "true".to_string());
+        let manifest = FolderManifest { headers: Some(headers) };
+        let yaml = manifest.to_yaml().unwrap();
+        let decoded = FolderManifest::from_yaml(&yaml).unwrap();
+        assert_eq!(manifest, decoded);
     }
 }

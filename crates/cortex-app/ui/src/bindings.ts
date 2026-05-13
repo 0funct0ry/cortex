@@ -214,9 +214,9 @@ async getPromptVariables(collectionPath: string, environmentName: string | null)
     else return { status: "error", error: e  as any };
 }
 },
-async sendRequest(requestName: string, method: string, url: string, workspacePath: string | null, collectionPath: string | null, environmentName: string | null) : Promise<Result<RequestHistoryEntry, string>> {
+async sendRequest(requestName: string, method: string, url: string, headers: HeaderEntry[], workspacePath: string | null, collectionPath: string | null, environmentName: string | null, requestPath: string | null) : Promise<Result<RequestHistoryEntry, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("send_request", { requestName, method, url, workspacePath, collectionPath, environmentName }) };
+    return { status: "ok", data: await TAURI_INVOKE("send_request", { requestName, method, url, headers, workspacePath, collectionPath, environmentName, requestPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -227,6 +227,14 @@ async getRequestHistory() : Promise<RequestHistoryEntry[]> {
 },
 async clearRequestHistory() : Promise<void> {
     await TAURI_INVOKE("clear_request_history");
+},
+async previewRequestHeaders(headers: HeaderEntry[], workspacePath: string | null, collectionPath: string | null, environmentName: string | null, requestPath: string | null) : Promise<Result<PreviewHeadersResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_request_headers", { headers, workspacePath, collectionPath, environmentName, requestPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -287,10 +295,17 @@ name: string;
  * List of environment variables
  */
 variables: Variable[] }
-export type Folder = { name: string; path: string; relative_path: string; items: CollectionItem[] }
+export type Folder = { name: string; path: string; relative_path: string; manifest?: FolderManifest | null; items: CollectionItem[] }
+/**
+ * Represents the optional `folder.yaml` configuration inside a folder directory.
+ */
+export type FolderManifest = { headers?: { [key in string]: string } | null }
 export type GreetResponse = { message: string }
+export type HeaderEntry = { key: string; value: string; enabled: boolean }
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
+export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: string[] }
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
+export type RenderedHeader = { key: string; value: string }
 export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
 /**
  * Represents the structure of a `.crx` request file.
@@ -352,7 +367,7 @@ export type RequestHistoryEntry = { id: string; request_name: string; method: st
 /**
  * Variables resolved and captured during execution/rendering
  */
-captured_variables: { [key in string]: string }; executed_at: string; status_code: number | null; response_body: string | null }
+captured_variables: { [key in string]: string }; executed_at: string; status_code: number | null; response_body: string | null; headers?: { [key in string]: string }; warnings?: string[] }
 export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }

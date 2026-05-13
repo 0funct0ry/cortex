@@ -35,6 +35,25 @@ pub struct PreviewResponse {
     pub captured_variables: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct HeaderEntry {
+    pub key: String,
+    pub value: String,
+    pub enabled: bool,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct RenderedHeader {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct PreviewHeadersResponse {
+    pub headers: Vec<RenderedHeader>,
+    pub warnings: Vec<String>,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn greet(name: &str) -> GreetResponse {
@@ -551,6 +570,131 @@ pub async fn preview_template(
     .map_err(|e| e.to_string())?
 }
 
+fn gather_and_render_headers(
+    resolver: &mut cortex_core::variables::VariableResolver,
+    collection_path: Option<String>,
+    request_path: Option<String>,
+    ui_headers: Vec<HeaderEntry>,
+    render_unmasked: bool,
+) -> (BTreeMap<String, String>, Vec<String>, BTreeMap<String, String>) {
+    let mut raw_headers: BTreeMap<String, String> = BTreeMap::new();
+
+    // A. Collection-level headers
+    if let Some(col_path) = &collection_path {
+        if let Ok(col) = cortex_core::collection::Collection::load_manifest_no_envs(col_path) {
+            if let Some(h) = col.manifest.headers {
+                for (k, v) in h {
+                    raw_headers.insert(k, v);
+                }
+            }
+        }
+    }
+
+    // B. Folder-level headers top-down
+    if let (Some(req_path), Some(col_path)) = (&request_path, &collection_path) {
+        let req_path_buf = PathBuf::from(req_path);
+        let col_path_buf = PathBuf::from(col_path);
+        let mut ancestors = Vec::new();
+        let mut curr = req_path_buf.parent();
+        while let Some(p) = curr {
+            if p == col_path_buf || !p.starts_with(&col_path_buf) {
+                break;
+            }
+            ancestors.push(p.to_path_buf());
+            curr = p.parent();
+        }
+        ancestors.reverse();
+        for folder_path in ancestors {
+            let fy = folder_path.join("folder.yaml");
+            if fy.exists() {
+                if let Ok(content) = std::fs::read_to_string(&fy) {
+                    if let Ok(fm) = cortex_core::collection::FolderManifest::from_yaml(&content) {
+                        if let Some(h) = fm.headers {
+                            for (k, v) in h {
+                                raw_headers.insert(k, v);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // C. Request-level headers from UI
+    for h in ui_headers {
+        if h.enabled {
+            raw_headers.insert(h.key, h.value);
+        }
+    }
+
+    let mut rendered_headers = BTreeMap::new();
+    let mut warnings = Vec::new();
+    let mut all_captured = BTreeMap::new();
+
+    for (raw_key, raw_val) in raw_headers {
+        let res_key = if render_unmasked {
+            resolver.render(&raw_key)
+        } else {
+            resolver.render_masked(&raw_key)
+        };
+        let res_val = if render_unmasked {
+            resolver.render(&raw_val)
+        } else {
+            resolver.render_masked(&raw_val)
+        };
+
+        all_captured.extend(res_key.captured_variables);
+        all_captured.extend(res_val.captured_variables);
+
+        let final_key = res_key.text.trim().to_string();
+        if final_key.is_empty() {
+            warnings.push(format!(
+                "Header key '{}' resolved to an empty string and was omitted.",
+                raw_key
+            ));
+        } else {
+            rendered_headers.insert(final_key, res_val.text);
+        }
+    }
+
+    (rendered_headers, warnings, all_captured)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_request_headers(
+    headers: Vec<HeaderEntry>,
+    workspace_path: Option<String>,
+    collection_path: Option<String>,
+    environment_name: Option<String>,
+    request_path: Option<String>,
+    store: tauri::State<'_, EphemeralStore>,
+) -> Result<PreviewHeadersResponse, String> {
+    let ephemeral_vars: Vec<Variable> = store.0.lock().unwrap().values().cloned().collect();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut resolver = cortex_core::variables::VariableResolver::new();
+        populate_resolver(
+            &mut resolver,
+            workspace_path,
+            collection_path.clone(),
+            environment_name,
+            ephemeral_vars,
+        )?;
+
+        let (rendered_headers, warnings, _) =
+            gather_and_render_headers(&mut resolver, collection_path, request_path, headers, false);
+
+        let headers_list = rendered_headers
+            .into_iter()
+            .map(|(key, value)| RenderedHeader { key, value })
+            .collect();
+
+        Ok(PreviewHeadersResponse { headers: headers_list, warnings })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 #[specta::specta]
 #[allow(clippy::too_many_arguments)]
@@ -558,9 +702,11 @@ pub async fn send_request(
     request_name: String,
     method: String,
     url: String,
+    headers: Vec<HeaderEntry>,
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    request_path: Option<String>,
     ephemeral_store: tauri::State<'_, EphemeralStore>,
     history_store: tauri::State<'_, HistoryStore>,
 ) -> Result<RequestHistoryEntry, String> {
@@ -572,20 +718,26 @@ pub async fn send_request(
         populate_resolver(
             &mut resolver,
             workspace_path,
-            collection_path,
+            collection_path.clone(),
             environment_name,
             ephemeral_vars,
         )?;
 
-        // Render unmasked so history logs the actual runtime evaluated values
-        let result = resolver.render(&url);
+        let mut result = resolver.render(&url);
 
-        // Generate ISO timestamp
+        let (rendered_headers, warnings, headers_captured) = gather_and_render_headers(
+            &mut resolver,
+            collection_path,
+            request_path,
+            headers,
+            true,
+        );
+
+        result.captured_variables.extend(headers_captured);
+
         let executed_at = RequestHistoryEntry::now_iso();
-        // Generate short random id for history entry
         let id = RequestHistoryEntry::random_id();
 
-        // Mock a basic successful response or simulated API result
         let status_code = Some(200);
         let response_body = Some(format!(
             "{{\n  \"status\": \"success\",\n  \"message\": \"Simulated response for {}\",\n  \"rendered_url\": \"{}\"\n}}",
@@ -603,6 +755,8 @@ pub async fn send_request(
             executed_at,
             status_code,
             response_body,
+            headers: rendered_headers,
+            warnings,
         })
     })
     .await

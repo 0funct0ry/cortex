@@ -8,6 +8,9 @@ import {
   Trash2,
   Loader2,
   CheckCircle2,
+  Plus,
+  Layers,
+  AlertTriangle,
 } from 'lucide-react'
 import { type Tab } from './TabBar'
 import { getMethodColor } from '../../lib/methods'
@@ -33,8 +36,42 @@ export const Composer: React.FC<ComposerProps> = ({
 }) => {
   const [url, setUrl] = useState('')
   const [body, setBody] = useState('{\n  "payload": {{myJsonObject}}\n}')
+  const [headers, setHeaders] = useState<
+    Array<{ id: string; key: string; value: string; enabled: boolean }>
+  >([
+    { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
+    { id: '2', key: 'Authorization', value: 'Bearer {{API_KEY}}', enabled: true },
+    { id: '3', key: '{{CUSTOM_HEADER}}', value: 'dynamic-val', enabled: true },
+  ])
+  const [headersPreview, setHeadersPreview] = useState<{
+    headers: Array<{ key: string; value: string }>
+    warnings: string[]
+  } | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [history, setHistory] = useState<RequestHistoryEntry[]>([])
+
+  // Live Preview of Headers Engine
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!tab) return
+      try {
+        const payload = headers.map(({ key, value, enabled }) => ({ key, value, enabled }))
+        const res = await commands.previewRequestHeaders(
+          payload,
+          workspacePath ?? null,
+          collectionPath ?? null,
+          environmentName ?? null,
+          tab.path ?? null
+        )
+        if (res.status === 'ok') {
+          setHeadersPreview(res.data)
+        }
+      } catch (e) {
+        console.error('[Composer] preview headers error:', e)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [headers, workspacePath, collectionPath, environmentName, tab?.path, variableRevision])
 
   // Fetch request history logs on load and when context switches
   const loadHistory = async () => {
@@ -69,13 +106,16 @@ export const Composer: React.FC<ComposerProps> = ({
     if (!tab || !url) return
     setIsSending(true)
     try {
+      const payload = headers.map(({ key, value, enabled }) => ({ key, value, enabled }))
       const res = await commands.sendRequest(
         tab.name,
         tab.method,
         url,
+        payload,
         workspacePath ?? null,
         collectionPath ?? null,
-        environmentName ?? null
+        environmentName ?? null,
+        tab.path ?? null
       )
       if (res.status === 'ok') {
         // Prepend new history record locally or reload list
@@ -167,6 +207,142 @@ export const Composer: React.FC<ComposerProps> = ({
               </>
             )}
           </button>
+        </div>
+
+        {/* ── Request Headers Panel ── */}
+        <div className="space-y-4 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-6 shadow-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <Layers className="w-3.5 h-3.5 text-blue-400" />
+              </div>
+              <span className="text-xs font-bold text-white tracking-tight">Request Headers</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setHeaders((prev) => [
+                  ...prev,
+                  { id: crypto.randomUUID(), key: '', value: '', enabled: true },
+                ])
+              }}
+              className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-lg border border-blue-500/20 transition-all"
+            >
+              <Plus className="w-3 h-3" /> Add Header
+            </button>
+          </div>
+
+          {/* Table/List */}
+          <div className="space-y-2">
+            {headers.map((h) => (
+              <div key={h.id} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={h.enabled}
+                  onChange={(e) => {
+                    const val = e.target.checked
+                    setHeaders((prev) =>
+                      prev.map((item) => (item.id === h.id ? { ...item, enabled: val } : item))
+                    )
+                  }}
+                  className="mt-3.5 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer w-4 h-4 shrink-0"
+                  title="Enable Header"
+                />
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <TemplateInput
+                    value={h.key}
+                    onChange={(val) => {
+                      setHeaders((prev) =>
+                        prev.map((item) => (item.id === h.id ? { ...item, key: val } : item))
+                      )
+                    }}
+                    placeholder="Key (e.g. Content-Type or {{VAR}})"
+                    workspacePath={workspacePath}
+                    collectionPath={collectionPath}
+                    environmentName={environmentName}
+                    variableRevision={variableRevision}
+                    inputClassName="py-2 text-xs"
+                  />
+                  <TemplateInput
+                    value={h.value}
+                    onChange={(val) => {
+                      setHeaders((prev) =>
+                        prev.map((item) => (item.id === h.id ? { ...item, value: val } : item))
+                      )
+                    }}
+                    placeholder="Value"
+                    workspacePath={workspacePath}
+                    collectionPath={collectionPath}
+                    environmentName={environmentName}
+                    variableRevision={variableRevision}
+                    inputClassName="py-2 text-xs"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHeaders((prev) => prev.filter((item) => item.id !== h.id))
+                  }}
+                  className="mt-2.5 p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-all shrink-0"
+                  title="Delete Header"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {headers.length === 0 && (
+              <p className="text-[11px] text-slate-600 italic text-center py-2">
+                No custom headers configured.
+              </p>
+            )}
+          </div>
+
+          {/* Live Preview Block */}
+          {headersPreview && (
+            <div className="mt-3 bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-3 animate-in fade-in duration-300">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                Final Sent Request Headers Preview
+              </span>
+              {headersPreview.warnings.length > 0 && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Resolution Warnings</span>
+                  </div>
+                  {headersPreview.warnings.map((w, i) => (
+                    <p key={i} className="text-[11px] text-amber-300/90 leading-relaxed font-mono">
+                      {w}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {headersPreview.headers.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {headersPreview.headers.map((rh, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-2 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800/50"
+                    >
+                      <span
+                        className="text-[11px] font-mono font-bold text-blue-400 truncate"
+                        title={rh.key}
+                      >
+                        {rh.key}
+                      </span>
+                      <span
+                        className="text-[11px] font-mono text-slate-300 truncate max-w-[180px]"
+                        title={rh.value}
+                      >
+                        {rh.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-600 italic">No final headers to send.</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Request Body (JSON) Panel */}
@@ -273,38 +449,86 @@ export const Composer: React.FC<ComposerProps> = ({
                       </div>
                     </div>
 
-                    {/* Captured Dynamic Variables Panel */}
-                    {capturedEntries.length > 0 ? (
-                      <div className="bg-slate-950/80 border border-slate-800/60 rounded-xl p-3 space-y-2">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                          Captured Variables Evaluated at Runtime
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {capturedEntries.map(([name, val]) => (
-                            <div
-                              key={name}
-                              className="flex items-center justify-between gap-2 bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800/40"
+                    {/* Evaluated Headers & Captured Variables Panel */}
+                    <div className="space-y-3">
+                      {item.warnings && item.warnings.length > 0 && (
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-1">
+                          <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Execution Warnings</span>
+                          </div>
+                          {item.warnings.map((w, i) => (
+                            <p
+                              key={i}
+                              className="text-[11px] text-amber-300/90 leading-relaxed font-mono"
                             >
-                              <span className="text-[11px] font-mono font-bold text-rose-400 truncate">
-                                {'{{'}
-                                {name}
-                                {'}}'}
-                              </span>
-                              <span
-                                className="text-[11px] font-mono text-slate-300 truncate max-w-[180px]"
-                                title={val}
-                              >
-                                {val}
-                              </span>
-                            </div>
+                              {w}
+                            </p>
                           ))}
                         </div>
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-slate-600 italic px-1">
-                        No variables interpolated in this request.
-                      </p>
-                    )}
+                      )}
+
+                      {item.headers && Object.keys(item.headers).length > 0 && (
+                        <div className="bg-slate-950/80 border border-slate-800/60 rounded-xl p-3 space-y-2">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                            Final Evaluated Headers Sent
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {Object.entries(item.headers).map(([k, v]) => (
+                              <div
+                                key={k}
+                                className="flex items-center justify-between gap-2 bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800/40"
+                              >
+                                <span
+                                  className="text-[11px] font-mono font-bold text-blue-400 truncate"
+                                  title={k}
+                                >
+                                  {k}
+                                </span>
+                                <span
+                                  className="text-[11px] font-mono text-slate-300 truncate max-w-[180px]"
+                                  title={v}
+                                >
+                                  {v}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {capturedEntries.length > 0 ? (
+                        <div className="bg-slate-950/80 border border-slate-800/60 rounded-xl p-3 space-y-2">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                            Captured Variables Evaluated at Runtime
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {capturedEntries.map(([name, val]) => (
+                              <div
+                                key={name}
+                                className="flex items-center justify-between gap-2 bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800/40"
+                              >
+                                <span className="text-[11px] font-mono font-bold text-rose-400 truncate">
+                                  {'{{'}
+                                  {name}
+                                  {'}}'}
+                                </span>
+                                <span
+                                  className="text-[11px] font-mono text-slate-300 truncate max-w-[180px]"
+                                  title={val}
+                                >
+                                  {val}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-600 italic px-1">
+                          No variables interpolated in this request.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )
               })}
