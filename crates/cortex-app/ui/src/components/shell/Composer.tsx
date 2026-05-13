@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Sparkles,
   Terminal,
@@ -11,6 +11,8 @@ import {
   Plus,
   Layers,
   AlertTriangle,
+  Database,
+  Zap,
 } from 'lucide-react'
 import { type Tab } from './TabBar'
 import { getMethodColor } from '../../lib/methods'
@@ -49,6 +51,19 @@ export const Composer: React.FC<ComposerProps> = ({
   } | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [history, setHistory] = useState<RequestHistoryEntry[]>([])
+
+  // GraphQL Introspection Special Context State
+  const [gqlEndpoint, setGqlEndpoint] = useState('https://api.example.com/graphql/{{GRAPHQL_ENV}}')
+  const [gqlHeaders, setGqlHeaders] = useState<
+    Array<{ id: string; key: string; value: string; enabled: boolean }>
+  >([{ id: 'gql-1', key: 'Authorization', value: 'Bearer {{API_KEY}}', enabled: true }])
+  const [isIntrospecting, setIsIntrospecting] = useState(false)
+  const [introspectionResult, setIntrospectionResult] = useState<{
+    status: 'success' | 'error'
+    message: string
+    schema?: string
+  } | null>(null)
+  const [autoIntrospect, setAutoIntrospect] = useState(false)
 
   // Live Preview of Headers Engine
   useEffect(() => {
@@ -142,6 +157,65 @@ export const Composer: React.FC<ComposerProps> = ({
       console.error('[Composer] clear history error:', e)
     }
   }
+
+  const handleIntrospect = useCallback(
+    async (isAuto = false) => {
+      if (!tab || !gqlEndpoint) return
+      setIsIntrospecting(true)
+      setIntrospectionResult(null)
+      try {
+        const mappedHeaders = gqlHeaders.map(({ key, value, enabled }) => ({ key, value, enabled }))
+        const payload = {
+          endpoint_url: gqlEndpoint,
+          headers: mappedHeaders,
+        }
+        const res = await commands.introspectGraphql(
+          payload,
+          workspacePath ?? null,
+          collectionPath ?? null,
+          environmentName ?? null,
+          tab.path ?? null
+        )
+        if (res.status === 'ok') {
+          setIntrospectionResult({
+            status: 'success',
+            message: isAuto
+              ? 'Automatic introspection succeeded.'
+              : 'Introspection successful! Schema retrieved.',
+            schema: res.data.response_body ?? undefined,
+          })
+          setHistory((prev) => [res.data, ...prev])
+        } else {
+          setIntrospectionResult({
+            status: 'error',
+            message: res.error,
+          })
+        }
+      } catch (e: unknown) {
+        setIntrospectionResult({
+          status: 'error',
+          message:
+            typeof e === 'string'
+              ? e
+              : e && typeof e === 'object' && 'message' in e
+                ? String(e.message)
+                : 'Introspection failed due to unresolved template variables.',
+        })
+      } finally {
+        setIsIntrospecting(false)
+      }
+    },
+    [tab, gqlEndpoint, gqlHeaders, workspacePath, collectionPath, environmentName]
+  )
+
+  useEffect(() => {
+    if (autoIntrospect && gqlEndpoint) {
+      const timer = setTimeout(() => {
+        handleIntrospect(true)
+      }, 600)
+      return () => clearTimeout(timer)
+    }
+  }, [gqlEndpoint, autoIntrospect, handleIntrospect])
 
   if (!tab) {
     return (
@@ -375,6 +449,183 @@ export const Composer: React.FC<ComposerProps> = ({
             multiline
             rows={6}
           />
+        </div>
+
+        {/* ── GraphQL Schema Introspection (Special Operation Context) ── */}
+        <div className="space-y-4 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                <Database className="w-3.5 h-3.5 text-amber-400" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-white tracking-tight block">
+                  GraphQL Schema Introspection
+                </span>
+                <span className="text-[10px] text-slate-500 block">
+                  Special context pipeline • deduplicated variables without runtime bleed
+                </span>
+              </div>
+            </div>
+
+            {/* Auto Introspect Switch */}
+            <label className="flex items-center gap-2 cursor-pointer bg-slate-900/60 border border-slate-800/60 px-3 py-1.5 rounded-xl hover:border-slate-700/60 transition-all shrink-0">
+              <input
+                type="checkbox"
+                checked={autoIntrospect}
+                onChange={(e) => setAutoIntrospect(e.target.checked)}
+                className="rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                <Zap className="w-3 h-3 text-amber-400" /> Auto-introspect
+              </span>
+            </label>
+          </div>
+
+          {/* Endpoint URL Input + Manual Trigger Button */}
+          <div className="flex items-start gap-2">
+            <TemplateInput
+              value={gqlEndpoint}
+              onChange={setGqlEndpoint}
+              placeholder="https://api.example.com/graphql/{{env}}"
+              workspacePath={workspacePath}
+              collectionPath={collectionPath}
+              environmentName={environmentName}
+              variableRevision={variableRevision}
+              icon={<Globe className="w-4 h-4 text-amber-500/70" />}
+            />
+            <button
+              type="button"
+              disabled={isIntrospecting || !gqlEndpoint}
+              onClick={() => handleIntrospect(false)}
+              className={cn(
+                'bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:hover:bg-amber-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-bold text-xs shadow-lg shadow-amber-600/10 active:scale-95 transition-all shrink-0',
+                isIntrospecting ? 'cursor-wait' : ''
+              )}
+            >
+              {isIntrospecting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Introspecting...
+                </>
+              ) : (
+                <>
+                  <Database className="w-3.5 h-3.5" /> Introspect
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Special Context Custom Headers Header */}
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Introspection Headers
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setGqlHeaders((prev) => [
+                    ...prev,
+                    { id: crypto.randomUUID(), key: '', value: '', enabled: true },
+                  ])
+                }}
+                className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Add Header
+              </button>
+            </div>
+
+            {gqlHeaders.map((h) => (
+              <div key={h.id} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={h.enabled}
+                  onChange={(e) => {
+                    const val = e.target.checked
+                    setGqlHeaders((prev) =>
+                      prev.map((item) => (item.id === h.id ? { ...item, enabled: val } : item))
+                    )
+                  }}
+                  className="mt-3 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer w-3.5 h-3.5 shrink-0"
+                />
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <TemplateInput
+                    value={h.key}
+                    onChange={(val) => {
+                      setGqlHeaders((prev) =>
+                        prev.map((item) => (item.id === h.id ? { ...item, key: val } : item))
+                      )
+                    }}
+                    placeholder="Header Key"
+                    workspacePath={workspacePath}
+                    collectionPath={collectionPath}
+                    environmentName={environmentName}
+                    variableRevision={variableRevision}
+                    inputClassName="py-1.5 text-xs"
+                  />
+                  <TemplateInput
+                    value={h.value}
+                    onChange={(val) => {
+                      setGqlHeaders((prev) =>
+                        prev.map((item) => (item.id === h.id ? { ...item, value: val } : item))
+                      )
+                    }}
+                    placeholder="Header Value"
+                    workspacePath={workspacePath}
+                    collectionPath={collectionPath}
+                    environmentName={environmentName}
+                    variableRevision={variableRevision}
+                    inputClassName="py-1.5 text-xs"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGqlHeaders((prev) => prev.filter((item) => item.id !== h.id))
+                  }}
+                  className="mt-2 text-slate-500 hover:text-red-400 p-1 rounded"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Results Alert Banner */}
+          {introspectionResult && (
+            <div
+              className={cn(
+                'mt-3 p-4 rounded-xl border animate-in fade-in duration-300 space-y-2',
+                introspectionResult.status === 'error'
+                  ? 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+              )}
+            >
+              <div className="flex items-center gap-2 font-bold text-xs">
+                {introspectionResult.status === 'error' ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>Introspection Prerequisite Error</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Introspection Successful</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[11px] leading-relaxed font-mono whitespace-pre-wrap">
+                {introspectionResult.message}
+              </p>
+              {introspectionResult.schema && (
+                <div className="mt-2 pt-2 border-t border-emerald-500/10 max-h-40 overflow-y-auto font-mono text-[10px] text-slate-300 bg-slate-950/80 p-2.5 rounded-lg border border-slate-900">
+                  {introspectionResult.schema}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Request Execution History Pane ── */}

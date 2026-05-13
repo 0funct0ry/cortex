@@ -65,6 +65,7 @@ fn main() {
             commands::get_request_history,
             commands::clear_request_history,
             commands::preview_request_headers,
+            commands::introspect_graphql,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -109,6 +110,7 @@ mod tests {
                 commands::get_request_history,
                 commands::clear_request_history,
                 commands::preview_request_headers,
+                commands::introspect_graphql,
             ]);
 
         builder

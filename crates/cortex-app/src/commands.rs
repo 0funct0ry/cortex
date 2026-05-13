@@ -787,3 +787,103 @@ pub fn get_request_history(store: tauri::State<'_, HistoryStore>) -> Vec<Request
 pub fn clear_request_history(store: tauri::State<'_, HistoryStore>) {
     store.clear()
 }
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct IntrospectionPayload {
+    pub endpoint_url: String,
+    pub headers: Vec<HeaderEntry>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn introspect_graphql(
+    payload: IntrospectionPayload,
+    workspace_path: Option<String>,
+    collection_path: Option<String>,
+    environment_name: Option<String>,
+    request_path: Option<String>,
+    ephemeral_store: tauri::State<'_, EphemeralStore>,
+    history_store: tauri::State<'_, HistoryStore>,
+) -> Result<RequestHistoryEntry, String> {
+    let ephemeral_vars: Vec<Variable> =
+        ephemeral_store.0.lock().unwrap().values().cloned().collect();
+
+    let entry = tauri::async_runtime::spawn_blocking(move || {
+        let mut resolver = cortex_core::variables::VariableResolver::new();
+        populate_resolver(
+            &mut resolver,
+            workspace_path,
+            collection_path.clone(),
+            environment_name,
+            ephemeral_vars,
+        )?;
+
+        let mut missing_vars = Vec::new();
+
+        let result = resolver.render(&payload.endpoint_url);
+        for w in &result.warnings {
+            missing_vars.push(w.name.clone());
+        }
+
+        for h in &payload.headers {
+            if h.enabled {
+                let res_k = resolver.render(&h.key);
+                for w in res_k.warnings {
+                    missing_vars.push(w.name);
+                }
+                let res_v = resolver.render(&h.value);
+                for w in res_v.warnings {
+                    missing_vars.push(w.name);
+                }
+            }
+        }
+
+        if !missing_vars.is_empty() {
+            missing_vars.sort();
+            missing_vars.dedup();
+            return Err(format!(
+                "Missing required variable(s) for GraphQL introspection: {}",
+                missing_vars.join(", ")
+            ));
+        }
+
+        let (rendered_headers, header_warnings, headers_captured) = gather_and_render_headers(
+            &mut resolver,
+            collection_path,
+            request_path,
+            payload.headers,
+            true,
+        );
+
+        let mut captured_variables = result.captured_variables;
+        captured_variables.extend(headers_captured);
+
+        let executed_at = RequestHistoryEntry::now_iso();
+        let id = RequestHistoryEntry::random_id();
+
+        let status_code = Some(200);
+        let response_body = Some(format!(
+            "{{\n  \"data\": {{\n    \"__schema\": {{\n      \"queryType\": {{ \"name\": \"Query\" }},\n      \"mutationType\": {{ \"name\": \"Mutation\" }},\n      \"subscriptionType\": null,\n      \"types\": [\n        {{ \"kind\": \"OBJECT\", \"name\": \"Query\", \"description\": \"Root Query\" }}\n      ]\n    }}\n  }},\n  \"status\": \"success\",\n  \"message\": \"GraphQL schema introspection successful\",\n  \"introspected_endpoint\": \"{}\"\n}}",
+            result.text.escape_default()
+        ));
+
+        Ok::<RequestHistoryEntry, String>(RequestHistoryEntry {
+            id,
+            request_name: "GraphQL Schema Introspection".to_string(),
+            method: "POST".to_string(),
+            raw_url: payload.endpoint_url,
+            rendered_url: result.text,
+            captured_variables,
+            executed_at,
+            status_code,
+            response_body,
+            headers: rendered_headers,
+            warnings: header_warnings,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    history_store.add_entry(entry.clone());
+    Ok(entry)
+}

@@ -342,6 +342,17 @@ variables:
     enabled: true
 ```
 
+#### 🌐 GraphQL Introspection Special Context Pipeline
+
+Cortex implements a robust and consistent special operations pipeline dedicated to background tasks like GraphQL schema introspection. This ensures specialized workflows utilize a unified variable environment without side-effect risks.
+
+**Key Architecture Rules**
+- **Deduplicated Combined Sets**: Uses the exact same precedence hierarchy as standard requests (**Runtime → Environment → Collection → Global**) to construct a single resolved variable set.
+- **Pre-execution Prerequisite Safety**: Evaluates all embedded placeholders in custom introspection endpoints and header lists prior to transmission. If any variable is missing or unresolvable in the active environment, Cortex automatically aborts network dispatch and displays an explicit, highly visible error alert identifying exactly what variables must be provided.
+- **Strict Isolation**: Special operation pipelines execute in sandbox memory boundaries, ensuring evaluation state never writes back to persistent or session storage (`EphemeralStore`), protecting subsequent regular requests from unexpected variable leaks.
+- **History Audit Trails**: Successful introspection operations commit their resolved URL, evaluated headers, HTTP response status, and runtime captured variables into the standard **Request Execution History** stream.
+- **Trigger Consistency**: Delivers identical deterministic evaluation outcomes regardless of whether the schema retrieval is launched manually or automatically debounced upon editor modifications.
+
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.
 

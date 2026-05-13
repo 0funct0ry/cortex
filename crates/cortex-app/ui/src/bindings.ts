@@ -235,6 +235,14 @@ async previewRequestHeaders(headers: HeaderEntry[], workspacePath: string | null
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async introspectGraphql(payload: IntrospectionPayload, workspacePath: string | null, collectionPath: string | null, environmentName: string | null, requestPath: string | null) : Promise<Result<RequestHistoryEntry, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("introspect_graphql", { payload, workspacePath, collectionPath, environmentName, requestPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -302,6 +310,7 @@ export type Folder = { name: string; path: string; relative_path: string; manife
 export type FolderManifest = { headers?: { [key in string]: string } | null }
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean }
+export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[] }
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
 export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: string[] }
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
