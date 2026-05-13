@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut env = EnvironmentFile::new("production".to_string());
     env.variables.push(Variable {
         name: "DB_PASSWORD".to_string(),
-        value: "super-secret-password".to_string(),
+        value: serde_json::json!("super-secret-password"),
         secret: true,
         enabled: true,
         prompt: false,
@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     env.variables.push(Variable {
         name: "API_URL".to_string(),
-        value: "https://api.example.com".to_string(),
+        value: serde_json::json!("https://api.example.com"),
         secret: false,
         enabled: true,
         prompt: false,

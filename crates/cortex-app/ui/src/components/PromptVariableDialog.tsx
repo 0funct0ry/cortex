@@ -14,10 +14,13 @@ export const PromptVariableDialog: React.FC<PromptVariableDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const getValStr = (val: unknown) =>
+    typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '')
+
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
     for (const v of variables) {
-      init[v.name] = v.value ?? ''
+      init[v.name] = getValStr(v.value)
     }
     return init
   })
@@ -41,7 +44,7 @@ export const PromptVariableDialog: React.FC<PromptVariableDialogProps> = ({
     const newErrors: Record<string, string> = {}
     for (const v of variables) {
       const val = (values[v.name] ?? '').trim()
-      if (val === '' && (v.value ?? '') === '') {
+      if (val === '' && getValStr(v.value) === '') {
         newErrors[v.name] = 'This variable is required — please enter a value.'
       }
     }
@@ -102,57 +105,60 @@ export const PromptVariableDialog: React.FC<PromptVariableDialogProps> = ({
 
         {/* Variable inputs */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-          {variables.map((v, idx) => (
-            <div key={v.name} className="space-y-1.5">
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-300">
-                <span className="font-mono text-indigo-300">{v.name}</span>
-                {(v.value ?? '') !== '' && (
-                  <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
-                    has default
-                  </span>
+          {variables.map((v, idx) => {
+            const defaultStr = getValStr(v.value)
+            return (
+              <div key={v.name} className="space-y-1.5">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                  <span className="font-mono text-indigo-300">{v.name}</span>
+                  {defaultStr !== '' && (
+                    <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                      has default
+                    </span>
+                  )}
+                </label>
+                {v.description && (
+                  <p className="text-[11px] text-slate-500 leading-relaxed">{v.description}</p>
                 )}
-              </label>
-              {v.description && (
-                <p className="text-[11px] text-slate-500 leading-relaxed">{v.description}</p>
-              )}
-              <input
-                ref={idx === 0 ? firstInputRef : undefined}
-                type={v.secret ? 'password' : 'text'}
-                className={cn(
-                  'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm font-mono text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 transition-all',
-                  errors[v.name]
-                    ? 'border-red-500/50 focus:ring-red-500/30 focus:border-red-500/60'
-                    : 'border-slate-800 focus:ring-indigo-500/40 focus:border-indigo-600/50'
-                )}
-                placeholder={
-                  (v.value ?? '') !== ''
-                    ? `default: ${v.secret ? '••••••••' : v.value}`
-                    : 'Enter value…'
-                }
-                value={values[v.name] ?? ''}
-                onChange={(e) => {
-                  setValues((prev) => ({ ...prev, [v.name]: e.target.value }))
-                  if (errors[v.name]) {
-                    setErrors((prev) => {
-                      const next = { ...prev }
-                      delete next[v.name]
-                      return next
-                    })
+                <input
+                  ref={idx === 0 ? firstInputRef : undefined}
+                  type={v.secret ? 'password' : 'text'}
+                  className={cn(
+                    'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm font-mono text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 transition-all',
+                    errors[v.name]
+                      ? 'border-red-500/50 focus:ring-red-500/30 focus:border-red-500/60'
+                      : 'border-slate-800 focus:ring-indigo-500/40 focus:border-indigo-600/50'
+                  )}
+                  placeholder={
+                    defaultStr !== ''
+                      ? `default: ${v.secret ? '••••••••' : defaultStr}`
+                      : 'Enter value…'
                   }
-                }}
-                onKeyDown={handleKeyDown}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              {errors[v.name] && (
-                <p className="text-[11px] text-red-400 flex items-center gap-1.5 animate-in slide-in-from-top-1 duration-150">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors[v.name]}
-                </p>
-              )}
-            </div>
-          ))}
+                  value={values[v.name] ?? ''}
+                  onChange={(e) => {
+                    setValues((prev) => ({ ...prev, [v.name]: e.target.value }))
+                    if (errors[v.name]) {
+                      setErrors((prev) => {
+                        const next = { ...prev }
+                        delete next[v.name]
+                        return next
+                      })
+                    }
+                  }}
+                  onKeyDown={handleKeyDown}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                {errors[v.name] && (
+                  <p className="text-[11px] text-red-400 flex items-center gap-1.5 animate-in slide-in-from-top-1 duration-150">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    {errors[v.name]}
+                  </p>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Footer */}

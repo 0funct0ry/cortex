@@ -29,7 +29,7 @@ impl std::fmt::Display for VariableScope {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 pub struct Variable {
     pub name: String,
-    pub value: String,
+    pub value: serde_json::Value,
     #[serde(default)]
     pub secret: bool,
     #[serde(default = "default_true")]
@@ -49,7 +49,7 @@ fn default_true() -> bool {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 pub struct ResolvedVariable {
-    pub value: String,
+    pub value: serde_json::Value,
     pub scope: VariableScope,
     pub secret: bool,
 }
@@ -101,7 +101,7 @@ impl VariableResolver {
             "$randomInt" => {
                 let val = rand::thread_rng().gen_range(0..=1000);
                 return Some(ResolvedVariable {
-                    value: val.to_string(),
+                    value: serde_json::Value::Number(val.into()),
                     scope: VariableScope::Dynamic,
                     secret: false,
                 });
@@ -112,7 +112,7 @@ impl VariableResolver {
                     .map(|d| d.as_secs())
                     .unwrap_or(0);
                 return Some(ResolvedVariable {
-                    value: val.to_string(),
+                    value: serde_json::Value::Number(val.into()),
                     scope: VariableScope::Dynamic,
                     secret: false,
                 });
@@ -120,7 +120,7 @@ impl VariableResolver {
             "$isoTimestamp" => {
                 let val = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                 return Some(ResolvedVariable {
-                    value: val,
+                    value: serde_json::Value::String(val),
                     scope: VariableScope::Dynamic,
                     secret: false,
                 });
@@ -136,7 +136,7 @@ impl VariableResolver {
                     })
                     .collect();
                 return Some(ResolvedVariable {
-                    value: val,
+                    value: serde_json::Value::String(val),
                     scope: VariableScope::Dynamic,
                     secret: false,
                 });
@@ -185,6 +185,69 @@ impl VariableResolver {
         None
     }
 
+    fn value_to_string(val: &serde_json::Value, mask_secrets: bool, is_secret_var: bool) -> String {
+        if mask_secrets && is_secret_var {
+            return "********".to_string();
+        }
+        match val {
+            serde_json::Value::String(s) => {
+                if mask_secrets && is_secret_var {
+                    "********".to_string()
+                } else {
+                    s.clone()
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                if mask_secrets {
+                    let masked_arr: Vec<serde_json::Value> =
+                        arr.iter().map(Self::mask_json_value).collect();
+                    serde_json::to_string(&serde_json::Value::Array(masked_arr)).unwrap_or_default()
+                } else {
+                    serde_json::to_string(val).unwrap_or_default()
+                }
+            }
+            serde_json::Value::Object(_) => {
+                if mask_secrets {
+                    let masked_obj = Self::mask_json_value(val);
+                    serde_json::to_string(&masked_obj).unwrap_or_default()
+                } else {
+                    serde_json::to_string(val).unwrap_or_default()
+                }
+            }
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Null => "".to_string(),
+        }
+    }
+
+    fn mask_json_value(val: &serde_json::Value) -> serde_json::Value {
+        match val {
+            serde_json::Value::Object(map) => {
+                let mut new_map = serde_json::Map::new();
+                for (k, v) in map {
+                    let kl = k.to_lowercase();
+                    let is_secret_field = kl.contains("secret")
+                        || kl.contains("password")
+                        || kl.contains("token")
+                        || kl.contains("key")
+                        || kl.contains("credential")
+                        || kl.contains("private");
+                    if is_secret_field {
+                        new_map
+                            .insert(k.clone(), serde_json::Value::String("********".to_string()));
+                    } else {
+                        new_map.insert(k.clone(), Self::mask_json_value(v));
+                    }
+                }
+                serde_json::Value::Object(new_map)
+            }
+            serde_json::Value::Array(arr) => {
+                serde_json::Value::Array(arr.iter().map(Self::mask_json_value).collect())
+            }
+            other => other.clone(),
+        }
+    }
+
     /// Interpolates variables in a string.
     /// Returns the interpolated string and a list of warnings for unresolved variables.
     pub fn interpolate(&self, text: &str) -> (String, Vec<UnresolvedVariableWarning>) {
@@ -198,7 +261,7 @@ impl VariableResolver {
             if let Some(end) = remaining.find("}}") {
                 let key = remaining[..end].trim();
                 if let Some(resolved) = self.resolve(key) {
-                    result.push_str(&resolved.value);
+                    result.push_str(&Self::value_to_string(&resolved.value, false, false));
                 } else {
                     // Keep the original placeholder but add a warning
                     result.push_str("{{");
@@ -231,11 +294,7 @@ impl VariableResolver {
             if let Some(end) = remaining.find("}}") {
                 let key = remaining[..end].trim();
                 if let Some(resolved) = self.resolve(key) {
-                    if resolved.secret {
-                        result.push_str("********");
-                    } else {
-                        result.push_str(&resolved.value);
-                    }
+                    result.push_str(&Self::value_to_string(&resolved.value, true, resolved.secret));
                 } else {
                     result.push_str("{{");
                     result.push_str(&remaining[..end]);
@@ -399,13 +458,13 @@ impl VariableResolver {
                     }
 
                     if let Some(resolved) = self.resolve(&p.name) {
-                        captured_variables.insert(p.name.clone(), resolved.value.clone());
+                        captured_variables.insert(
+                            p.name.clone(),
+                            Self::value_to_string(&resolved.value, false, false),
+                        );
 
-                        let value = if mask_secrets && resolved.secret {
-                            "********".to_string()
-                        } else {
-                            resolved.value.clone()
-                        };
+                        let value =
+                            Self::value_to_string(&resolved.value, mask_secrets, resolved.secret);
 
                         // Nested resolution: if the resolved value itself contains
                         // placeholders and we have not exceeded the depth limit,
@@ -489,7 +548,7 @@ mod tests {
             "a".to_string(),
             Variable {
                 name: "a".to_string(),
-                value: "global".to_string(),
+                value: serde_json::json!("global"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -500,7 +559,7 @@ mod tests {
             "a".to_string(),
             Variable {
                 name: "a".to_string(),
-                value: "collection".to_string(),
+                value: serde_json::json!("collection"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -511,7 +570,7 @@ mod tests {
             "b".to_string(),
             Variable {
                 name: "b".to_string(),
-                value: "collection".to_string(),
+                value: serde_json::json!("collection"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -522,7 +581,7 @@ mod tests {
             "b".to_string(),
             Variable {
                 name: "b".to_string(),
-                value: "env".to_string(),
+                value: serde_json::json!("env"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -533,7 +592,7 @@ mod tests {
             "c".to_string(),
             Variable {
                 name: "c".to_string(),
-                value: "runtime".to_string(),
+                value: serde_json::json!("runtime"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -543,19 +602,19 @@ mod tests {
 
         // a should be collection (overrides global)
         let res_a = resolver.resolve("a").unwrap();
-        assert_eq!(res_a.value, "collection");
+        assert_eq!(res_a.value, serde_json::json!("collection"));
         assert_eq!(res_a.scope, VariableScope::Collection);
         assert!(!res_a.secret);
 
         // b should be env (overrides collection)
         let res_b = resolver.resolve("b").unwrap();
-        assert_eq!(res_b.value, "env");
+        assert_eq!(res_b.value, serde_json::json!("env"));
         assert_eq!(res_b.scope, VariableScope::Environment);
         assert!(!res_b.secret);
 
         // c should be runtime
         let res_c = resolver.resolve("c").unwrap();
-        assert_eq!(res_c.value, "runtime");
+        assert_eq!(res_c.value, serde_json::json!("runtime"));
         assert_eq!(res_c.scope, VariableScope::Runtime);
         assert!(!res_c.secret);
 
@@ -570,7 +629,7 @@ mod tests {
             "base_url".to_string(),
             Variable {
                 name: "base_url".to_string(),
-                value: "https://api.com".to_string(),
+                value: serde_json::json!("https://api.com"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -581,7 +640,7 @@ mod tests {
             "token".to_string(),
             Variable {
                 name: "token".to_string(),
-                value: "secret".to_string(),
+                value: serde_json::json!("secret"),
                 secret: true,
                 enabled: true,
                 prompt: false,
@@ -604,7 +663,7 @@ mod tests {
             "a".to_string(),
             Variable {
                 name: "a".to_string(),
-                value: "global".to_string(),
+                value: serde_json::json!("global"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -615,7 +674,7 @@ mod tests {
             "a".to_string(),
             Variable {
                 name: "a".to_string(),
-                value: "collection".to_string(),
+                value: serde_json::json!("collection"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -626,7 +685,7 @@ mod tests {
             "b".to_string(),
             Variable {
                 name: "b".to_string(),
-                value: "env".to_string(),
+                value: serde_json::json!("env"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -636,9 +695,9 @@ mod tests {
 
         let all = resolver.get_all_resolved();
         assert_eq!(all.len(), 6);
-        assert_eq!(all.get("a").unwrap().value, "collection");
+        assert_eq!(all.get("a").unwrap().value, serde_json::json!("collection"));
         assert!(!all.get("a").unwrap().secret);
-        assert_eq!(all.get("b").unwrap().value, "env");
+        assert_eq!(all.get("b").unwrap().value, serde_json::json!("env"));
         assert!(!all.get("b").unwrap().secret);
     }
 
@@ -649,7 +708,7 @@ mod tests {
             "a".to_string(),
             Variable {
                 name: "a".to_string(),
-                value: "val".to_string(),
+                value: serde_json::json!("val"),
                 secret: false,
                 enabled: false,
                 prompt: false,
@@ -670,7 +729,7 @@ mod tests {
         // Same key at every scope level
         let make = |value: &str, enabled: bool| Variable {
             name: "API_KEY".to_string(),
-            value: value.to_string(),
+            value: serde_json::json!(value),
             secret: false,
             enabled,
             prompt: false,
@@ -684,19 +743,19 @@ mod tests {
         resolver.runtime_vars.insert("API_KEY".to_string(), make("ephemeral-key", true));
 
         let resolved = resolver.resolve("API_KEY").unwrap();
-        assert_eq!(resolved.value, "ephemeral-key");
+        assert_eq!(resolved.value, serde_json::json!("ephemeral-key"));
         assert_eq!(resolved.scope, VariableScope::Runtime);
 
         // When the ephemeral var is disabled, fall through to environment
         resolver.runtime_vars.insert("API_KEY".to_string(), make("ephemeral-key", false));
         let resolved = resolver.resolve("API_KEY").unwrap();
-        assert_eq!(resolved.value, "env-key");
+        assert_eq!(resolved.value, serde_json::json!("env-key"));
         assert_eq!(resolved.scope, VariableScope::Environment);
 
         // Removing the ephemeral var entirely falls through to environment
         resolver.runtime_vars.clear();
         let resolved = resolver.resolve("API_KEY").unwrap();
-        assert_eq!(resolved.value, "env-key");
+        assert_eq!(resolved.value, serde_json::json!("env-key"));
         assert_eq!(resolved.scope, VariableScope::Environment);
 
         // Interpolation reflects runtime override
@@ -713,7 +772,7 @@ mod tests {
             "api_key".to_string(),
             Variable {
                 name: "api_key".to_string(),
-                value: "super-secret".to_string(),
+                value: serde_json::json!("super-secret"),
                 secret: true,
                 enabled: true,
                 prompt: false,
@@ -724,7 +783,7 @@ mod tests {
             "public_id".to_string(),
             Variable {
                 name: "public_id".to_string(),
-                value: "123".to_string(),
+                value: serde_json::json!("123"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -744,7 +803,7 @@ mod tests {
         // A prompt variable with a description round-trips through YAML correctly.
         let var = Variable {
             name: "region".to_string(),
-            value: "us-east-1".to_string(),
+            value: serde_json::json!("us-east-1"),
             secret: false,
             enabled: true,
             prompt: true,
@@ -754,7 +813,7 @@ mod tests {
         let back: Variable = serde_yaml::from_str(&yaml).expect("deserialize");
         assert_eq!(back.prompt, true);
         assert_eq!(back.description.as_deref(), Some("AWS region to deploy to"));
-        assert_eq!(back.value, "us-east-1");
+        assert_eq!(back.value, serde_json::json!("us-east-1"));
 
         // A plain variable (no prompt fields in YAML) deserializes with prompt=false.
         let plain_yaml = "name: token\nvalue: abc\n";
@@ -765,7 +824,7 @@ mod tests {
         // description is omitted from serialized YAML when None (skip_serializing_if).
         let no_desc = Variable {
             name: "x".to_string(),
-            value: "y".to_string(),
+            value: serde_json::json!("y"),
             secret: false,
             enabled: true,
             prompt: true,
@@ -782,7 +841,7 @@ mod tests {
     fn make_var(name: &str, value: &str, secret: bool) -> Variable {
         Variable {
             name: name.to_string(),
-            value: value.to_string(),
+            value: serde_json::json!(value),
             secret,
             enabled: true,
             prompt: false,
@@ -936,7 +995,7 @@ mod tests {
     fn test_pending_prompt_variables() {
         let make_prompt = |name: &str, value: &str| Variable {
             name: name.to_string(),
-            value: value.to_string(),
+            value: serde_json::json!(value),
             secret: false,
             enabled: true,
             prompt: true,
@@ -944,7 +1003,7 @@ mod tests {
         };
         let make_plain = |name: &str| Variable {
             name: name.to_string(),
-            value: "x".to_string(),
+            value: serde_json::json!("x"),
             secret: false,
             enabled: true,
             prompt: false,
@@ -968,7 +1027,7 @@ mod tests {
             "region".to_string(),
             Variable {
                 name: "region".to_string(),
-                value: "eu-west-1".to_string(),
+                value: serde_json::json!("eu-west-1"),
                 secret: false,
                 enabled: true,
                 prompt: false,
@@ -984,7 +1043,7 @@ mod tests {
             "env".to_string(),
             Variable {
                 name: "env".to_string(),
-                value: "production".to_string(),
+                value: serde_json::json!("production"),
                 secret: false,
                 enabled: true,
                 prompt: true,
@@ -993,7 +1052,7 @@ mod tests {
         );
         let pending3 = resolver.pending_prompt_variables();
         assert_eq!(pending3.len(), 1);
-        assert_eq!(pending3[0].value, "production"); // env-scope value wins
+        assert_eq!(pending3[0].value, serde_json::json!("production")); // env-scope value wins
         assert_eq!(pending3[0].description.as_deref(), Some("Target environment"));
 
         // Disabled prompt vars are excluded
@@ -1001,7 +1060,7 @@ mod tests {
             "disabled".to_string(),
             Variable {
                 name: "disabled".to_string(),
-                value: "".to_string(),
+                value: serde_json::json!(""),
                 secret: false,
                 enabled: false,
                 prompt: true,

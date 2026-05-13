@@ -29,6 +29,8 @@ interface TemplateInputProps {
   icon?: React.ReactNode
   className?: string
   inputClassName?: string
+  multiline?: boolean
+  rows?: number
 }
 
 /** A parsed segment of the raw template string — produced client-side. */
@@ -101,6 +103,8 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
   icon,
   className,
   inputClassName,
+  multiline,
+  rows,
 }) => {
   const [resolvedText, setResolvedText] = useState('')
   const [warnNames, setWarnNames] = useState<Set<string>>(new Set())
@@ -118,7 +122,7 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
 
   // Debounced backend call whenever value or context changes.
   useEffect(() => {
@@ -226,7 +230,7 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
   }
 
   // Keyboard Navigation inside input
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
     if (!showPicker || filteredVars.length === 0) return
 
     if (e.key === 'ArrowDown') {
@@ -264,28 +268,54 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
         {icon && (
           <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">{icon}</div>
         )}
-        <input
-          ref={inputRef}
-          className={cn(
-            'w-full bg-slate-900 border border-slate-800 rounded-xl py-3 text-sm text-white font-mono',
-            'placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50',
-            'focus:border-blue-500 transition-all shadow-2xl',
-            icon ? 'pl-11 pr-4' : 'px-4',
-            inputClassName
-          )}
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value)
-            setTimeout(updateCursorState, 0)
-          }}
-          onClick={updateCursorState}
-          onKeyUp={updateCursorState}
-          onKeyDown={handleKeyDown}
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-        />
+        {multiline ? (
+          <textarea
+            ref={inputRef}
+            rows={rows ?? 5}
+            className={cn(
+              'w-full bg-slate-900 border border-slate-800 rounded-xl py-3 text-sm text-white font-mono custom-scrollbar resize-y',
+              'placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50',
+              'focus:border-blue-500 transition-all shadow-2xl',
+              icon ? 'pl-11 pr-4' : 'px-4',
+              inputClassName
+            )}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value)
+              setTimeout(updateCursorState, 0)
+            }}
+            onClick={updateCursorState}
+            onKeyUp={updateCursorState}
+            onKeyDown={handleKeyDown}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            className={cn(
+              'w-full bg-slate-900 border border-slate-800 rounded-xl py-3 text-sm text-white font-mono',
+              'placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50',
+              'focus:border-blue-500 transition-all shadow-2xl',
+              icon ? 'pl-11 pr-4' : 'px-4',
+              inputClassName
+            )}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value)
+              setTimeout(updateCursorState, 0)
+            }}
+            onClick={updateCursorState}
+            onKeyUp={updateCursorState}
+            onKeyDown={handleKeyDown}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        )}
 
         {/* ── Autocomplete Picker Dropdown ── */}
         {showPicker && filteredVars.length > 0 && (
@@ -315,7 +345,11 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs font-mono text-slate-500 max-w-[120px] truncate group-hover/item:text-slate-400">
-                        {v.secret ? '********' : v.value}
+                        {v.secret
+                          ? '********'
+                          : typeof v.value === 'object' && v.value !== null
+                            ? JSON.stringify(v.value)
+                            : String(v.value ?? '')}
                       </span>
                       <span
                         className={cn(

@@ -13,6 +13,7 @@ import {
   Shield,
   Zap,
   Terminal,
+  Code,
 } from 'lucide-react'
 import { useCallback } from 'react'
 import { commands, type Variable, type VariableScope, type EnvironmentFile } from '../bindings'
@@ -64,6 +65,10 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   const [isSaving, setIsSaving] = useState(false)
   const [isCreatingEnv, setIsCreatingEnv] = useState(false)
   const [newEnvName, setNewEnvName] = useState('')
+
+  const [jsonMode, setJsonMode] = useState<Record<number, boolean>>({})
+  const [jsonBuffers, setJsonBuffers] = useState<Record<number, string>>({})
+  const [jsonErrors, setJsonErrors] = useState<Record<number, string | null>>({})
 
   const getScopeKey = useCallback(() => {
     if (activeTab === 'global') return 'global'
@@ -191,10 +196,85 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
     updateLocal(variables.filter((_, i) => i !== index))
   }
 
-  const handleChange = (index: number, field: keyof Variable, val: string | boolean | null) => {
+  const handleChange = <K extends keyof Variable>(index: number, field: K, val: Variable[K]) => {
     const newVars = [...variables]
     newVars[index] = { ...newVars[index], [field]: val }
     updateLocal(newVars)
+  }
+
+  const isRowJsonMode = (idx: number, val: unknown): boolean => {
+    if (jsonMode[idx] !== undefined) {
+      return jsonMode[idx]
+    }
+    return typeof val === 'object' && val !== null
+  }
+
+  const toggleJsonMode = (idx: number, val: unknown) => {
+    const currentMode = isRowJsonMode(idx, val)
+    const newMode = !currentMode
+    setJsonMode((prev) => ({ ...prev, [idx]: newMode }))
+
+    if (newMode) {
+      const strVal =
+        val === null ? '' : typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val)
+      setJsonBuffers((prev) => ({ ...prev, [idx]: strVal }))
+      try {
+        if (strVal.trim()) {
+          JSON.parse(strVal)
+        }
+        setJsonErrors((prev) => ({ ...prev, [idx]: null }))
+      } catch (err) {
+        setJsonErrors((prev) => ({ ...prev, [idx]: (err as Error).message }))
+      }
+    } else {
+      const strVal =
+        jsonBuffers[idx] !== undefined
+          ? jsonBuffers[idx]
+          : val === null
+            ? ''
+            : typeof val === 'object'
+              ? JSON.stringify(val)
+              : String(val)
+      setJsonBuffers((prev) => {
+        const next = { ...prev }
+        delete next[idx]
+        return next
+      })
+      setJsonErrors((prev) => {
+        const next = { ...prev }
+        delete next[idx]
+        return next
+      })
+      handleChange(idx, 'value', strVal)
+    }
+  }
+
+  const handleJsonBufferChange = (idx: number, newStr: string) => {
+    setJsonBuffers((prev) => ({ ...prev, [idx]: newStr }))
+    try {
+      if (!newStr.trim()) {
+        setJsonErrors((prev) => ({ ...prev, [idx]: null }))
+        handleChange(idx, 'value', '')
+        return
+      }
+      const parsed = JSON.parse(newStr)
+      setJsonErrors((prev) => ({ ...prev, [idx]: null }))
+      handleChange(idx, 'value', parsed)
+    } catch (err) {
+      setJsonErrors((prev) => ({ ...prev, [idx]: (err as Error).message }))
+      handleChange(idx, 'value', newStr)
+    }
+  }
+
+  const getDisplayValue = (idx: number, val: unknown): string => {
+    if (jsonBuffers[idx] !== undefined) {
+      return jsonBuffers[idx]
+    }
+    if (val === null) return ''
+    if (typeof val === 'object') {
+      return JSON.stringify(val, null, 2)
+    }
+    return String(val ?? '')
   }
 
   const handleSaveAll = async () => {
@@ -486,154 +566,217 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
                 <div />
               </div>
               <div className="space-y-2">
-                {variables.map((v, idx) => (
-                  <div
-                    key={idx}
-                    className={cn(
-                      'grid gap-4 items-start group animate-in slide-in-from-left-2 duration-200',
-                      isPromptTab
-                        ? 'grid-cols-[1fr_2fr_80px_80px_60px_40px]'
-                        : 'grid-cols-[1fr_2fr_80px_60px_40px]',
-                      (isSessionTab || (isPromptTab && v.prompt)) && 'relative pl-2'
-                    )}
-                    style={{ animationDelay: `${idx * 30}ms` }}
-                  >
-                    {/* Amber left stripe for session variables */}
-                    {isSessionTab && (
-                      <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-amber-500/50 rounded-full" />
-                    )}
-                    {/* Indigo left stripe for prompt variables */}
-                    {isPromptTab && v.prompt && (
-                      <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-indigo-500/60 rounded-full" />
-                    )}
-                    {/* Name cell — stacks description input below when prompt is active */}
-                    <div className="flex flex-col gap-1.5">
-                      <input
-                        className={cn(
-                          'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder:text-slate-700 focus:outline-none focus:ring-2 transition-all',
-                          isSessionTab
-                            ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50'
-                            : isPromptTab && v.prompt
-                              ? 'border-indigo-800/40 focus:ring-indigo-500/30 focus:border-indigo-600/50'
-                              : 'border-slate-800 focus:ring-blue-500/50'
-                        )}
-                        placeholder="VAR_NAME"
-                        value={v.name}
-                        onChange={(e) => handleChange(idx, 'name', e.target.value)}
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                      />
+                {variables.map((v, idx) => {
+                  const isJson = isRowJsonMode(idx, v.value)
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        'grid gap-4 items-start group animate-in slide-in-from-left-2 duration-200',
+                        isPromptTab
+                          ? 'grid-cols-[1fr_2fr_80px_80px_60px_40px]'
+                          : 'grid-cols-[1fr_2fr_80px_60px_40px]',
+                        (isSessionTab || (isPromptTab && v.prompt)) && 'relative pl-2'
+                      )}
+                      style={{ animationDelay: `${idx * 30}ms` }}
+                    >
+                      {/* Amber left stripe for session variables */}
+                      {isSessionTab && (
+                        <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-amber-500/50 rounded-full" />
+                      )}
+                      {/* Indigo left stripe for prompt variables */}
                       {isPromptTab && v.prompt && (
+                        <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-indigo-500/60 rounded-full" />
+                      )}
+                      {/* Name cell — stacks description input below when prompt is active */}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block h-4">
+                            {/* Alignment spacer */}
+                          </span>
+                        </div>
                         <input
-                          className="w-full bg-slate-950 border border-indigo-800/30 rounded-xl px-4 py-2 text-xs text-slate-400 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600/40 transition-all"
-                          placeholder="Hint shown in prompt dialog (optional)"
-                          value={v.description ?? ''}
-                          onChange={(e) => handleChange(idx, 'description', e.target.value || null)}
+                          className={cn(
+                            'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder:text-slate-700 focus:outline-none focus:ring-2 transition-all',
+                            isSessionTab
+                              ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50'
+                              : isPromptTab && v.prompt
+                                ? 'border-indigo-800/40 focus:ring-indigo-500/30 focus:border-indigo-600/50'
+                                : 'border-slate-800 focus:ring-blue-500/50'
+                          )}
+                          placeholder="VAR_NAME"
+                          value={v.name}
+                          onChange={(e) => handleChange(idx, 'name', e.target.value)}
                           autoCapitalize="none"
                           autoCorrect="off"
                           spellCheck={false}
                         />
-                      )}
-                    </div>
-                    <div className="relative group/value">
-                      <input
-                        type={v.secret && !revealSecrets[idx] ? 'password' : 'text'}
-                        className={cn(
-                          'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm font-mono transition-all pr-10',
-                          v.secret && !revealSecrets[idx]
-                            ? 'text-slate-500 tracking-[0.3em]'
-                            : 'text-white',
-                          isSessionTab
-                            ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50 focus:outline-none focus:ring-2'
-                            : isPromptTab && v.prompt
-                              ? 'border-indigo-800/40 focus:ring-indigo-500/30 focus:border-indigo-600/50 focus:outline-none focus:ring-2'
-                              : 'border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50'
+                        {isPromptTab && v.prompt && (
+                          <input
+                            className="w-full bg-slate-950 border border-indigo-800/30 rounded-xl px-4 py-2 text-xs text-slate-400 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600/40 transition-all mt-0.5"
+                            placeholder="Hint shown in prompt dialog (optional)"
+                            value={v.description ?? ''}
+                            onChange={(e) =>
+                              handleChange(idx, 'description', e.target.value || null)
+                            }
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                          />
                         )}
-                        placeholder={v.prompt ? 'default value (pre-filled in dialog)' : 'value'}
-                        value={v.value}
-                        onChange={(e) => handleChange(idx, 'value', e.target.value)}
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                      />
-                      {v.secret && (
-                        <button
-                          onClick={() => toggleReveal(idx)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-600 hover:text-slate-300 transition-colors"
-                        >
-                          {revealSecrets[idx] ? (
-                            <EyeOff className="w-3.5 h-3.5" />
-                          ) : (
-                            <Eye className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex justify-center pt-1">
-                      <button
-                        onClick={() => handleChange(idx, 'secret', !v.secret)}
-                        className={cn(
-                          'p-2 rounded-xl border transition-all',
-                          v.secret
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
-                            : 'bg-slate-950 border-slate-800 text-slate-600 hover:border-slate-700'
+                      </div>
+                      <div className="relative group/value flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block h-4 flex items-center">
+                            Value {isJson ? '(JSON)' : '(String)'}
+                          </span>
+                          <button
+                            onClick={() => toggleJsonMode(idx, v.value)}
+                            className={cn(
+                              'px-2 py-0.5 rounded-lg text-[10px] font-bold font-mono transition-all border flex items-center gap-1',
+                              isJson
+                                ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20'
+                                : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700'
+                            )}
+                            title={isJson ? 'Switch to String mode' : 'Switch to JSON mode'}
+                          >
+                            <Code className="w-3 h-3" />
+                            {isJson ? 'JSON' : 'String'}
+                          </button>
+                        </div>
+                        {isJson ? (
+                          <div className="relative">
+                            <textarea
+                              className={cn(
+                                'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-xs font-mono text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 transition-all custom-scrollbar resize-y min-h-[80px]',
+                                jsonErrors[idx]
+                                  ? 'border-red-500/50 focus:ring-red-500/20'
+                                  : isSessionTab
+                                    ? 'border-amber-800/40 focus:ring-amber-500/30'
+                                    : isPromptTab && v.prompt
+                                      ? 'border-indigo-800/40 focus:ring-indigo-500/30'
+                                      : 'border-slate-800 focus:ring-purple-500/50'
+                              )}
+                              placeholder="{\n  &#34;key&#34;: &#34;value&#34;\n}"
+                              value={getDisplayValue(idx, v.value)}
+                              onChange={(e) => handleJsonBufferChange(idx, e.target.value)}
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                            />
+                            {jsonErrors[idx] && (
+                              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-lg">
+                                <AlertCircle className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{jsonErrors[idx]}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type={v.secret && !revealSecrets[idx] ? 'password' : 'text'}
+                              className={cn(
+                                'w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-sm font-mono transition-all pr-10',
+                                v.secret && !revealSecrets[idx]
+                                  ? 'text-slate-500 tracking-[0.3em]'
+                                  : 'text-white',
+                                isSessionTab
+                                  ? 'border-amber-800/40 focus:ring-amber-500/30 focus:border-amber-600/50 focus:outline-none focus:ring-2'
+                                  : isPromptTab && v.prompt
+                                    ? 'border-indigo-800/40 focus:ring-indigo-500/30 focus:border-indigo-600/50 focus:outline-none focus:ring-2'
+                                    : 'border-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50'
+                              )}
+                              placeholder={
+                                v.prompt ? 'default value (pre-filled in dialog)' : 'value'
+                              }
+                              value={getDisplayValue(idx, v.value)}
+                              onChange={(e) => handleChange(idx, 'value', e.target.value)}
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                            />
+                            {v.secret && (
+                              <button
+                                onClick={() => toggleReveal(idx)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-600 hover:text-slate-300 transition-colors"
+                              >
+                                {revealSecrets[idx] ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
+                          </div>
                         )}
-                        title={v.secret ? 'Unmark as secret' : 'Mark as secret'}
-                      >
-                        <Shield className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {isPromptTab && (
-                      <div className="flex justify-center pt-1">
+                      </div>
+                      <div className="flex justify-center pt-6">
                         <button
-                          onClick={() => handleChange(idx, 'prompt', !v.prompt)}
+                          onClick={() => handleChange(idx, 'secret', !v.secret)}
                           className={cn(
                             'p-2 rounded-xl border transition-all',
-                            v.prompt
-                              ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
+                            v.secret
+                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
                               : 'bg-slate-950 border-slate-800 text-slate-600 hover:border-slate-700'
                           )}
-                          title={
-                            v.prompt
-                              ? 'Remove prompt — value will not be asked at run time'
-                              : 'Mark as prompt — user will be asked for a value before each run'
-                          }
+                          title={v.secret ? 'Unmark as secret' : 'Mark as secret'}
                         >
-                          <Terminal className="w-4 h-4" />
+                          <Shield className="w-4 h-4" />
                         </button>
                       </div>
-                    )}
-                    <div className="flex justify-center pt-1">
-                      <button
-                        onClick={() => handleChange(idx, 'enabled', !v.enabled)}
-                        className={cn(
-                          'relative w-10 h-5 rounded-full transition-all duration-300',
-                          v.enabled
-                            ? isSessionTab
-                              ? 'bg-amber-500'
-                              : isPromptTab && v.prompt
-                                ? 'bg-indigo-600'
-                                : 'bg-blue-600'
-                            : 'bg-slate-800'
-                        )}
-                      >
-                        <div
+                      {isPromptTab && (
+                        <div className="flex justify-center pt-6">
+                          <button
+                            onClick={() => handleChange(idx, 'prompt', !v.prompt)}
+                            className={cn(
+                              'p-2 rounded-xl border transition-all',
+                              v.prompt
+                                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
+                                : 'bg-slate-950 border-slate-800 text-slate-600 hover:border-slate-700'
+                            )}
+                            title={
+                              v.prompt
+                                ? 'Remove prompt — value will not be asked at run time'
+                                : 'Mark as prompt — user will be asked for a value before each run'
+                            }
+                          >
+                            <Terminal className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex justify-center pt-6">
+                        <button
+                          onClick={() => handleChange(idx, 'enabled', !v.enabled)}
                           className={cn(
-                            'absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300',
-                            v.enabled ? 'translate-x-5' : 'translate-x-0'
+                            'relative w-10 h-5 rounded-full transition-all duration-300',
+                            v.enabled
+                              ? isSessionTab
+                                ? 'bg-amber-500'
+                                : isPromptTab && v.prompt
+                                  ? 'bg-indigo-600'
+                                  : 'bg-blue-600'
+                              : 'bg-slate-800'
                           )}
-                        />
-                      </button>
+                        >
+                          <div
+                            className={cn(
+                              'absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300',
+                              v.enabled ? 'translate-x-5' : 'translate-x-0'
+                            )}
+                          />
+                        </button>
+                      </div>
+                      <div className="pt-6">
+                        <button
+                          onClick={() => handleRemove(idx)}
+                          className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => handleRemove(idx)}
-                      className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all opacity-0 group-hover:opacity-100 mt-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}

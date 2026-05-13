@@ -32,6 +32,7 @@ export const Composer: React.FC<ComposerProps> = ({
   variableRevision,
 }) => {
   const [url, setUrl] = useState('')
+  const [body, setBody] = useState('{\n  "payload": {{myJsonObject}}\n}')
   const [isSending, setIsSending] = useState(false)
   const [history, setHistory] = useState<RequestHistoryEntry[]>([])
 
@@ -49,13 +50,17 @@ export const Composer: React.FC<ComposerProps> = ({
     loadHistory()
   }, [workspacePath, collectionPath, environmentName])
 
-  // Sync initial URL when active tab switches
+  // Sync initial URL and Body when active tab switches
   useEffect(() => {
     const tabId = tab?.id
     if (tabId) {
-      // Pre-fill a realistic default or keep existing tab state if empty
       setTimeout(() => {
         setUrl((prev) => prev || 'https://api.example.com/v1/users/{{$randomNanoId}}')
+        setBody(
+          (prev) =>
+            prev ||
+            '{\n  "id": "{{$randomNanoId}}",\n  "timestamp": "{{$randomTimestamp}}",\n  "data": {{myJsonObject}}\n}'
+        )
       }, 0)
     }
   }, [tab?.id])
@@ -164,14 +169,32 @@ export const Composer: React.FC<ComposerProps> = ({
           </button>
         </div>
 
-        {/* Placeholder for headers / body / params */}
-        <div className="flex flex-col items-center justify-center h-48 border border-slate-800 border-dashed rounded-3xl bg-slate-900/10 group hover:bg-slate-900/20 transition-all duration-500">
-          <div className="w-12 h-12 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-4 border border-slate-700 group-hover:border-slate-600 group-hover:scale-110 transition-all">
-            <Terminal className="w-6 h-6 text-slate-500 group-hover:text-slate-300" />
+        {/* Request Body (JSON) Panel */}
+        <div className="space-y-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-6 shadow-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                <Terminal className="w-3.5 h-3.5 text-purple-400" />
+              </div>
+              <span className="text-xs font-bold text-white tracking-tight">
+                Request Body (JSON)
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500">
+              Supports array/object interpolation
+            </span>
           </div>
-          <p className="text-slate-400 text-sm font-medium tracking-tight">
-            Headers, Body, and Scripts coming soon...
-          </p>
+          <TemplateInput
+            value={body}
+            onChange={setBody}
+            placeholder="{\n  &#34;key&#34;: &#34;{{variable}}&#34;\n}"
+            workspacePath={workspacePath}
+            collectionPath={collectionPath}
+            environmentName={environmentName}
+            variableRevision={variableRevision}
+            multiline
+            rows={6}
+          />
         </div>
 
         {/* ── Request Execution History Pane ── */}

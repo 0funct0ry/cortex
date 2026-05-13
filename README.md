@@ -300,6 +300,35 @@ Cortex provides a set of built-in dynamic variables out of the box that generate
 - **Request Execution Logging**: Evaluated runtime values are faithfully captured and logged in persistent request history logs (`history.json`), accessible via the composer's **Request Execution History** panel.
 - **Discovery**: Automatically available in the composer's variable autocomplete picker dropdown, complete with a premium rose highlight token (`dynamic` scope).
 
+#### 📦 Structured Variables (Arrays & Objects)
+
+Cortex natively supports structured JSON arrays and objects as variable values, completely eliminating the need to manually serialise and parse complex payloads across multiple requests.
+
+**Core Capabilities & Rules**
+- **Native JSON Interpolation**: When interpolated into a JSON body field (e.g., `{"data": {{userPayload}}}`), an array or object variable is automatically serialised inline as valid unquoted JSON.
+- **Stringified Interpolation**: When interpolated inside plain text, query parameters, headers, or inside double/single quotes (e.g., `{"data": "{{userPayload}}"}`), Cortex serialises the object or array as an escaped JSON string automatically.
+- **Recursive Secret Masking**: If an object or array variable contains sensitive keys or references secret variables internally, Cortex recursively traverses the structure to mask those keys with `********` during UI previews and logging, while preserving full unmasked data in network transmissions.
+- **JSON Input Mode**: In the **Variables** panel, click the **Code** icon toggle next to any variable to switch from standard string input to a full multi-line JSON editor. Cortex performs real-time syntax validation, providing inline error indicators to prevent saving invalid JSON structures.
+
+**Example YAML Configuration**
+
+```yaml
+variables:
+  # Structured Object Variable
+  - name: defaultUser
+    value:
+      id: "usr_123"
+      roles: ["admin", "editor"]
+      preferences:
+        theme: "dark"
+    enabled: true
+
+  # Structured Array Variable
+  - name: targetIds
+    value: [101, 102, 103, 104]
+    enabled: true
+```
+
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.
 

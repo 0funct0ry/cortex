@@ -189,7 +189,7 @@ async setEphemeralVariables(variables: Variable[]) : Promise<void> {
  * Upserts a single ephemeral variable by name.
  * Intended for script use — allows runtime injection of one-time values.
  */
-async setEphemeralVariable(name: string, value: string, secret: boolean) : Promise<void> {
+async setEphemeralVariable(name: string, value: JsonValue, secret: boolean) : Promise<void> {
     await TAURI_INVOKE("set_ephemeral_variable", { name, value, secret });
 },
 /**
@@ -289,6 +289,7 @@ name: string;
 variables: Variable[] }
 export type Folder = { name: string; path: string; relative_path: string; items: CollectionItem[] }
 export type GreetResponse = { message: string }
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
 export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
 /**
@@ -352,7 +353,7 @@ export type RequestHistoryEntry = { id: string; request_name: string; method: st
  * Variables resolved and captured during execution/rendering
  */
 captured_variables: { [key in string]: string }; executed_at: string; status_code: number | null; response_body: string | null }
-export type ResolvedVariable = { value: string; scope: VariableScope; secret: boolean }
+export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }
 /**
@@ -368,7 +369,7 @@ raw: string;
  */
 message: string }
 export type UnresolvedVariableWarning = { name: string }
-export type Variable = { name: string; value: string; secret?: boolean; enabled?: boolean; 
+export type Variable = { name: string; value: JsonValue; secret?: boolean; enabled?: boolean; 
 /**
  * If true, the user is asked to supply a value before each collection run.
  * The `value` field serves as the pre-filled default shown in the prompt dialog.

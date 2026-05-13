@@ -364,7 +364,7 @@ pub fn set_ephemeral_variables(variables: Vec<Variable>, store: tauri::State<Eph
 #[specta::specta]
 pub fn set_ephemeral_variable(
     name: String,
-    value: String,
+    value: serde_json::Value,
     secret: bool,
     store: tauri::State<EphemeralStore>,
 ) {

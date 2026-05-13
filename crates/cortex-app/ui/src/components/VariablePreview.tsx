@@ -49,7 +49,11 @@ export const VariablePreview: React.FC<VariablePreviewProps> = ({ name, resolved
         {resolved ? (
           <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
             <p className="text-xs text-slate-200 font-mono break-all leading-relaxed whitespace-pre-wrap">
-              {resolved.secret ? '********' : resolved.value}
+              {resolved.secret
+                ? '********'
+                : typeof resolved.value === 'object' && resolved.value !== null
+                  ? JSON.stringify(resolved.value, null, 2)
+                  : String(resolved.value ?? '')}
             </p>
           </div>
         ) : (

@@ -57,7 +57,7 @@ fn test_collection_manifest_roundtrip() {
     let mut variables = Vec::new();
     variables.push(Variable {
         name: "base_url".to_string(),
-        value: "https://api.example.com".to_string(),
+        value: serde_json::json!("https://api.example.com"),
         secret: false,
         enabled: true,
         prompt: false,
@@ -65,7 +65,7 @@ fn test_collection_manifest_roundtrip() {
     });
     variables.push(Variable {
         name: "api_key".to_string(),
-        value: "secret-123".to_string(),
+        value: serde_json::json!("secret-123"),
         secret: true,
         enabled: true,
         prompt: false,
@@ -105,7 +105,7 @@ fn test_environment_file_roundtrip_with_secrets() {
 
     env.variables.push(Variable {
         name: "PUBLIC_URL".to_string(),
-        value: "https://api.production.com".to_string(),
+        value: serde_json::json!("https://api.production.com"),
         secret: false,
         enabled: true,
         prompt: false,
@@ -115,7 +115,7 @@ fn test_environment_file_roundtrip_with_secrets() {
     let original_secret = "super-secret-password-🚀-!@#";
     env.variables.push(Variable {
         name: "DB_PASSWORD".to_string(),
-        value: original_secret.to_string(),
+        value: serde_json::json!(original_secret),
         secret: true,
         enabled: true,
         prompt: false,
@@ -124,8 +124,12 @@ fn test_environment_file_roundtrip_with_secrets() {
 
     // 1. Encrypt secrets before serialization
     env.encrypt_secrets(&key).expect("Encryption failed");
-    assert!(env.variables[1].value.starts_with("ENC(v1:"));
-    assert!(!env.variables[1].value.contains(original_secret));
+    if let serde_json::Value::String(s) = &env.variables[1].value {
+        assert!(s.starts_with("ENC(v1:"));
+        assert!(!s.contains(original_secret));
+    } else {
+        panic!("Expected String value");
+    }
 
     // 2. Serialize to YAML
     let yaml = env.to_yaml().expect("Failed to serialize EnvironmentFile");
@@ -134,12 +138,16 @@ fn test_environment_file_roundtrip_with_secrets() {
     let mut decoded =
         EnvironmentFile::from_yaml(&yaml).expect("Failed to deserialize EnvironmentFile");
     assert_eq!(env, decoded);
-    assert!(decoded.variables[1].value.starts_with("ENC(v1:"));
+    if let serde_json::Value::String(s) = &decoded.variables[1].value {
+        assert!(s.starts_with("ENC(v1:"));
+    } else {
+        panic!("Expected String value");
+    }
 
     // 4. Decrypt secrets
     decoded.decrypt_secrets(&key).expect("Decryption failed");
-    assert_eq!(decoded.variables[0].value, "https://api.production.com");
-    assert_eq!(decoded.variables[1].value, original_secret);
+    assert_eq!(decoded.variables[0].value, serde_json::json!("https://api.production.com"));
+    assert_eq!(decoded.variables[1].value, serde_json::json!(original_secret));
 }
 
 #[test]
@@ -147,7 +155,7 @@ fn test_workspace_manifest_roundtrip() {
     let mut variables = Vec::new();
     variables.push(Variable {
         name: "global_var".to_string(),
-        value: "global_val".to_string(),
+        value: serde_json::json!("global_val"),
         secret: false,
         enabled: true,
         prompt: false,

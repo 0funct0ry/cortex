@@ -38,8 +38,15 @@ impl WorkspaceManifest {
     pub fn encrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), crate::crypto::CryptoError> {
         if let Some(vars) = &mut self.variables {
             for var in vars {
-                if var.secret && !var.value.starts_with(crate::crypto::PREFIX) {
-                    var.value = crate::crypto::encrypt(&var.value, key)?;
+                if var.secret {
+                    let s = match &var.value {
+                        serde_json::Value::String(str_val) => str_val.clone(),
+                        other => serde_json::to_string(other).unwrap_or_default(),
+                    };
+                    if !s.starts_with(crate::crypto::PREFIX) {
+                        let encrypted = crate::crypto::encrypt(&s, key)?;
+                        var.value = serde_json::Value::String(encrypted);
+                    }
                 }
             }
         }
@@ -50,8 +57,14 @@ impl WorkspaceManifest {
     pub fn decrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), crate::crypto::CryptoError> {
         if let Some(vars) = &mut self.variables {
             for var in vars {
-                if var.secret && var.value.starts_with(crate::crypto::PREFIX) {
-                    var.value = crate::crypto::decrypt(&var.value, key)?;
+                if var.secret {
+                    if let serde_json::Value::String(s) = &var.value {
+                        if s.starts_with(crate::crypto::PREFIX) {
+                            let decrypted = crate::crypto::decrypt(s, key)?;
+                            var.value = serde_json::from_str(&decrypted)
+                                .unwrap_or(serde_json::Value::String(decrypted));
+                        }
+                    }
                 }
             }
         }
