@@ -213,6 +213,20 @@ async getPromptVariables(collectionPath: string, environmentName: string | null)
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async sendRequest(requestName: string, method: string, url: string, workspacePath: string | null, collectionPath: string | null, environmentName: string | null) : Promise<Result<RequestHistoryEntry, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("send_request", { requestName, method, url, workspacePath, collectionPath, environmentName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getRequestHistory() : Promise<RequestHistoryEntry[]> {
+    return await TAURI_INVOKE("get_request_history");
+},
+async clearRequestHistory() : Promise<void> {
+    await TAURI_INVOKE("clear_request_history");
 }
 }
 
@@ -275,7 +289,7 @@ name: string;
 variables: Variable[] }
 export type Folder = { name: string; path: string; relative_path: string; items: CollectionItem[] }
 export type GreetResponse = { message: string }
-export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[] }
+export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
 export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
 /**
  * Represents the structure of a `.crx` request file.
@@ -330,6 +344,14 @@ tags?: string[] | null;
  */
 settings?: Settings | null }
 export type RequestFileWrapper = { name: string; path: string; relative_path: string; content: RequestFile | null; error: string | null }
+/**
+ * Represents an executed request log entry captured in history.
+ */
+export type RequestHistoryEntry = { id: string; request_name: string; method: string; raw_url: string; rendered_url: string; 
+/**
+ * Variables resolved and captured during execution/rendering
+ */
+captured_variables: { [key in string]: string }; executed_at: string; status_code: number | null; response_body: string | null }
 export type ResolvedVariable = { value: string; scope: VariableScope; secret: boolean }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }
@@ -356,7 +378,7 @@ prompt?: boolean;
  * Optional hint shown beneath the input in the prompt dialog.
  */
 description?: string | null }
-export type VariableScope = "global" | "collection" | "environment" | "runtime"
+export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
 export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null }
 

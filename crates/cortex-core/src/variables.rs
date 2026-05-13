@@ -1,4 +1,5 @@
 use crate::template::{FilterExpr, TemplateSegment};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::{BTreeMap, HashSet};
@@ -10,6 +11,7 @@ pub enum VariableScope {
     Collection,
     Environment,
     Runtime,
+    Dynamic,
 }
 
 impl std::fmt::Display for VariableScope {
@@ -19,6 +21,7 @@ impl std::fmt::Display for VariableScope {
             VariableScope::Collection => write!(f, "collection"),
             VariableScope::Environment => write!(f, "environment"),
             VariableScope::Runtime => write!(f, "runtime"),
+            VariableScope::Dynamic => write!(f, "dynamic"),
         }
     }
 }
@@ -74,6 +77,9 @@ pub struct RenderResult {
     pub warnings: Vec<UnresolvedVariableWarning>,
     /// Structural template errors (e.g. unclosed `{{`, unknown filter).
     pub syntax_errors: Vec<TemplateSyntaxError>,
+    /// Dynamic and standard variable values captured during this render pass.
+    #[serde(default)]
+    pub captured_variables: BTreeMap<String, String>,
 }
 
 #[derive(Default)]
@@ -90,6 +96,54 @@ impl VariableResolver {
     }
 
     pub fn resolve(&self, key: &str) -> Option<ResolvedVariable> {
+        // Intercept built-in dynamic variables first
+        match key {
+            "$randomInt" => {
+                let val = rand::thread_rng().gen_range(0..=1000);
+                return Some(ResolvedVariable {
+                    value: val.to_string(),
+                    scope: VariableScope::Dynamic,
+                    secret: false,
+                });
+            }
+            "$timestamp" => {
+                let val = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                return Some(ResolvedVariable {
+                    value: val.to_string(),
+                    scope: VariableScope::Dynamic,
+                    secret: false,
+                });
+            }
+            "$isoTimestamp" => {
+                let val = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                return Some(ResolvedVariable {
+                    value: val,
+                    scope: VariableScope::Dynamic,
+                    secret: false,
+                });
+            }
+            "$randomNanoId" => {
+                const ALPHABET: &[u8] =
+                    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
+                let mut rng = rand::thread_rng();
+                let val: String = (0..21)
+                    .map(|_| {
+                        let idx = rng.gen_range(0..ALPHABET.len());
+                        ALPHABET[idx] as char
+                    })
+                    .collect();
+                return Some(ResolvedVariable {
+                    value: val,
+                    scope: VariableScope::Dynamic,
+                    secret: false,
+                });
+            }
+            _ => {}
+        }
+
         // Precedence: Runtime -> Environment -> Collection -> Global
         // Only resolve if enabled
         if let Some(var) = self.runtime_vars.get(key) {
@@ -205,6 +259,20 @@ impl VariableResolver {
     pub fn get_all_resolved(&self) -> BTreeMap<String, ResolvedVariable> {
         let mut all = BTreeMap::new();
 
+        // Insert built-in dynamic variables with freshly generated preview values
+        if let Some(res) = self.resolve("$randomInt") {
+            all.insert("$randomInt".to_string(), res);
+        }
+        if let Some(res) = self.resolve("$timestamp") {
+            all.insert("$timestamp".to_string(), res);
+        }
+        if let Some(res) = self.resolve("$isoTimestamp") {
+            all.insert("$isoTimestamp".to_string(), res);
+        }
+        if let Some(res) = self.resolve("$randomNanoId") {
+            all.insert("$randomNanoId".to_string(), res);
+        }
+
         // Start from lowest precedence and override
         // Only include enabled variables
         for (k, v) in &self.global_vars {
@@ -301,6 +369,7 @@ impl VariableResolver {
         let mut text = String::new();
         let mut warnings: Vec<UnresolvedVariableWarning> = Vec::new();
         let mut syntax_errors: Vec<TemplateSyntaxError> = Vec::new();
+        let mut captured_variables: BTreeMap<String, String> = BTreeMap::new();
 
         for seg in segments {
             match seg {
@@ -330,6 +399,8 @@ impl VariableResolver {
                     }
 
                     if let Some(resolved) = self.resolve(&p.name) {
+                        captured_variables.insert(p.name.clone(), resolved.value.clone());
+
                         let value = if mask_secrets && resolved.secret {
                             "********".to_string()
                         } else {
@@ -352,6 +423,7 @@ impl VariableResolver {
                             text.push_str(&nested.text);
                             warnings.extend(nested.warnings);
                             syntax_errors.extend(nested.syntax_errors);
+                            captured_variables.extend(nested.captured_variables);
                         } else {
                             text.push_str(&value);
                         }
@@ -371,7 +443,7 @@ impl VariableResolver {
             }
         }
 
-        RenderResult { text, warnings, syntax_errors }
+        RenderResult { text, warnings, syntax_errors, captured_variables }
     }
 
     /// Returns all enabled prompt variables from the collection and environment scopes
@@ -563,7 +635,7 @@ mod tests {
         );
 
         let all = resolver.get_all_resolved();
-        assert_eq!(all.len(), 2);
+        assert_eq!(all.len(), 6);
         assert_eq!(all.get("a").unwrap().value, "collection");
         assert!(!all.get("a").unwrap().secret);
         assert_eq!(all.get("b").unwrap().value, "env");

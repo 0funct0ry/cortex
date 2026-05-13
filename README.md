@@ -283,6 +283,23 @@ cortex run --request my-request \
 - Values are accepted in `KEY=VALUE` form; the first `=` is the delimiter, so values may contain `=`.
 - If a prompt variable has no default and is not supplied via `--env-var`, the CLI exits with a descriptive error listing the missing variables.
 
+#### 🎲 Dynamic Variables
+
+Cortex provides a set of built-in dynamic variables out of the box that generate fresh values each time a request is sent. This enables injecting unique identifiers, timestamps, and random values into requests without writing external setup scripts.
+
+| Dynamic Variable | Output Description | Example Value |
+|---|---|---|
+| `{{$randomInt}}` | A random integer between 0 and 1000 | `427` |
+| `{{$timestamp}}` | The current Unix timestamp in seconds | `1778648123` |
+| `{{$isoTimestamp}}` | The current date and time in ISO 8601 format | `2026-05-13T03:55:00Z` |
+| `{{$randomNanoId}}` | A unique, URL-safe short alphanumeric identifier | `V1StGXR8_Z5jdHi6B-myT` |
+
+**Precedence & Characteristics**
+- **Highest Precedence**: Intercepted at the start of resolution. If a custom variable shares the same name as a built-in dynamic variable, the dynamic engine takes precedence to guarantee deterministic scriptless output.
+- **Per-Execution Freshness**: Generated on-the-fly during request segment rendering. Each segment rendering call yields a newly computed random sequence or time reading.
+- **Request Execution Logging**: Evaluated runtime values are faithfully captured and logged in persistent request history logs (`history.json`), accessible via the composer's **Request Execution History** panel.
+- **Discovery**: Automatically available in the composer's variable autocomplete picker dropdown, complete with a premium rose highlight token (`dynamic` scope).
+
 ### Request File (`.crx`)
 Cortex stores individual API requests as human-readable YAML files with a `.crx` extension. This allows requests to be easily shared, version-controlled, and edited with any text editor.
 

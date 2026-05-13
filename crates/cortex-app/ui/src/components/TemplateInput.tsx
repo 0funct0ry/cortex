@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { AlertTriangle, AlertCircle } from 'lucide-react'
-import { commands, type ResolvedVariable, type TemplateSyntaxError } from '../bindings'
+import { AlertTriangle, AlertCircle, Sparkles } from 'lucide-react'
+import {
+  commands,
+  type ResolvedVariable,
+  type TemplateSyntaxError,
+  type VariableScope,
+} from '../bindings'
 import { VariablePreview } from './VariablePreview'
 import { cn } from '../lib/utils'
 
@@ -36,15 +41,6 @@ type Segment =
 // Client-side template splitter
 // ---------------------------------------------------------------------------
 
-/**
- * Split `text` into `Segment[]` using the same `{{...}}` rules as the Rust
- * parser — but without filter awareness (the preview row doesn't need to
- * distinguish name from filter for display purposes).
- *
- * We do NOT call the backend for this; we have all the information we need
- * locally (the `warnings` and `syntax_errors` sets from the last
- * `previewTemplate` response tell us which names are unresolved / broken).
- */
 function splitSegments(text: string): Segment[] {
   const segments: Segment[] = []
   let rest = text
@@ -82,6 +78,14 @@ function splitSegments(text: string): Segment[] {
   return segments
 }
 
+const scopeColors: Record<VariableScope, string> = {
+  global: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  collection: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  environment: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  runtime: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  dynamic: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -107,7 +111,14 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
     x: number
     y: number
   } | null>(null)
+
+  // Autocomplete Picker State
+  const [showPicker, setShowPicker] = useState(false)
+  const [filterText, setFilterText] = useState('')
+  const [selectedIndex, setSelectedIndex] = useState(0)
+
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Debounced backend call whenever value or context changes.
   useEffect(() => {
@@ -116,22 +127,26 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
         setResolvedText('')
         setWarnNames(new Set())
         setSyntaxErrors([])
-        return
+      } else {
+        try {
+          const res = await commands.previewTemplate(
+            value,
+            workspacePath ?? null,
+            collectionPath ?? null,
+            environmentName ?? null
+          )
+          if (res.status === 'ok') {
+            setResolvedText(res.data.text)
+            setWarnNames(new Set(res.data.warnings.map((w) => w.name)))
+            setSyntaxErrors(res.data.syntax_errors)
+          }
+        } catch (e) {
+          console.error('[TemplateInput] preview error:', e)
+        }
       }
 
+      // Always fetch available resolved variables to populate autocomplete picker
       try {
-        const res = await commands.previewTemplate(
-          value,
-          workspacePath ?? null,
-          collectionPath ?? null,
-          environmentName ?? null
-        )
-        if (res.status === 'ok') {
-          setResolvedText(res.data.text)
-          setWarnNames(new Set(res.data.warnings.map((w) => w.name)))
-          setSyntaxErrors(res.data.syntax_errors)
-        }
-
         const varsRes = await commands.getResolvedVariables(
           workspacePath ?? null,
           collectionPath ?? null,
@@ -141,7 +156,7 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
           setResolvedVars(varsRes.data)
         }
       } catch (e) {
-        console.error('[TemplateInput] resolution error:', e)
+        console.error('[TemplateInput] vars error:', e)
       }
     }, 300)
 
@@ -150,13 +165,97 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
 
   const segments = splitSegments(value)
 
-  // Are there any unresolved vars or syntax errors we should surface?
+  // Cursor tracking for autocomplete picker trigger
+  const updateCursorState = () => {
+    if (!inputRef.current) return
+    const cursor = inputRef.current.selectionStart || 0
+    const text = value || ''
+
+    const lastOpen = text.lastIndexOf('{{', cursor - 1)
+    const lastClose = text.lastIndexOf('}}', cursor - 1)
+
+    if (lastOpen !== -1 && lastOpen > lastClose) {
+      // Cursor is actively inside an unclosed {{ block
+      const prefix = text.slice(lastOpen + 2, cursor).trim()
+      setFilterText(prefix)
+      setShowPicker(true)
+      setSelectedIndex(0)
+    } else {
+      setShowPicker(false)
+    }
+  }
+
+  // Filter available variables for picker dropdown
+  const filteredVars = Object.entries(resolvedVars)
+    .map(([name, resolved]) => ({ name, ...resolved }))
+    .filter((v) => v.name.toLowerCase().includes(filterText.toLowerCase()))
+
+  // Variable insertion logic
+  const insertVariable = (varName: string) => {
+    if (!inputRef.current) return
+    const cursor = inputRef.current.selectionStart || 0
+    const text = value || ''
+
+    const openIdx = text.lastIndexOf('{{', cursor - 1)
+    if (openIdx !== -1) {
+      const nextCloseIdx = text.indexOf('}}', cursor)
+      const nextOpenIdx = text.indexOf('{{', cursor)
+
+      let endIdx = cursor
+      if (nextCloseIdx !== -1 && (nextOpenIdx === -1 || nextCloseIdx < nextOpenIdx)) {
+        endIdx = nextCloseIdx + 2
+      }
+
+      const before = text.slice(0, openIdx)
+      const after = text.slice(endIdx)
+      const newValue = `${before}{{${varName}}}${after}`
+      onChange(newValue)
+
+      const newCursor = before.length + varName.length + 4
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          inputRef.current.setSelectionRange(newCursor, newCursor)
+        }
+      }, 0)
+    } else {
+      onChange(text + `{{${varName}}}`)
+    }
+
+    setShowPicker(false)
+  }
+
+  // Keyboard Navigation inside input
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showPicker || filteredVars.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex((prev) => (prev + 1) % filteredVars.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex((prev) => (prev - 1 + filteredVars.length) % filteredVars.length)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      insertVariable(filteredVars[selectedIndex].name)
+    } else if (e.key === 'Escape') {
+      setShowPicker(false)
+    }
+  }
+
+  // Close picker on outside clicks
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const hasWarnings = warnNames.size > 0
   const hasSyntaxErrors = syntaxErrors.length > 0
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
 
   return (
     <div ref={containerRef} className={cn('relative flex-1', className)}>
@@ -166,6 +265,7 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
           <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">{icon}</div>
         )}
         <input
+          ref={inputRef}
           className={cn(
             'w-full bg-slate-900 border border-slate-800 rounded-xl py-3 text-sm text-white font-mono',
             'placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50',
@@ -175,17 +275,68 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
           )}
           placeholder={placeholder}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            onChange(e.target.value)
+            setTimeout(updateCursorState, 0)
+          }}
+          onClick={updateCursorState}
+          onKeyUp={updateCursorState}
+          onKeyDown={handleKeyDown}
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
         />
+
+        {/* ── Autocomplete Picker Dropdown ── */}
+        {showPicker && filteredVars.length > 0 && (
+          <div className="absolute z-50 left-0 top-full mt-2 w-full max-h-64 overflow-y-auto bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 divide-y divide-slate-800/50">
+            <div className="px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <Sparkles className="w-3 h-3 text-rose-400 animate-pulse" />
+              <span>Available Variables Context</span>
+            </div>
+            <div className="pt-1">
+              {filteredVars.map((v, idx) => {
+                const isSelected = idx === selectedIndex
+                return (
+                  <button
+                    key={v.name}
+                    type="button"
+                    onClick={() => insertVariable(v.name)}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                    className={cn(
+                      'w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all group/item',
+                      isSelected
+                        ? 'bg-blue-600/10 text-white'
+                        : 'hover:bg-slate-800/50 text-slate-300'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span className="text-xs font-mono font-bold truncate">{v.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-mono text-slate-500 max-w-[120px] truncate group-hover/item:text-slate-400">
+                        {v.secret ? '********' : v.value}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-full border',
+                          scopeColors[v.scope]
+                        )}
+                      >
+                        {v.scope}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ── Preview row (only shown when input is non-empty) ── */}
+      {/* ── Preview row ── */}
       {value && (
         <div className="mt-2 px-4 py-3 bg-slate-900/30 border border-slate-800/50 rounded-xl space-y-2">
-          {/* Header row */}
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
               Resolved Preview
@@ -202,7 +353,6 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
             )}
           </div>
 
-          {/* Segment chips */}
           <div className="flex flex-wrap gap-1 items-baseline leading-relaxed">
             {segments.map((seg, i) => {
               if (seg.kind === 'literal') {
@@ -225,7 +375,6 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
                 )
               }
 
-              // Variable segment
               const isUnresolved = warnNames.has(seg.name)
               return (
                 <span
@@ -243,7 +392,6 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
                 >
                   {seg.raw}
 
-                  {/* Tooltip anchored relative to chip */}
                   {hoveredVar?.name === seg.name && (
                     <div className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none">
                       <VariablePreview name={seg.name} resolved={resolvedVars[seg.name]} />
@@ -254,14 +402,12 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
             })}
           </div>
 
-          {/* Resolved full text (for copy / inspection) */}
           {resolvedText && resolvedText !== value && (
             <p className="text-[10px] font-mono text-slate-500 break-all leading-relaxed pt-1 border-t border-slate-800/50">
               {resolvedText}
             </p>
           )}
 
-          {/* Syntax error banner */}
           {hasSyntaxErrors && (
             <div className="space-y-1 pt-1 border-t border-slate-800/50">
               {syntaxErrors.map((err, i) => (

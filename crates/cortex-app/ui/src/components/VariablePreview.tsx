@@ -14,6 +14,7 @@ const scopeColors: Record<VariableScope, string> = {
   collection: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   environment: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   runtime: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  dynamic: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
 }
 
 export const VariablePreview: React.FC<VariablePreviewProps> = ({ name, resolved }) => {

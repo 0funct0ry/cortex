@@ -18,6 +18,7 @@ subtle = "2.5"
 trash = "3.1"
 walkdir = "2.4"
 notify = "6.1"
+chrono = "0.4"
 
 [dev-dependencies]
 tempfile = "3.8"

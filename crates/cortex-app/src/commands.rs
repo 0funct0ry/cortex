@@ -1,10 +1,11 @@
-use crate::state::{AppSettings, EphemeralStore};
+use crate::state::{AppSettings, EphemeralStore, HistoryStore};
 use cortex_core::collection::Collection;
-use cortex_core::request::RequestFile;
+use cortex_core::request::{RequestFile, RequestHistoryEntry};
 use cortex_core::variables::Variable;
 use cortex_core::workspace::{Workspace, WorkspaceManifest};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Type)]
@@ -31,6 +32,7 @@ pub struct PreviewResponse {
     pub text: String,
     pub warnings: Vec<cortex_core::variables::UnresolvedVariableWarning>,
     pub syntax_errors: Vec<cortex_core::variables::TemplateSyntaxError>,
+    pub captured_variables: BTreeMap<String, String>,
 }
 
 #[tauri::command]
@@ -542,8 +544,82 @@ pub async fn preview_template(
             text: result.text,
             warnings: result.warnings,
             syntax_errors: result.syntax_errors,
+            captured_variables: result.captured_variables,
         })
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn send_request(
+    request_name: String,
+    method: String,
+    url: String,
+    workspace_path: Option<String>,
+    collection_path: Option<String>,
+    environment_name: Option<String>,
+    ephemeral_store: tauri::State<'_, EphemeralStore>,
+    history_store: tauri::State<'_, HistoryStore>,
+) -> Result<RequestHistoryEntry, String> {
+    let ephemeral_vars: Vec<Variable> =
+        ephemeral_store.0.lock().unwrap().values().cloned().collect();
+
+    let entry = tauri::async_runtime::spawn_blocking(move || {
+        let mut resolver = cortex_core::variables::VariableResolver::new();
+        populate_resolver(
+            &mut resolver,
+            workspace_path,
+            collection_path,
+            environment_name,
+            ephemeral_vars,
+        )?;
+
+        // Render unmasked so history logs the actual runtime evaluated values
+        let result = resolver.render(&url);
+
+        // Generate ISO timestamp
+        let executed_at = RequestHistoryEntry::now_iso();
+        // Generate short random id for history entry
+        let id = RequestHistoryEntry::random_id();
+
+        // Mock a basic successful response or simulated API result
+        let status_code = Some(200);
+        let response_body = Some(format!(
+            "{{\n  \"status\": \"success\",\n  \"message\": \"Simulated response for {}\",\n  \"rendered_url\": \"{}\"\n}}",
+            method,
+            result.text.escape_default()
+        ));
+
+        Ok::<RequestHistoryEntry, String>(RequestHistoryEntry {
+            id,
+            request_name,
+            method,
+            raw_url: url,
+            rendered_url: result.text,
+            captured_variables: result.captured_variables,
+            executed_at,
+            status_code,
+            response_body,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    history_store.add_entry(entry.clone());
+    Ok(entry)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_request_history(store: tauri::State<'_, HistoryStore>) -> Vec<RequestHistoryEntry> {
+    store.get_entries()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn clear_request_history(store: tauri::State<'_, HistoryStore>) {
+    store.clear()
 }

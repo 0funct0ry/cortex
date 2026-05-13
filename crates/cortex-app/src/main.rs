@@ -31,6 +31,7 @@ fn main() {
 
     tauri::Builder::default()
         .manage(state::EphemeralStore::new())
+        .manage(state::HistoryStore::new())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::greet,
@@ -60,6 +61,9 @@ fn main() {
             commands::set_ephemeral_variable,
             commands::remove_ephemeral_variable,
             commands::get_prompt_variables,
+            commands::send_request,
+            commands::get_request_history,
+            commands::clear_request_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -100,6 +104,9 @@ mod tests {
                 commands::set_ephemeral_variable,
                 commands::remove_ephemeral_variable,
                 commands::get_prompt_variables,
+                commands::send_request,
+                commands::get_request_history,
+                commands::clear_request_history,
             ]);
 
         builder

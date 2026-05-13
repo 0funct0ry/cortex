@@ -101,6 +101,32 @@ impl RequestFile {
     }
 }
 
+/// Represents an executed request log entry captured in history.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct RequestHistoryEntry {
+    pub id: String,
+    pub request_name: String,
+    pub method: String,
+    pub raw_url: String,
+    pub rendered_url: String,
+    /// Variables resolved and captured during execution/rendering
+    pub captured_variables: BTreeMap<String, String>,
+    pub executed_at: String, // ISO 8601 timestamp
+    pub status_code: Option<u16>,
+    pub response_body: Option<String>,
+}
+
+impl RequestHistoryEntry {
+    pub fn now_iso() -> String {
+        chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
+    }
+
+    pub fn random_id() -> String {
+        let mut rng = rand::thread_rng();
+        format!("hist_{}", rand::Rng::gen_range(&mut rng, 100000..999999))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
