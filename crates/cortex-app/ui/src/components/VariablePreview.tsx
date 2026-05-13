@@ -62,6 +62,16 @@ export const VariablePreview: React.FC<VariablePreviewProps> = ({ name, resolved
             <p className="text-xs font-medium italic">Unresolved variable</p>
           </div>
         )}
+        {resolved?.description && (
+          <div className="mt-3 pt-3 border-t border-slate-900">
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest block mb-1">
+              Description
+            </span>
+            <p className="text-[11px] text-slate-400 font-sans italic leading-tight">
+              {resolved.description}
+            </p>
+          </div>
+        )}
       </div>
       <div className="px-4 py-2 bg-slate-900/30 border-t border-slate-800/50">
         <p className="text-[9px] text-slate-500 italic">

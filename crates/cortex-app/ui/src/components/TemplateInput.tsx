@@ -334,32 +334,37 @@ export const TemplateInput: React.FC<TemplateInputProps> = ({
                     onClick={() => insertVariable(v.name)}
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={cn(
-                      'w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-all group/item',
+                      'w-full text-left px-3 py-2 rounded-xl flex flex-col gap-1 transition-all group/item',
                       isSelected
                         ? 'bg-blue-600/10 text-white'
                         : 'hover:bg-slate-800/50 text-slate-300'
                     )}
                   >
-                    <div className="flex items-center gap-2 overflow-hidden">
+                    <div className="w-full flex items-center justify-between gap-2">
                       <span className="text-xs font-mono font-bold truncate">{v.name}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-mono text-slate-500 max-w-[150px] truncate group-hover/item:text-slate-400">
+                          {v.secret
+                            ? '********'
+                            : typeof v.value === 'object' && v.value !== null
+                              ? JSON.stringify(v.value)
+                              : String(v.value ?? '')}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-full border',
+                            scopeColors[v.scope]
+                          )}
+                        >
+                          {v.scope}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs font-mono text-slate-500 max-w-[120px] truncate group-hover/item:text-slate-400">
-                        {v.secret
-                          ? '********'
-                          : typeof v.value === 'object' && v.value !== null
-                            ? JSON.stringify(v.value)
-                            : String(v.value ?? '')}
-                      </span>
-                      <span
-                        className={cn(
-                          'text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-full border',
-                          scopeColors[v.scope]
-                        )}
-                      >
-                        {v.scope}
-                      </span>
-                    </div>
+                    {v.description && (
+                      <p className="text-[10px] text-slate-500 group-hover/item:text-slate-400 font-sans italic line-clamp-1">
+                        {v.description}
+                      </p>
+                    )}
                   </button>
                 )
               })}

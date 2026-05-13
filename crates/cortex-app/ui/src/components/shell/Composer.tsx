@@ -71,7 +71,7 @@ export const Composer: React.FC<ComposerProps> = ({
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [headers, workspacePath, collectionPath, environmentName, tab?.path, variableRevision])
+  }, [headers, workspacePath, collectionPath, environmentName, tab, tab?.path, variableRevision])
 
   // Fetch request history logs on load and when context switches
   const loadHistory = async () => {
@@ -106,11 +106,15 @@ export const Composer: React.FC<ComposerProps> = ({
     if (!tab || !url) return
     setIsSending(true)
     try {
-      const payload = headers.map(({ key, value, enabled }) => ({ key, value, enabled }))
-      const res = await commands.sendRequest(
-        tab.name,
-        tab.method,
+      const mappedHeaders = headers.map(({ key, value, enabled }) => ({ key, value, enabled }))
+      const payload = {
+        request_name: tab.name,
+        method: tab.method,
         url,
+        headers: mappedHeaders,
+        body: body ?? null,
+      }
+      const res = await commands.sendRequest(
         payload,
         workspacePath ?? null,
         collectionPath ?? null,

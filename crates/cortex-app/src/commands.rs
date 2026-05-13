@@ -695,14 +695,19 @@ pub async fn preview_request_headers(
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize, Deserialize, Type)]
+pub struct SendRequestPayload {
+    pub request_name: String,
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<HeaderEntry>,
+    pub body: Option<String>,
+}
+
 #[tauri::command]
 #[specta::specta]
-#[allow(clippy::too_many_arguments)]
 pub async fn send_request(
-    request_name: String,
-    method: String,
-    url: String,
-    headers: Vec<HeaderEntry>,
+    payload: SendRequestPayload,
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
@@ -723,13 +728,18 @@ pub async fn send_request(
             ephemeral_vars,
         )?;
 
-        let mut result = resolver.render(&url);
+        let mut result = resolver.render(&payload.url);
+
+        if let Some(b) = payload.body {
+            let body_res = resolver.render(&b);
+            result.captured_variables.extend(body_res.captured_variables);
+        }
 
         let (rendered_headers, warnings, headers_captured) = gather_and_render_headers(
             &mut resolver,
             collection_path,
             request_path,
-            headers,
+            payload.headers,
             true,
         );
 
@@ -741,15 +751,15 @@ pub async fn send_request(
         let status_code = Some(200);
         let response_body = Some(format!(
             "{{\n  \"status\": \"success\",\n  \"message\": \"Simulated response for {}\",\n  \"rendered_url\": \"{}\"\n}}",
-            method,
+            payload.method,
             result.text.escape_default()
         ));
 
         Ok::<RequestHistoryEntry, String>(RequestHistoryEntry {
             id,
-            request_name,
-            method,
-            raw_url: url,
+            request_name: payload.request_name,
+            method: payload.method,
+            raw_url: payload.url,
             rendered_url: result.text,
             captured_variables: result.captured_variables,
             executed_at,

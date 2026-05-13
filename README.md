@@ -295,8 +295,19 @@ Cortex provides a set of built-in dynamic variables out of the box that generate
 | `{{$timestamp}}` | The current Unix timestamp in seconds | `1778648123` |
 | `{{$isoTimestamp}}` | The current date and time in ISO 8601 format | `2026-05-13T03:55:00Z` |
 | `{{$randomNanoId}}` | A unique, URL-safe short alphanumeric identifier | `V1StGXR8_Z5jdHi6B-myT` |
+| `{{$uuid}}` | A random version 4 UUID | `123e4567-e89b-12d3-a456-426614174000` |
+| `{{$randomFirstName}}` | A random, realistic first name | `Alexander` |
+| `{{$randomLastName}}` | A random, realistic last name | `Montgomery` |
+| `{{$randomEmail}}` | A random, realistic email address | `alexander.montgomery@example.com` |
+| `{{$randomPhoneNumber}}` | A random phone number | `+1-555-0192` |
+| `{{$randomUrl}}` | A random, plausible URL | `https://api.example.com/v1/users` |
+| `{{$randomIPv4}}` | A random IPv4 address | `192.168.1.42` |
+| `{{$randomBoolean}}` | A random boolean value (`true` or `false`) | `true` |
+| `{{$randomLoremWord}}` | A random placeholder lorem ipsum word | `consectetur` |
+| `{{$randomLoremSentence}}` | A random placeholder lorem ipsum sentence | `Lorem ipsum dolor sit amet.` |
 
 **Precedence & Characteristics**
+- **Case-Insensitive Matching**: All built-in dynamic variable keys are matched regardless of casing (e.g. `{{$UUID}}` and `{{$uuid}}` both resolve perfectly), ensuring maximum ergonomics.
 - **Highest Precedence**: Intercepted at the start of resolution. If a custom variable shares the same name as a built-in dynamic variable, the dynamic engine takes precedence to guarantee deterministic scriptless output.
 - **Per-Execution Freshness**: Generated on-the-fly during request segment rendering. Each segment rendering call yields a newly computed random sequence or time reading.
 - **Request Execution Logging**: Evaluated runtime values are faithfully captured and logged in persistent request history logs (`history.json`), accessible via the composer's **Request Execution History** panel.

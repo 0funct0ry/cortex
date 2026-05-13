@@ -52,6 +52,8 @@ pub struct ResolvedVariable {
     pub value: serde_json::Value,
     pub scope: VariableScope,
     pub secret: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
@@ -96,52 +98,248 @@ impl VariableResolver {
     }
 
     pub fn resolve(&self, key: &str) -> Option<ResolvedVariable> {
-        // Intercept built-in dynamic variables first
-        match key {
-            "$randomInt" => {
-                let val = rand::thread_rng().gen_range(0..=1000);
-                return Some(ResolvedVariable {
-                    value: serde_json::Value::Number(val.into()),
-                    scope: VariableScope::Dynamic,
-                    secret: false,
-                });
+        // Intercept built-in dynamic variables first case-insensitively
+        if key.eq_ignore_ascii_case("$randomInt") {
+            let val = rand::thread_rng().gen_range(0..=1000);
+            return Some(ResolvedVariable {
+                value: serde_json::Value::Number(val.into()),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random integer between 0 and 1000.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$timestamp") {
+            let val = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            return Some(ResolvedVariable {
+                value: serde_json::Value::Number(val.into()),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Current Unix timestamp in seconds.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$isoTimestamp") {
+            let val = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Current ISO 8601 UTC timestamp.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomNanoId") {
+            const ALPHABET: &[u8] =
+                b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
+            let mut rng = rand::thread_rng();
+            let val: String = (0..21)
+                .map(|_| {
+                    let idx = rng.gen_range(0..ALPHABET.len());
+                    ALPHABET[idx] as char
+                })
+                .collect();
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a secure 21-character NanoID.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$uuid") {
+            let mut rng = rand::thread_rng();
+            let mut bytes = [0u8; 16];
+            rng.fill(&mut bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            let val = format!(
+                "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                bytes[0], bytes[1], bytes[2], bytes[3],
+                bytes[4], bytes[5],
+                bytes[6], bytes[7],
+                bytes[8], bytes[9],
+                bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+            );
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random v4 UUID.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomFirstName") {
+            const FIRST_NAMES: &[&str] = &[
+                "Alice", "Bob", "Charlie", "David", "Emma", "Fiona", "George", "Hannah", "Ian",
+                "Julia", "Kevin", "Luna", "Michael", "Nora", "Oliver", "Penelope", "Quinn",
+                "Robert", "Sophia", "Thomas", "Uma", "Victor", "Wendy", "Xavier", "Yara",
+                "Zachary",
+            ];
+            let mut rng = rand::thread_rng();
+            let val = FIRST_NAMES[rng.gen_range(0..FIRST_NAMES.len())].to_string();
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a realistic random first name.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomLastName") {
+            const LAST_NAMES: &[&str] = &[
+                "Smith",
+                "Johnson",
+                "Williams",
+                "Brown",
+                "Jones",
+                "Garcia",
+                "Miller",
+                "Davis",
+                "Rodriguez",
+                "Martinez",
+                "Hernandez",
+                "Lopez",
+                "Gonzalez",
+                "Wilson",
+                "Anderson",
+                "Thomas",
+                "Taylor",
+                "Moore",
+                "Jackson",
+                "Martin",
+            ];
+            let mut rng = rand::thread_rng();
+            let val = LAST_NAMES[rng.gen_range(0..LAST_NAMES.len())].to_string();
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a realistic random last name.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomEmail") {
+            const FIRST_NAMES: &[&str] = &[
+                "alice", "bob", "charlie", "david", "emma", "fiona", "george", "hannah", "ian",
+                "julia", "kevin", "luna", "michael", "nora", "oliver", "penelope",
+            ];
+            const LAST_NAMES: &[&str] =
+                &["smith", "johnson", "williams", "brown", "jones", "garcia", "miller", "davis"];
+            const DOMAINS: &[&str] = &["example.com", "test.org", "fake.net", "cortex.dev"];
+            let mut rng = rand::thread_rng();
+            let f = FIRST_NAMES[rng.gen_range(0..FIRST_NAMES.len())];
+            let l = LAST_NAMES[rng.gen_range(0..LAST_NAMES.len())];
+            let d = DOMAINS[rng.gen_range(0..DOMAINS.len())];
+            let val = format!("{f}.{l}@{d}");
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random email address.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomPhoneNumber") {
+            let mut rng = rand::thread_rng();
+            let n1 = rng.gen_range(100..1000);
+            let n2 = rng.gen_range(1000..10000);
+            let val = format!("+1-555-{n1}-{n2}");
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random phone number.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomUrl") {
+            const PATHS: &[&str] = &["users", "posts", "comments", "orders", "settings", "auth"];
+            let mut rng = rand::thread_rng();
+            let p = PATHS[rng.gen_range(0..PATHS.len())];
+            let val = format!("https://api.example.com/v1/{p}");
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random URL.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomIPv4") {
+            let mut rng = rand::thread_rng();
+            let b1 = rng.gen_range(1..255);
+            let b2 = rng.gen_range(0..256);
+            let b3 = rng.gen_range(0..256);
+            let b4 = rng.gen_range(1..255);
+            let val = format!("{b1}.{b2}.{b3}.{b4}");
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random IPv4 address.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomBoolean") {
+            let mut rng = rand::thread_rng();
+            let val = rng.gen_bool(0.5);
+            return Some(ResolvedVariable {
+                value: serde_json::Value::Bool(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random boolean value.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomLoremWord") {
+            const LOREM_WORDS: &[&str] = &[
+                "lorem",
+                "ipsum",
+                "dolor",
+                "sit",
+                "amet",
+                "consectetur",
+                "adipiscing",
+                "elit",
+                "sed",
+                "do",
+                "eiusmod",
+                "tempor",
+                "incididunt",
+                "ut",
+                "labore",
+            ];
+            let mut rng = rand::thread_rng();
+            let val = LOREM_WORDS[rng.gen_range(0..LOREM_WORDS.len())].to_string();
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(val),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random lorem ipsum word.".to_string()),
+            });
+        } else if key.eq_ignore_ascii_case("$randomLoremSentence") {
+            const LOREM_WORDS: &[&str] = &[
+                "lorem",
+                "ipsum",
+                "dolor",
+                "sit",
+                "amet",
+                "consectetur",
+                "adipiscing",
+                "elit",
+                "sed",
+                "do",
+                "eiusmod",
+                "tempor",
+                "incididunt",
+                "ut",
+                "labore",
+                "et",
+                "dolore",
+                "magna",
+                "aliqua",
+                "enim",
+                "ad",
+                "minim",
+                "veniam",
+            ];
+            let mut rng = rand::thread_rng();
+            let count = rng.gen_range(5..=8);
+            let mut words = Vec::with_capacity(count);
+            for _ in 0..count {
+                words.push(LOREM_WORDS[rng.gen_range(0..LOREM_WORDS.len())]);
             }
-            "$timestamp" => {
-                let val = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
-                return Some(ResolvedVariable {
-                    value: serde_json::Value::Number(val.into()),
-                    scope: VariableScope::Dynamic,
-                    secret: false,
-                });
+            let mut sentence = words.join(" ");
+            if let Some(r) = sentence.get_mut(0..1) {
+                r.make_ascii_uppercase();
             }
-            "$isoTimestamp" => {
-                let val = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-                return Some(ResolvedVariable {
-                    value: serde_json::Value::String(val),
-                    scope: VariableScope::Dynamic,
-                    secret: false,
-                });
-            }
-            "$randomNanoId" => {
-                const ALPHABET: &[u8] =
-                    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
-                let mut rng = rand::thread_rng();
-                let val: String = (0..21)
-                    .map(|_| {
-                        let idx = rng.gen_range(0..ALPHABET.len());
-                        ALPHABET[idx] as char
-                    })
-                    .collect();
-                return Some(ResolvedVariable {
-                    value: serde_json::Value::String(val),
-                    scope: VariableScope::Dynamic,
-                    secret: false,
-                });
-            }
-            _ => {}
+            sentence.push('.');
+            return Some(ResolvedVariable {
+                value: serde_json::Value::String(sentence),
+                scope: VariableScope::Dynamic,
+                secret: false,
+                description: Some("Generates a random lorem ipsum sentence.".to_string()),
+            });
         }
 
         // Precedence: Runtime -> Environment -> Collection -> Global
@@ -152,6 +350,7 @@ impl VariableResolver {
                     value: var.value.clone(),
                     scope: VariableScope::Runtime,
                     secret: var.secret,
+                    description: var.description.clone(),
                 });
             }
         }
@@ -161,6 +360,7 @@ impl VariableResolver {
                     value: var.value.clone(),
                     scope: VariableScope::Environment,
                     secret: var.secret,
+                    description: var.description.clone(),
                 });
             }
         }
@@ -170,6 +370,7 @@ impl VariableResolver {
                     value: var.value.clone(),
                     scope: VariableScope::Collection,
                     secret: var.secret,
+                    description: var.description.clone(),
                 });
             }
         }
@@ -179,6 +380,7 @@ impl VariableResolver {
                     value: var.value.clone(),
                     scope: VariableScope::Global,
                     secret: var.secret,
+                    description: var.description.clone(),
                 });
             }
         }
@@ -319,17 +521,26 @@ impl VariableResolver {
         let mut all = BTreeMap::new();
 
         // Insert built-in dynamic variables with freshly generated preview values
-        if let Some(res) = self.resolve("$randomInt") {
-            all.insert("$randomInt".to_string(), res);
-        }
-        if let Some(res) = self.resolve("$timestamp") {
-            all.insert("$timestamp".to_string(), res);
-        }
-        if let Some(res) = self.resolve("$isoTimestamp") {
-            all.insert("$isoTimestamp".to_string(), res);
-        }
-        if let Some(res) = self.resolve("$randomNanoId") {
-            all.insert("$randomNanoId".to_string(), res);
+        let dynamic_keys = [
+            "$randomInt",
+            "$timestamp",
+            "$isoTimestamp",
+            "$randomNanoId",
+            "$uuid",
+            "$randomFirstName",
+            "$randomLastName",
+            "$randomEmail",
+            "$randomPhoneNumber",
+            "$randomUrl",
+            "$randomIPv4",
+            "$randomBoolean",
+            "$randomLoremWord",
+            "$randomLoremSentence",
+        ];
+        for k in dynamic_keys {
+            if let Some(res) = self.resolve(k) {
+                all.insert(k.to_string(), res);
+            }
         }
 
         // Start from lowest precedence and override
@@ -342,6 +553,7 @@ impl VariableResolver {
                         value: v.value.clone(),
                         scope: VariableScope::Global,
                         secret: v.secret,
+                        description: v.description.clone(),
                     },
                 );
             }
@@ -354,6 +566,7 @@ impl VariableResolver {
                         value: v.value.clone(),
                         scope: VariableScope::Collection,
                         secret: v.secret,
+                        description: v.description.clone(),
                     },
                 );
             }
@@ -366,6 +579,7 @@ impl VariableResolver {
                         value: v.value.clone(),
                         scope: VariableScope::Environment,
                         secret: v.secret,
+                        description: v.description.clone(),
                     },
                 );
             }
@@ -378,6 +592,7 @@ impl VariableResolver {
                         value: v.value.clone(),
                         scope: VariableScope::Runtime,
                         secret: v.secret,
+                        description: v.description.clone(),
                     },
                 );
             }
@@ -694,7 +909,7 @@ mod tests {
         );
 
         let all = resolver.get_all_resolved();
-        assert_eq!(all.len(), 6);
+        assert_eq!(all.len(), 16);
         assert_eq!(all.get("a").unwrap().value, serde_json::json!("collection"));
         assert!(!all.get("a").unwrap().secret);
         assert_eq!(all.get("b").unwrap().value, serde_json::json!("env"));
