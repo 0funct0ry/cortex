@@ -30,6 +30,7 @@ pub struct WorkspaceResponse {
 pub struct PreviewResponse {
     pub text: String,
     pub warnings: Vec<cortex_core::variables::UnresolvedVariableWarning>,
+    pub syntax_errors: Vec<cortex_core::variables::TemplateSyntaxError>,
 }
 
 #[tauri::command]
@@ -536,8 +537,12 @@ pub async fn preview_template(
             environment_name,
             ephemeral_vars,
         )?;
-        let (interpolated, warnings) = resolver.interpolate_masked(&text);
-        Ok(PreviewResponse { text: interpolated, warnings })
+        let result = resolver.render_masked(&text);
+        Ok(PreviewResponse {
+            text: result.text,
+            warnings: result.warnings,
+            syntax_errors: result.syntax_errors,
+        })
     })
     .await
     .map_err(|e| e.to_string())?

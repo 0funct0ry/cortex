@@ -90,6 +90,10 @@ function App() {
     'global' | 'collection' | 'environment' | 'session'
   >('global')
   const [ephemeralVars, setEphemeralVars] = useState<Variable[]>([])
+  const [variableRevision, setVariableRevision] = useState(0)
+  const [activeEnvironmentName, setActiveEnvironmentName] = useState<string | null>(null)
+  // The collection that owns the currently active environment (may differ from the active tab's collection).
+  const [activeEnvCollectionPath, setActiveEnvCollectionPath] = useState<string | null>(null)
   const [promptDialogState, setPromptDialogState] = useState<{
     variables: Variable[]
     collectionPath: string
@@ -266,6 +270,8 @@ function App() {
 
   const handleUpdateVariables = () => {
     if (!workspacePath) return
+    // Bump the revision so TemplateInput instances re-resolve against fresh disk state.
+    setVariableRevision((r) => r + 1)
 
     const run = async () => {
       // 1. Reload workspace manifest so global variables are current.
@@ -357,6 +363,7 @@ function App() {
             workspaceName={workspace?.name || 'Cortex'}
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            environmentName={activeEnvironmentName ?? undefined}
             onOpenVariables={() => {
               setVariablePanelTab('environment')
               setShowVariablePanel(true)
@@ -527,11 +534,15 @@ function App() {
               <Composer
                 tab={activeTab}
                 workspacePath={workspacePath || undefined}
+                environmentName={activeEnvironmentName ?? undefined}
+                variableRevision={variableRevision}
                 collectionPath={
-                  activeTab?.path && workspace
+                  // Prefer the collection derived from the active tab's file path.
+                  // Fall back to the collection that owns the active environment so
+                  // that environment variables resolve even on scratch tabs.
+                  (activeTab?.path && workspace
                     ? workspace.collections.find((c) => {
                         if (!c.path) return false
-                        // Robust prefix check
                         const reqPath = activeTab.path!.replace(/\\/g, '/')
                         const colPath = c.path.replace(/\\/g, '/')
                         return (
@@ -539,7 +550,9 @@ function App() {
                           (reqPath.length === colPath.length || reqPath[colPath.length] === '/')
                         )
                       })?.path
-                    : undefined
+                    : undefined) ??
+                  activeEnvCollectionPath ??
+                  undefined
                 }
               />
             </div>
@@ -572,6 +585,10 @@ function App() {
           workspaceName={workspace?.name || 'Workspace'}
           globalVariables={workspace?.variables || []}
           ephemeralVariables={ephemeralVars}
+          onEnvironmentChange={(collectionPath, envName) => {
+            setActiveEnvCollectionPath(collectionPath)
+            setActiveEnvironmentName(envName)
+          }}
           loadedCollections={Object.entries(loadedCollections).reduce(
             (acc, [path, col]) => {
               acc[path] = {

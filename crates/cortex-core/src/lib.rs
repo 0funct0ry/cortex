@@ -3,6 +3,7 @@ pub mod crypto;
 pub mod environment;
 pub mod gitignore;
 pub mod request;
+pub mod template;
 pub mod variables;
 pub mod workspace;
 

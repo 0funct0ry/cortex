@@ -175,8 +175,12 @@ Cortex includes a powerful variable resolution pipeline and template engine.
 - **Secret Masking**: Support for marking any variable as a secret. Secret values are masked in the UI with `********` across the editor, request previews, and reports. Masked values can be toggled for visibility in the Variable Management panel. All secrets are stored with **AES-GCM-256** encryption at rest.
 - **Enabled Toggles**: Easily enable or disable variables without deleting them to test different scenarios.
 - **Prompt Variables**: Mark a collection or environment variable as a `prompt` type to ask the user for a value right before each collection run. The entered value is used for that run only and is never written to disk. An optional description/hint can be provided to guide the user.
-- **Interactive Preview**: Hover over any variable in the request composer to see its resolved value and the source scope it came from.
-- **Visual Warnings**: Unresolved variables are flagged with visual indicators and warnings in the composer.
+- **Interactive Preview**: Hover over any variable chip in the request composer's resolved-preview row to see its resolved value and the source scope it came from.
+- **Visual Warnings**: Unresolved variables are highlighted with amber chips and a wavy red underline in the composer preview row. Resolved variables appear as green chips.
+- **Filter Syntax**: Use `{{variableName | default: 'fallback'}}` to substitute a fallback value when the variable is undefined. An empty-string variable is still considered defined and the fallback is not applied.
+- **Nested Resolution**: Variable values can themselves contain `{{placeholders}}` which are resolved recursively up to **5 levels deep**.
+- **Circular Reference Detection**: If a variable chain forms a cycle, Cortex emits a clear error (`<<circular: name>>`) and stops recursing rather than looping infinitely.
+- **Syntax Error Reporting**: Malformed placeholders (e.g., unclosed `{{`) are flagged inline in the composer preview row with a red badge and a descriptive error message beneath the field.
 
 #### ⚡ Session (Ephemeral) Variables
 Session variables are held exclusively in memory and are **never written to disk**. They are cleared automatically when the app is closed or restarted, making them ideal for short-lived tokens, one-off overrides, or any sensitive value you do not want persisted.

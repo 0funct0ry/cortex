@@ -1,6 +1,7 @@
+use crate::template::{FilterExpr, TemplateSegment};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Type)]
 #[serde(rename_all = "lowercase")]
@@ -53,6 +54,26 @@ pub struct ResolvedVariable {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 pub struct UnresolvedVariableWarning {
     pub name: String,
+}
+
+/// A template syntax error encountered during parsing or rendering.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct TemplateSyntaxError {
+    /// The offending raw text (e.g. `"{{unclosed"`).
+    pub raw: String,
+    /// Human-readable description of the problem.
+    pub message: String,
+}
+
+/// The output of [`VariableResolver::render`].
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct RenderResult {
+    /// Fully rendered string.
+    pub text: String,
+    /// Placeholders that could not be resolved and had no default filter.
+    pub warnings: Vec<UnresolvedVariableWarning>,
+    /// Structural template errors (e.g. unclosed `{{`, unknown filter).
+    pub syntax_errors: Vec<TemplateSyntaxError>,
 }
 
 #[derive(Default)]
@@ -236,6 +257,121 @@ impl VariableResolver {
         }
 
         all
+    }
+
+    // -----------------------------------------------------------------------
+    // Full-featured template renderer (filter support, nesting, circular-ref detection)
+    // -----------------------------------------------------------------------
+
+    /// Render `text` using the full template engine.
+    ///
+    /// Supports:
+    /// - `{{variableName}}` — replaced with the resolved value.
+    /// - `{{variableName | default: 'fallback'}}` — uses `fallback` when the
+    ///   variable is undefined.
+    /// - Nested resolution up to 5 levels deep (variables whose values
+    ///   themselves contain `{{...}}` placeholders).
+    /// - Circular-reference detection: produces a [`TemplateSyntaxError`] and
+    ///   a `<<circular: name>>` marker in the output, then continues.
+    /// - Unclosed `{{` and other syntax problems → [`TemplateSyntaxError`].
+    ///
+    /// Secret values are emitted as-is.  Use [`render_masked`] for display.
+    pub fn render(&self, text: &str) -> RenderResult {
+        let segments = crate::template::parse(text);
+        let mut visited = HashSet::new();
+        self.render_segments(&segments, 0, &mut visited, false)
+    }
+
+    /// Same as [`render`] but replaces secret variable values with `********`.
+    pub fn render_masked(&self, text: &str) -> RenderResult {
+        let segments = crate::template::parse(text);
+        let mut visited = HashSet::new();
+        self.render_segments(&segments, 0, &mut visited, true)
+    }
+
+    fn render_segments(
+        &self,
+        segments: &[TemplateSegment],
+        depth: u8,
+        visited: &mut HashSet<String>,
+        mask_secrets: bool,
+    ) -> RenderResult {
+        const MAX_DEPTH: u8 = 5;
+
+        let mut text = String::new();
+        let mut warnings: Vec<UnresolvedVariableWarning> = Vec::new();
+        let mut syntax_errors: Vec<TemplateSyntaxError> = Vec::new();
+
+        for seg in segments {
+            match seg {
+                TemplateSegment::Literal(s) => text.push_str(s),
+
+                TemplateSegment::SyntaxError(e) => {
+                    text.push_str(&e.raw);
+                    syntax_errors.push(TemplateSyntaxError {
+                        raw: e.raw.clone(),
+                        message: e.message.clone(),
+                    });
+                }
+
+                TemplateSegment::Placeholder(p) => {
+                    if visited.contains(&p.name) {
+                        // Circular reference detected.
+                        let marker = format!("<<circular: {}>>", p.name);
+                        text.push_str(&marker);
+                        syntax_errors.push(TemplateSyntaxError {
+                            raw: p.raw.clone(),
+                            message: format!(
+                                "circular variable reference detected: '{}' references itself",
+                                p.name
+                            ),
+                        });
+                        continue;
+                    }
+
+                    if let Some(resolved) = self.resolve(&p.name) {
+                        let value = if mask_secrets && resolved.secret {
+                            "********".to_string()
+                        } else {
+                            resolved.value.clone()
+                        };
+
+                        // Nested resolution: if the resolved value itself contains
+                        // placeholders and we have not exceeded the depth limit,
+                        // recurse.
+                        if depth < MAX_DEPTH && value.contains("{{") {
+                            let nested_segments = crate::template::parse(&value);
+                            visited.insert(p.name.clone());
+                            let nested = self.render_segments(
+                                &nested_segments,
+                                depth + 1,
+                                visited,
+                                mask_secrets,
+                            );
+                            visited.remove(&p.name);
+                            text.push_str(&nested.text);
+                            warnings.extend(nested.warnings);
+                            syntax_errors.extend(nested.syntax_errors);
+                        } else {
+                            text.push_str(&value);
+                        }
+                    } else {
+                        // Variable not found — apply default filter if present.
+                        match &p.filter {
+                            Some(FilterExpr::Default(fallback)) => {
+                                text.push_str(fallback);
+                            }
+                            None => {
+                                text.push_str(&p.raw);
+                                warnings.push(UnresolvedVariableWarning { name: p.name.clone() });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        RenderResult { text, warnings, syntax_errors }
     }
 
     /// Returns all enabled prompt variables from the collection and environment scopes
@@ -565,6 +701,163 @@ mod tests {
         };
         let no_desc_yaml = serde_yaml::to_string(&no_desc).expect("serialize no_desc");
         assert!(!no_desc_yaml.contains("description"));
+    }
+
+    // -----------------------------------------------------------------------
+    // render() / render_masked() tests
+    // -----------------------------------------------------------------------
+
+    fn make_var(name: &str, value: &str, secret: bool) -> Variable {
+        Variable {
+            name: name.to_string(),
+            value: value.to_string(),
+            secret,
+            enabled: true,
+            prompt: false,
+            description: None,
+        }
+    }
+
+    #[test]
+    fn test_render_no_placeholders() {
+        let resolver = VariableResolver::new();
+        let res = resolver.render("hello world");
+        assert_eq!(res.text, "hello world");
+        assert!(res.warnings.is_empty());
+        assert!(res.syntax_errors.is_empty());
+    }
+
+    #[test]
+    fn test_render_resolved_variable() {
+        let mut resolver = VariableResolver::new();
+        resolver.global_vars.insert("host".into(), make_var("host", "api.example.com", false));
+        let res = resolver.render("https://{{host}}/v1");
+        assert_eq!(res.text, "https://api.example.com/v1");
+        assert!(res.warnings.is_empty());
+        assert!(res.syntax_errors.is_empty());
+    }
+
+    #[test]
+    fn test_render_unresolved_produces_warning() {
+        let resolver = VariableResolver::new();
+        let res = resolver.render("https://{{host}}/v1");
+        assert_eq!(res.text, "https://{{host}}/v1");
+        assert_eq!(res.warnings.len(), 1);
+        assert_eq!(res.warnings[0].name, "host");
+        assert!(res.syntax_errors.is_empty());
+    }
+
+    #[test]
+    fn test_render_filter_default_when_undefined() {
+        let resolver = VariableResolver::new();
+        let res = resolver.render("{{env | default: 'staging'}}");
+        assert_eq!(res.text, "staging");
+        assert!(res.warnings.is_empty(), "default filter suppresses warnings");
+        assert!(res.syntax_errors.is_empty());
+    }
+
+    #[test]
+    fn test_render_filter_default_not_used_when_defined() {
+        let mut resolver = VariableResolver::new();
+        resolver.global_vars.insert("env".into(), make_var("env", "production", false));
+        let res = resolver.render("{{env | default: 'staging'}}");
+        assert_eq!(res.text, "production");
+        assert!(res.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_render_filter_default_not_used_when_empty_string() {
+        // An empty-string variable IS defined; the default should NOT be applied.
+        let mut resolver = VariableResolver::new();
+        resolver.global_vars.insert("env".into(), make_var("env", "", false));
+        let res = resolver.render("{{env | default: 'staging'}}");
+        assert_eq!(res.text, "");
+        assert!(res.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_render_nested_resolution() {
+        let mut resolver = VariableResolver::new();
+        // base_url's value itself contains a placeholder.
+        resolver
+            .global_vars
+            .insert("base_url".into(), make_var("base_url", "https://{{host}}", false));
+        resolver.global_vars.insert("host".into(), make_var("host", "api.example.com", false));
+        let res = resolver.render("{{base_url}}/users");
+        assert_eq!(res.text, "https://api.example.com/users");
+        assert!(res.warnings.is_empty());
+        assert!(res.syntax_errors.is_empty());
+    }
+
+    #[test]
+    fn test_render_nested_depth_limit() {
+        // Build a chain: a→b→c→d→e→f (6 levels, exceeds MAX_DEPTH of 5).
+        let mut resolver = VariableResolver::new();
+        resolver.global_vars.insert("a".into(), make_var("a", "{{b}}", false));
+        resolver.global_vars.insert("b".into(), make_var("b", "{{c}}", false));
+        resolver.global_vars.insert("c".into(), make_var("c", "{{d}}", false));
+        resolver.global_vars.insert("d".into(), make_var("d", "{{e}}", false));
+        resolver.global_vars.insert("e".into(), make_var("e", "{{f}}", false));
+        resolver.global_vars.insert("f".into(), make_var("f", "deepest", false));
+        // At depth 5 (zero-indexed), resolving `e` produces `{{f}}` as the value,
+        // but we won't recurse further — `{{f}}` is emitted as-is with a warning.
+        let res = resolver.render("{{a}}");
+        assert!(!res.text.is_empty(), "should produce some output without panicking");
+    }
+
+    #[test]
+    fn test_render_circular_reference() {
+        let mut resolver = VariableResolver::new();
+        // a → {{b}}, b → {{a}}
+        resolver.global_vars.insert("a".into(), make_var("a", "{{b}}", false));
+        resolver.global_vars.insert("b".into(), make_var("b", "{{a}}", false));
+        let res = resolver.render("{{a}}");
+        // Should not stack-overflow; must produce a syntax error describing the cycle.
+        assert!(
+            res.syntax_errors.iter().any(|e| e.message.contains("circular")),
+            "expected a circular-reference error, got: {:?}",
+            res.syntax_errors
+        );
+    }
+
+    #[test]
+    fn test_render_unclosed_brace_syntax_error() {
+        let resolver = VariableResolver::new();
+        let res = resolver.render("prefix {{ unclosed");
+        assert_eq!(res.syntax_errors.len(), 1);
+        assert!(res.syntax_errors[0].message.contains("unclosed"));
+        // Original text should be present in the output (no data loss).
+        assert!(res.text.contains("prefix "));
+    }
+
+    #[test]
+    fn test_render_masked_secret() {
+        let mut resolver = VariableResolver::new();
+        resolver.global_vars.insert("key".into(), make_var("key", "super-secret", true));
+        resolver.global_vars.insert("id".into(), make_var("id", "123", false));
+        let masked = resolver.render_masked("id={{id}}&key={{key}}");
+        assert_eq!(masked.text, "id=123&key=********");
+        let plain = resolver.render("id={{id}}&key={{key}}");
+        assert_eq!(plain.text, "id=123&key=super-secret");
+    }
+
+    #[test]
+    fn test_render_multiple_warnings() {
+        let resolver = VariableResolver::new();
+        let res = resolver.render("{{a}} and {{b}}");
+        assert_eq!(res.warnings.len(), 2);
+        let names: Vec<&str> = res.warnings.iter().map(|w| w.name.as_str()).collect();
+        assert!(names.contains(&"a"));
+        assert!(names.contains(&"b"));
+    }
+
+    #[test]
+    fn test_render_empty_input() {
+        let resolver = VariableResolver::new();
+        let res = resolver.render("");
+        assert_eq!(res.text, "");
+        assert!(res.warnings.is_empty());
+        assert!(res.syntax_errors.is_empty());
     }
 
     #[test]

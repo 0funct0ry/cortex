@@ -30,6 +30,13 @@ interface VariablePanelProps {
   initialTab?: VariableScope | 'session'
   globalVariables: Variable[]
   ephemeralVariables: Variable[]
+  /**
+   * Called whenever the user changes the active environment selection.
+   * Both the owning collection path and the environment name are surfaced so
+   * the caller can load environment variables even when no collection-specific
+   * tab is active (e.g. a scratch tab).
+   */
+  onEnvironmentChange?: (collectionPath: string | null, envName: string | null) => void
 }
 
 type TabType = 'global' | 'collection' | 'environment' | 'session'
@@ -43,6 +50,7 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
   initialTab = 'global',
   globalVariables,
   ephemeralVariables,
+  onEnvironmentChange,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab as TabType)
   const [selectedCollectionPath, setSelectedCollectionPath] = useState<string | null>(
@@ -73,6 +81,15 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
       setTimeout(() => setSelectedCollectionPath(firstPath), 0)
     }
   }, [loadedCollections, selectedCollectionPath])
+
+  // Notify parent whenever the effective active environment changes.
+  // Selecting an environment in the Environment tab immediately activates it.
+  useEffect(() => {
+    if (!onEnvironmentChange) return
+    if (activeTab === 'environment') {
+      onEnvironmentChange(selectedCollectionPath ?? null, selectedEnvironmentName ?? null)
+    }
+  }, [activeTab, selectedCollectionPath, selectedEnvironmentName, onEnvironmentChange])
 
   // Helper to fetch/sync variables for the active scope
   const syncVariables = useCallback(async () => {
@@ -322,7 +339,10 @@ export const VariablePanel: React.FC<VariablePanelProps> = ({
               <select
                 className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all min-w-[150px]"
                 value={selectedEnvironmentName || ''}
-                onChange={(e) => setSelectedEnvironmentName(e.target.value)}
+                onChange={(e) => {
+                  setSelectedEnvironmentName(e.target.value)
+                  onEnvironmentChange?.(selectedCollectionPath ?? null, e.target.value || null)
+                }}
               >
                 <option value="" disabled>
                   {loadedCollections[selectedCollectionPath]?.environments?.length > 0

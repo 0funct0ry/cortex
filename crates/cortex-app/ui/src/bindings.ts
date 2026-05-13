@@ -275,7 +275,7 @@ name: string;
 variables: Variable[] }
 export type Folder = { name: string; path: string; relative_path: string; items: CollectionItem[] }
 export type GreetResponse = { message: string }
-export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[] }
+export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[] }
 export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
 /**
  * Represents the structure of a `.crx` request file.
@@ -333,6 +333,18 @@ export type RequestFileWrapper = { name: string; path: string; relative_path: st
 export type ResolvedVariable = { value: string; scope: VariableScope; secret: boolean }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type Settings = { timeout?: number | null }
+/**
+ * A template syntax error encountered during parsing or rendering.
+ */
+export type TemplateSyntaxError = { 
+/**
+ * The offending raw text (e.g. `"{{unclosed"`).
+ */
+raw: string; 
+/**
+ * Human-readable description of the problem.
+ */
+message: string }
 export type UnresolvedVariableWarning = { name: string }
 export type Variable = { name: string; value: string; secret?: boolean; enabled?: boolean; 
 /**
