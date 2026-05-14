@@ -67,7 +67,7 @@ cargo run -p cortex -- run --request "Hello world"
 
 - **Rust**: Workspace member crates use a shared version and author configuration.
 - **Tauri**: Version 2.0.
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS + shadcn-ui in `crates/cortex-app/ui`.
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS in `crates/cortex-app/ui`.
 - **IPC Contract**: End-to-end type safety between Rust and TypeScript using `tauri-specta`. Bindings are auto-generated via `cargo test -p cortex`.
 
 ## Continuous Integration & Deployment
@@ -134,11 +134,11 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 
 ## User Interface
 
-### 🖥️ Professional UI Shell
-Cortex features a high-performance, IDE-like desktop interface designed for speed and clarity.
-- **Three-Region Layout**: A persistent top navigation bar, a collapsible left sidebar for collection exploration, and a central tabbed main area for request composition.
-- **Tab Management**: Support for multiple open requests, with color-coded HTTP method badges (GET, POST, etc.) and scratch tabs for quick experimentation.
-- **Fluid Interactions**: Smooth sidebar transitions with keyboard shortcut support (`⌘B` or `Ctrl+B`), glassmorphism effects, and micro-animations for a premium developer experience.
+### 🖥️ Professional IDE-Style GUI (Work in Progress)
+Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-performance, IDE-like desktop interface.
+- **IDE-Style Layout**: A compact, three-column shell with resizable panes.
+- **Theme System**: Premium themes (Dark, Light, Catppuccin, etc.) implemented via CSS variables.
+- **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
 
 ## File Formats
 
