@@ -7,10 +7,12 @@ interface CollectionState {
   loadingCollections: Record<string, boolean>
   errors: Record<string, string | null>
   expansionState: Record<string, boolean>
+  searchQuery: string
 
   loadCollection: (path: string) => Promise<void>
   toggleExpansion: (path: string) => void
   setExpanded: (path: string, expanded: boolean) => void
+  setSearchQuery: (query: string) => void
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -18,6 +20,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   loadingCollections: {},
   errors: {},
   expansionState: {},
+  searchQuery: '',
 
   loadCollection: async (path: string) => {
     // If already loading or already loaded, don't reload unless needed?
@@ -66,5 +69,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         [path]: expanded,
       },
     }))
+  },
+
+  setSearchQuery: (query: string) => {
+    set({ searchQuery: query })
   },
 }))

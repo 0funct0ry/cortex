@@ -370,8 +370,48 @@ impl Collection {
             .file_name()
             .ok_or_else(|| CollectionError::InvalidPath("Invalid file name".to_string()))?;
         let new_path = new_parent.join(file_name);
-        fs::rename(path, &new_path)?;
+        fs::rename(path, &new_path).map_err(CollectionError::IoError)?;
         Ok(new_path)
+    }
+
+    /// Duplicates a request file.
+    pub fn duplicate_request(path: &Path) -> Result<PathBuf, CollectionError> {
+        if !path.exists() || !path.is_file() {
+            return Err(CollectionError::NotFound(path.to_path_buf()));
+        }
+
+        let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+
+        let mut i = 1;
+        let mut new_path = parent.join(format!("{} copy.crx", stem));
+        while new_path.exists() {
+            new_path = parent.join(format!("{} copy {}.crx", stem, i));
+            i += 1;
+        }
+
+        fs::copy(path, &new_path)?;
+
+        // Update the name inside the file if possible
+        if let Ok(content) = fs::read_to_string(&new_path) {
+            if let Ok(mut rf) = RequestFile::from_yaml(&content) {
+                rf.name = format!("{} Copy", rf.name);
+                let _ = Self::save_request(&rf, &new_path);
+            }
+        }
+
+        Ok(new_path)
+    }
+
+    /// Creates a new folder.
+    pub fn create_folder(name: &str, parent_path: &Path) -> Result<PathBuf, CollectionError> {
+        let path = parent_path.join(name);
+        if path.exists() {
+            return Err(CollectionError::InvalidPath(format!("Folder already exists: {:?}", path)));
+        }
+
+        fs::create_dir_all(&path)?;
+        Ok(path)
     }
 }
 

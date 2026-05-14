@@ -23,6 +23,7 @@ const SidebarTree: React.FC = () => {
     expansionState,
     loadCollection,
     toggleExpansion,
+    searchQuery,
   } = useCollectionStore()
 
   const { openTab } = useTabs()
@@ -68,21 +69,60 @@ const SidebarTree: React.FC = () => {
     }
   }
 
-  const renderItems = (items: CollectionItem[], depth: number, collectionPath: string) => {
-    return items.map((item) => {
+  const renderItems = (
+    items: CollectionItem[],
+    depth: number,
+    collectionPath: string,
+    query: string
+  ) => {
+    // Filter logic:
+    // 1. If query is empty, show everything.
+    // 2. If item matches query, show it.
+    // 3. If item is a folder and has matching children, show it.
+
+    const filteredItems = items.filter((item) => {
+      if (!query) return true
+
+      const q = query.toLowerCase()
+      if (item.type === 'Request') {
+        return item.data.name.toLowerCase().includes(q)
+      } else {
+        // Folder matches if its name matches OR any of its children match
+        const matchesName = item.data.name.toLowerCase().includes(q)
+        const hasMatchingChildren = (items: CollectionItem[]): boolean => {
+          return items.some((child) => {
+            if (child.type === 'Request') {
+              return child.data.name.toLowerCase().includes(q)
+            } else {
+              return (
+                child.data.name.toLowerCase().includes(q) || hasMatchingChildren(child.data.items)
+              )
+            }
+          })
+        }
+        return matchesName || hasMatchingChildren(item.data.items)
+      }
+    })
+
+    if (filteredItems.length === 0 && query && depth === 1) {
+      // This is handled by the caller to show "No results" if the whole tree is empty
+    }
+
+    return filteredItems.map((item) => {
       if (item.type === 'Folder') {
         const folder = item.data
-        const isExpanded = expansionState[folder.path] || false
+        const isExpanded = query ? true : expansionState[folder.path] || false
         return (
           <React.Fragment key={folder.path}>
             <TreeNode
               label={folder.name}
               depth={depth}
               type="folder"
+              path={folder.path}
               isExpanded={isExpanded}
               onToggle={() => toggleExpansion(folder.path)}
             />
-            {isExpanded && renderItems(folder.items, depth + 1, collectionPath)}
+            {isExpanded && renderItems(folder.items, depth + 1, collectionPath, query)}
           </React.Fragment>
         )
       } else {
@@ -93,6 +133,7 @@ const SidebarTree: React.FC = () => {
             label={request.name}
             depth={depth}
             type="request"
+            path={request.path}
             method={request.content?.method || 'GET'}
             onClick={() =>
               openTab({
@@ -139,38 +180,57 @@ const SidebarTree: React.FC = () => {
       )
     }
 
-    return (
-      <div className="py-1">
-        {activeWorkspace.collections.map((colRef) => {
-          const colData = collections[colRef.path]
-          const isExpanded = expansionState[colRef.path] || false
-          const isLoading = loadingCollections[colRef.path] || false
-          const error = errors[colRef.path] || colRef.error
+    let totalItemsFound = 0
 
-          const handleToggle = () => {
-            if (!isExpanded && !colData) {
-              loadCollection(colRef.path)
-            }
-            toggleExpansion(colRef.path)
-          }
+    const collectionsList = activeWorkspace.collections.map((colRef) => {
+      const colData = collections[colRef.path]
+      const isExpanded = searchQuery ? true : expansionState[colRef.path] || false
+      const isLoading = loadingCollections[colRef.path] || false
+      const error = errors[colRef.path] || colRef.error
 
-          return (
-            <React.Fragment key={colRef.path}>
-              <TreeNode
-                label={colRef.name || colRef.path.split('/').pop() || 'Collection'}
-                depth={0}
-                type="collection"
-                isExpanded={isExpanded}
-                isLoading={isLoading}
-                error={error}
-                onToggle={handleToggle}
-              />
-              {isExpanded && colData && renderItems(colData.items, 1, colRef.path)}
-            </React.Fragment>
-          )
-        })}
-      </div>
-    )
+      const handleToggle = () => {
+        if (!isExpanded && !colData) {
+          loadCollection(colRef.path)
+        }
+        toggleExpansion(colRef.path)
+      }
+
+      const items = colData ? renderItems(colData.items, 1, colRef.path, searchQuery) : []
+      if (items.length > 0 || !searchQuery) {
+        totalItemsFound += items.length
+        if (!searchQuery) totalItemsFound++ // Count collection root if not searching
+      } else if (searchQuery && colRef.name?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        totalItemsFound++
+      } else {
+        return null
+      }
+
+      return (
+        <React.Fragment key={colRef.path}>
+          <TreeNode
+            label={colRef.name || colRef.path.split('/').pop() || 'Collection'}
+            depth={0}
+            type="collection"
+            path={colRef.path}
+            isExpanded={isExpanded}
+            isLoading={isLoading}
+            error={error}
+            onToggle={handleToggle}
+          />
+          {isExpanded && colData && items}
+        </React.Fragment>
+      )
+    })
+
+    if (searchQuery && totalItemsFound === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-4 text-center select-none">
+          <p className="text-text-muted text-sm">No results for "{searchQuery}"</p>
+        </div>
+      )
+    }
+
+    return <div className="py-1">{collectionsList}</div>
   }
 
   if (isWorkspaceLoading) {

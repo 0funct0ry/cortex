@@ -4,6 +4,7 @@ import type { WorkspaceResponse } from '../bindings'
 
 interface WorkspaceState {
   activeWorkspace: WorkspaceResponse | null
+  activeWorkspacePath: string | null
   isLoading: boolean
   error: string | null
   loadWorkspace: (path: string) => Promise<void>
@@ -12,6 +13,7 @@ interface WorkspaceState {
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   activeWorkspace: null,
+  activeWorkspacePath: null,
   isLoading: false,
   error: null,
   loadWorkspace: async (path: string) => {
@@ -19,7 +21,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     try {
       const result = await commands.loadWorkspace(path)
       if (result.status === 'ok') {
-        set({ activeWorkspace: result.data, isLoading: false })
+        set({
+          activeWorkspace: result.data,
+          activeWorkspacePath: path,
+          isLoading: false,
+        })
       } else {
         set({ error: result.error, isLoading: false })
       }
@@ -33,7 +39,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       if (path) {
         const result = await commands.loadWorkspace(path)
         if (result.status === 'ok') {
-          set({ activeWorkspace: result.data })
+          set({ activeWorkspace: result.data, activeWorkspacePath: path })
         }
       }
     } catch (e) {

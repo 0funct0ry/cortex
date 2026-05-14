@@ -120,6 +120,50 @@ pub fn move_item(path: String, new_parent: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn create_folder(name: String, parent_path: String) -> Result<String, String> {
+    Collection::create_folder(&name, &PathBuf::from(parent_path))
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn duplicate_request(path: String) -> Result<String, String> {
+    Collection::duplicate_request(&PathBuf::from(path))
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn open_in_explorer(path: String) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg("/select,")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let parent = path.parent().unwrap_or(&path);
+        std::process::Command::new("xdg-open").arg(parent).spawn().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
     tauri::async_runtime::spawn_blocking(move || load_workspace_blocking(path))
         .await

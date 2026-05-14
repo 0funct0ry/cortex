@@ -56,6 +56,30 @@ async moveItem(path: string, newParent: string) : Promise<Result<string, string>
     else return { status: "error", error: e  as any };
 }
 },
+async createFolder(name: string, parentPath: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_folder", { name, parentPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async duplicateRequest(path: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("duplicate_request", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async openInExplorer(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_in_explorer", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async loadWorkspace(path: string) : Promise<Result<WorkspaceResponse, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_workspace", { path }) };
