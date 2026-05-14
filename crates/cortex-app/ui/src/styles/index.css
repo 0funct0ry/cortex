@@ -1,0 +1,16 @@
+@import './tokens.css';
+
+/* Themes */
+@import './themes/light.css';
+@import './themes/light-monochrome.css';
+@import './themes/light-pastel.css';
+@import './themes/catppuccin-latte.css';
+@import './themes/vscode-light.css';
+@import './themes/dark.css';
+@import './themes/dark-monochrome.css';
+@import './themes/dark-pastel.css';
+@import './themes/catppuccin-frappe.css';
+@import './themes/catppuccin-macchiato.css';
+@import './themes/catppuccin-mocha.css';
+@import './themes/nord.css';
+@import './themes/vscode-dark.css';

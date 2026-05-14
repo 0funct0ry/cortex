@@ -1,0 +1,65 @@
+import type { Config } from 'tailwindcss'
+
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        'bg-base': 'var(--color-bg-base)',
+        'bg-panel': 'var(--color-bg-panel)',
+        'bg-surface': 'var(--color-bg-surface)',
+        'bg-overlay': 'var(--color-bg-overlay)',
+        'bg-muted': 'var(--color-bg-muted)',
+        'bg-highlight': 'var(--color-bg-highlight)',
+        'text-primary': 'var(--color-text-primary)',
+        'text-secondary': 'var(--color-text-secondary)',
+        'text-muted': 'var(--color-text-muted)',
+        'text-inverse': 'var(--color-text-inverse)',
+        'text-link': 'var(--color-text-link)',
+        'border-subtle': 'var(--color-border-subtle)',
+        'border-default': 'var(--color-border-default)',
+        'border-strong': 'var(--color-border-strong)',
+        accent: 'var(--color-accent)',
+        'accent-hover': 'var(--color-accent-hover)',
+        'accent-fg': 'var(--color-accent-foreground)',
+        // Status
+        success: 'var(--color-success)',
+        'success-muted': 'var(--color-success-muted)',
+        warning: 'var(--color-warning)',
+        'warning-muted': 'var(--color-warning-muted)',
+        error: 'var(--color-error)',
+        'error-muted': 'var(--color-error-muted)',
+        info: 'var(--color-info)',
+        'info-muted': 'var(--color-info-muted)',
+        // Methods
+        'method-get': 'var(--color-method-get)',
+        'method-post': 'var(--color-method-post)',
+        'method-put': 'var(--color-method-put)',
+        'method-patch': 'var(--color-method-patch)',
+        'method-delete': 'var(--color-method-delete)',
+        'method-head': 'var(--color-method-head)',
+        'method-options': 'var(--color-method-options)',
+        'method-ws': 'var(--color-method-ws)',
+        'method-sse': 'var(--color-method-sse)',
+        'method-grpc': 'var(--color-method-grpc)',
+        'method-graphql': 'var(--color-method-graphql)',
+      },
+      fontFamily: {
+        sans: 'var(--font-sans)',
+        mono: 'var(--font-mono)',
+      },
+      borderRadius: {
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+      },
+      fontSize: {
+        xs: 'var(--font-size-xs)',
+        sm: 'var(--font-size-sm)',
+        base: 'var(--font-size-base)',
+        md: 'var(--font-size-md)',
+      },
+    },
+  },
+  plugins: [],
+} satisfies Config

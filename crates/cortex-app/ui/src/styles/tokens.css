@@ -1,0 +1,76 @@
+/**
+ * Design Tokens - User Story 03a.02
+ * All tokens are CSS custom properties on the :root element (overridden per theme).
+ */
+
+:root {
+  /* Background layers */
+  --color-bg-base: #000000;
+  --color-bg-panel: #000000;
+  --color-bg-surface: #000000;
+  --color-bg-overlay: #000000;
+  --color-bg-muted: #000000;
+  --color-bg-highlight: #000000;
+
+  /* Text */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #ffffff;
+  --color-text-muted: #ffffff;
+  --color-text-inverse: #ffffff;
+  --color-text-link: #ffffff;
+
+  /* Borders and dividers */
+  --color-border-subtle: #000000;
+  --color-border-default: #000000;
+  --color-border-strong: #000000;
+
+  /* Brand / accent */
+  --color-accent: #000000;
+  --color-accent-hover: #000000;
+  --color-accent-foreground: #000000;
+
+  /* Status colours */
+  --color-success: #000000;
+  --color-success-muted: #000000;
+  --color-warning: #000000;
+  --color-warning-muted: #000000;
+  --color-error: #000000;
+  --color-error-muted: #000000;
+  --color-info: #000000;
+  --color-info-muted: #000000;
+
+  /* HTTP method colours */
+  --color-method-get: #000000;
+  --color-method-post: #000000;
+  --color-method-put: #000000;
+  --color-method-patch: #000000;
+  --color-method-delete: #000000;
+  --color-method-head: #000000;
+  --color-method-options: #000000;
+  --color-method-ws: #000000;
+  --color-method-sse: #000000;
+  --color-method-grpc: #000000;
+  --color-method-graphql: #000000;
+
+  /* Syntax highlighting */
+  --color-syntax-keyword: #000000;
+  --color-syntax-string: #000000;
+  --color-syntax-number: #000000;
+  --color-syntax-comment: #000000;
+  --color-syntax-punctuation: #000000;
+  --color-syntax-property: #000000;
+  --color-syntax-variable: #000000;
+  --color-syntax-type: #000000;
+  --color-syntax-operator: #000000;
+
+  /* Typography and shape */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+}
