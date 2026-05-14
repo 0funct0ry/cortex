@@ -120,8 +120,12 @@ impl Workspace {
     /// Loads a workspace from a YAML file.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let path = path.as_ref().to_path_buf();
-        let absolute_path =
+        let mut absolute_path =
             if path.is_absolute() { path.clone() } else { std::env::current_dir()?.join(&path) };
+
+        if absolute_path.is_dir() {
+            absolute_path = absolute_path.join("cortex-workspace.yaml");
+        }
 
         let content = fs::read_to_string(&absolute_path)?;
         let mut manifest: WorkspaceManifest = serde_yaml::from_str(&content)
@@ -154,8 +158,12 @@ impl Workspace {
     /// Loads only the workspace manifest, skipping the collections.
     pub fn load_manifest<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let path = path.as_ref().to_path_buf();
-        let absolute_path =
+        let mut absolute_path =
             if path.is_absolute() { path.clone() } else { std::env::current_dir()?.join(&path) };
+
+        if absolute_path.is_dir() {
+            absolute_path = absolute_path.join("cortex-workspace.yaml");
+        }
 
         let content = fs::read_to_string(&absolute_path)?;
         let mut manifest: WorkspaceManifest = serde_yaml::from_str(&content)
@@ -253,5 +261,18 @@ collections:
         let content = fs::read_to_string(gitignore_path).unwrap();
         assert!(content.contains("# Cortex local-only files"));
         assert!(content.contains(".env"));
+    }
+
+    #[test]
+    fn test_load_workspace_from_directory() {
+        let dir = tempdir().unwrap();
+        let workspace_path = dir.path().join("cortex-workspace.yaml");
+        let workspace_content = "version: \"1\"\nname: \"Dir Test\"\ncollections: []";
+        fs::write(&workspace_path, workspace_content).unwrap();
+
+        // Load using the directory path instead of the file path
+        let workspace = Workspace::load(dir.path()).unwrap();
+        assert_eq!(workspace.manifest.name, "Dir Test");
+        assert!(workspace.path.ends_with("cortex-workspace.yaml"));
     }
 }

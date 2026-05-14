@@ -115,6 +115,9 @@ async removeCollectionFromWorkspace(workspacePath: string, collectionPath: strin
 async getLastWorkspacePath() : Promise<string | null> {
     return await TAURI_INVOKE("get_last_workspace_path");
 },
+async getRecentWorkspaces() : Promise<RecentWorkspace[]> {
+    return await TAURI_INVOKE("get_recent_workspaces");
+},
 async pickFile(title: string, filterName: string, filterExt: string) : Promise<Result<string | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pick_file", { title, filterName, filterExt }) };
@@ -338,6 +341,7 @@ export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
 export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: string[] }
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
+export type RecentWorkspace = { name: string; path: string }
 export type RenderedHeader = { key: string; value: string }
 export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
 /**

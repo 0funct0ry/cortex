@@ -1,14 +1,22 @@
 use cortex_core::request::RequestHistoryEntry;
 use cortex_core::variables::Variable;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+#[derive(Serialize, Deserialize, Clone, Debug, Type)]
+pub struct RecentWorkspace {
+    pub name: String,
+    pub path: String,
+}
+
 #[derive(Serialize, Deserialize, Default)]
 pub struct AppSettings {
     pub last_workspace_path: Option<String>,
+    pub recent_workspaces: Vec<RecentWorkspace>,
 }
 
 /// In-memory store for ephemeral (session-scoped) variables.

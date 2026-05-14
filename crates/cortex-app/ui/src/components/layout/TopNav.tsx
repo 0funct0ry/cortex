@@ -1,30 +1,27 @@
 import React from 'react'
 import * as Icons from '../ui/Icons'
 import { useUIStore } from '../../stores/uiStore'
+import WorkspacePicker from './WorkspacePicker'
 
 const TopNav: React.FC = () => {
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
 
   return (
-    <nav className="h-9 bg-bg-panel border-b border-border-subtle flex items-center px-2 gap-0 shrink-0">
+    <nav className="h-8 bg-bg-panel border-b border-border-subtle flex items-center px-2 gap-0 shrink-0">
       {/* Left Group */}
       <div className="flex items-center gap-1 pl-1">
         <button
           onClick={toggleSidebar}
-          className="p-1.5 rounded hover:bg-bg-muted text-text-secondary hover:text-text-primary transition-colors mr-1"
+          className="p-1 rounded hover:bg-bg-muted text-text-secondary hover:text-text-primary transition-colors mr-1"
           title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           <Icons.SidebarToggle
-            size={16}
+            size={14}
             className={`transition-transform duration-200 ${sidebarCollapsed ? 'rotate-180' : ''}`}
           />
         </button>
 
-        <button className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-bg-muted transition-colors text-text-primary text-sm font-medium group">
-          <Icons.Workspace className="text-text-secondary group-hover:text-text-primary" />
-          <span>My Workspace</span>
-          <Icons.ChevronDown className="text-text-muted" size={10} />
-        </button>
+        <WorkspacePicker />
 
         <div className="w-[1px] h-4 bg-border-subtle mx-1" />
 

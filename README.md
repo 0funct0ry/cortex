@@ -145,7 +145,7 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 ## File Formats
 
 ### 📁 Core File Formats
-- **Workspace Manifest (`cortex-workspace.yaml`)**: Groups multiple collections into a single organizational unit. Includes UI support for creating, switching, and persisting workspaces.
+- **Workspace Manifest (`cortex-workspace.yaml`)**: Groups multiple collections into a single organizational unit. Includes UI support for creating, switching, and persisting workspaces, with an IDE-style workspace picker that tracks recently opened projects.
 - **Collection Manifest (`cortex.yaml`)**: Root configuration for a collection.
 - **Request Files (`.crx`)**: Standalone YAML files for individual API requests.
 - **Folder Manifest (`folder.yaml`)**: Optional folder-level override file supporting shared parameters (e.g. inherited headers) across child items.

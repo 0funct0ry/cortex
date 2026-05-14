@@ -1,4 +1,4 @@
-use crate::state::{AppSettings, EphemeralStore, HistoryStore};
+use crate::state::{AppSettings, EphemeralStore, HistoryStore, RecentWorkspace};
 use cortex_core::collection::Collection;
 use cortex_core::request::{RequestFile, RequestHistoryEntry};
 use cortex_core::variables::Variable;
@@ -173,10 +173,19 @@ pub async fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
 fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
     // Load only the workspace manifest — skips loading every collection's request tree.
     let workspace = Workspace::load_manifest(&path).map_err(|e| e.to_string())?;
+    let resolved_path = workspace.path.to_string_lossy().to_string();
 
     // Remember this workspace
     let mut settings = AppSettings::load();
-    settings.last_workspace_path = Some(path);
+    settings.last_workspace_path = Some(resolved_path.clone());
+
+    // Update recent workspaces
+    let recent =
+        RecentWorkspace { name: workspace.manifest.name.clone(), path: resolved_path.clone() };
+    settings.recent_workspaces.retain(|w| w.path != resolved_path);
+    settings.recent_workspaces.insert(0, recent);
+    settings.recent_workspaces.truncate(10);
+
     let _ = settings.save();
 
     let workspace_dir = workspace.path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf();
@@ -293,6 +302,12 @@ pub fn remove_collection_from_workspace(
     manifest.remove_collection(&collection_path);
     manifest.save(&workspace_path).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_recent_workspaces() -> Vec<RecentWorkspace> {
+    AppSettings::load().recent_workspaces
 }
 
 #[tauri::command]
