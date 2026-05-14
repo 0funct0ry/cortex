@@ -38,6 +38,22 @@ export const ChevronRight: React.FC<IconProps> = ({ size = 12, ...props }) => (
   </svg>
 )
 
+export const ChevronLeft: React.FC<IconProps> = ({ size = 12, ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <polyline points="15 18 9 12 15 6" />
+  </svg>
+)
+
 export const ChevronDown: React.FC<IconProps> = ({ size = 12, ...props }) => (
   <svg
     width={size}
@@ -244,5 +260,22 @@ export const Rocket: React.FC<IconProps> = ({ size = 14, ...props }) => (
     <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
     <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
     <path d="M12 15v5c.97 1.45 4 2 4 2 1.08-1.62 0-5 0-5" />
+  </svg>
+)
+
+export const X: React.FC<IconProps> = ({ size = 14, ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 )

@@ -1,36 +1,136 @@
-import React from 'react'
+import React, { useRef, useState, useEffect } from 'react'
+import { useTabs } from '../../contexts/TabsContext'
+import TabItem from './TabItem'
+import * as Icons from '../ui/Icons'
 
 const RequestTabBar: React.FC = () => {
-  return (
-    <div className="h-9 bg-bg-panel border-b border-border-subtle flex items-stretch overflow-hidden shrink-0">
-      <div className="flex-1 flex items-stretch overflow-x-auto scrollbar-hide">
-        {/* Active Tab */}
-        <div className="flex items-center px-3.5 h-full border-b-2 border-accent bg-bg-highlight text-text-primary text-[12px] border-r border-border-subtle whitespace-nowrap gap-2 group cursor-pointer">
-          <span className="text-[9px] font-bold px-1 rounded bg-method-get/12 text-method-get border border-method-get/20 uppercase">
-            GET
-          </span>
-          <span className="font-medium">Async</span>
-          <span className="text-[10px] text-text-muted hover:text-text-primary transition-colors opacity-0 group-hover:opacity-100">
-            ✕
-          </span>
-        </div>
+  const { tabs, activeTabId, openTab, reorderTabs } = useTabs()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [showLeftArrow, setShowLeftArrow] = useState(false)
+  const [showRightArrow, setShowRightArrow] = useState(false)
 
-        {/* Inactive Tab */}
-        <div className="flex items-center px-3.5 h-full text-text-secondary text-[12px] border-r border-border-subtle whitespace-nowrap gap-2 group cursor-pointer hover:bg-bg-muted/50 transition-colors">
-          <span className="text-[9px] font-bold px-1 rounded bg-method-post/12 text-method-post border border-method-post/20 uppercase">
-            POST
-          </span>
-          <span>Auth</span>
-          <span className="text-[10px] text-text-muted hover:text-text-primary transition-colors opacity-0 group-hover:opacity-100">
-            ✕
-          </span>
+  // Drag state — kept in a ref to avoid re-renders during drag
+  const dragFromIndex = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  const checkScroll = () => {
+    const el = scrollContainerRef.current
+    if (el) {
+      setShowLeftArrow(el.scrollLeft > 0)
+      setShowRightArrow(el.scrollLeft < el.scrollWidth - el.clientWidth - 1)
+    }
+  }
+
+  useEffect(() => {
+    checkScroll()
+    window.addEventListener('resize', checkScroll)
+    return () => window.removeEventListener('resize', checkScroll)
+  }, [tabs])
+
+  const scroll = (direction: 'left' | 'right') => {
+    const el = scrollContainerRef.current
+    if (el) {
+      const scrollAmount = 120
+      el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' })
+    }
+  }
+
+  const handleNewTab = () => {
+    openTab({
+      requestPath: null,
+      collectionId: null,
+      name: 'Untitled',
+      method: 'GET',
+    })
+  }
+
+  const handleDragStart = (index: number) => {
+    dragFromIndex.current = index
+  }
+
+  const handleDragOver = (index: number) => {
+    if (dragFromIndex.current !== null && dragFromIndex.current !== index) {
+      setDragOverIndex(index)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null)
+  }
+
+  const handleDrop = (toIndex: number) => {
+    const fromIndex = dragFromIndex.current
+    if (fromIndex !== null && fromIndex !== toIndex) {
+      reorderTabs(fromIndex, toIndex)
+    }
+    dragFromIndex.current = null
+    setDragOverIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    dragFromIndex.current = null
+    setDragOverIndex(null)
+  }
+
+  return (
+    <div className="h-9 bg-bg-panel border-b border-border-subtle flex items-stretch shrink-0 relative group/tabbar">
+      {/* Left Scroll Arrow */}
+      {showLeftArrow && (
+        <div className="absolute left-0 top-0 bottom-0 w-8 z-10 flex items-center justify-start pl-1 bg-gradient-to-r from-bg-panel to-transparent">
+          <button
+            onClick={() => scroll('left')}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-bg-muted text-text-secondary transition-colors"
+          >
+            <Icons.ChevronLeft size={14} />
+          </button>
         </div>
+      )}
+
+      {/* Tabs Container */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={checkScroll}
+        className="flex-1 flex items-stretch overflow-x-auto scrollbar-hide select-none"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {tabs.map((tab, index) => (
+          <TabItem
+            key={tab.id}
+            tab={tab}
+            active={tab.id === activeTabId}
+            index={index}
+            dragOverIndex={dragOverIndex}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
+          />
+        ))}
 
         {/* New Tab Button */}
-        <button className="flex items-center justify-center px-3 text-text-muted hover:text-text-primary transition-colors text-lg">
-          +
-        </button>
+        <div className="flex items-center px-2 shrink-0">
+          <button
+            onClick={handleNewTab}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
+            title="New Tab"
+          >
+            <Icons.Plus size={18} />
+          </button>
+        </div>
       </div>
+
+      {/* Right Scroll Arrow */}
+      {showRightArrow && (
+        <div className="absolute right-0 top-0 bottom-0 w-8 z-10 flex items-center justify-end pr-1 bg-gradient-to-l from-bg-panel to-transparent">
+          <button
+            onClick={() => scroll('right')}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-bg-muted text-text-secondary transition-colors"
+          >
+            <Icons.ChevronRight size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useCollectionStore } from '../../stores/collectionStore'
+import { useTabs } from '../../contexts/TabsContext'
 import TreeNode from './TreeNode'
 import * as Icons from '../ui/Icons'
 import type { CollectionItem } from '../../bindings'
@@ -23,6 +24,8 @@ const SidebarTree: React.FC = () => {
     loadCollection,
     toggleExpansion,
   } = useCollectionStore()
+
+  const { openTab } = useTabs()
 
   // Load last workspace on mount
   useEffect(() => {
@@ -91,7 +94,14 @@ const SidebarTree: React.FC = () => {
             depth={depth}
             type="request"
             method={request.content?.method || 'GET'}
-            onClick={() => console.log('Open request:', request.path)}
+            onClick={() =>
+              openTab({
+                requestPath: request.path,
+                collectionId: collectionPath,
+                name: request.name,
+                method: request.content?.method || 'GET',
+              })
+            }
           />
         )
       }

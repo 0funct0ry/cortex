@@ -4,6 +4,7 @@ import RequestTabBar from './RequestTabBar'
 import UrlBar from './UrlBar'
 import Sidebar from './Sidebar'
 import { useUIStore } from '../../stores/uiStore'
+import { useTabs } from '../../contexts/TabsContext'
 
 import * as Icons from '../ui/Icons'
 
@@ -28,6 +29,7 @@ const ResizeHandle: React.FC<{ orientation?: 'horizontal' | 'vertical'; hidden?:
 
 const PanelShell: React.FC = () => {
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
+  const { tabs } = useTabs()
 
   const [mainLayout, setMainLayout] = useState<number[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_MAIN)
@@ -100,61 +102,87 @@ const PanelShell: React.FC = () => {
         <Panel id="content" order={2} defaultSize={sidebarCollapsed ? 100 : mainLayout[1]}>
           <div className="h-full flex flex-col">
             <RequestTabBar />
-            <UrlBar />
 
-            <div className="flex-1 overflow-hidden">
-              <PanelGroup direction="horizontal" onLayout={onEditorLayout}>
-                {/* COMPOSER */}
-                <Panel
-                  id="composer"
-                  order={1}
-                  defaultSize={editorLayout[0]}
-                  minSize={30}
-                  className="bg-bg-base"
-                >
-                  <div className="h-full flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-4">
-                      {/* Composer Content Placeholder */}
-                      <div className="italic opacity-50">Composer content...</div>
-                    </div>
-                  </div>
-                </Panel>
-
-                <ResizeHandle />
-
-                {/* RESPONSE */}
-                <Panel
-                  id="response"
-                  order={2}
-                  defaultSize={editorLayout[1]}
-                  minSize={20}
-                  maxSize={70}
-                  className="bg-bg-panel"
-                >
-                  <div className="h-full flex flex-col">
-                    <div className="h-9 border-b border-border-subtle flex items-center px-3 shrink-0">
-                      <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-                        Response
-                      </span>
-                    </div>
-                    <div className="flex-1 flex flex-col items-center justify-center p-4">
-                      {/* Response Placeholder */}
-                      <div className="opacity-20">
-                        <Icons.Rocket size={80} strokeWidth={1} className="rotate-45" />
-                      </div>
-                      <div className="mt-4 text-center">
-                        <div className="text-text-muted text-xs grid grid-cols-2 gap-x-4 gap-y-1">
-                          <span className="text-right">Send Request</span>
-                          <span className="text-left font-mono">Cmd + Enter</span>
-                          <span className="text-right">New Request</span>
-                          <span className="text-left font-mono">Cmd + B</span>
+            {tabs.length > 0 ? (
+              <>
+                <UrlBar />
+                <div className="flex-1 overflow-hidden">
+                  <PanelGroup direction="horizontal" onLayout={onEditorLayout}>
+                    {/* COMPOSER */}
+                    <Panel
+                      id="composer"
+                      order={1}
+                      defaultSize={editorLayout[0]}
+                      minSize={30}
+                      className="bg-bg-base"
+                    >
+                      <div className="h-full flex flex-col">
+                        <div className="flex-1 overflow-y-auto p-4">
+                          {/* Composer Content Placeholder */}
+                          <div className="italic opacity-50">Composer content...</div>
                         </div>
                       </div>
-                    </div>
+                    </Panel>
+
+                    <ResizeHandle />
+
+                    {/* RESPONSE */}
+                    <Panel
+                      id="response"
+                      order={2}
+                      defaultSize={editorLayout[1]}
+                      minSize={20}
+                      maxSize={70}
+                      className="bg-bg-panel"
+                    >
+                      <div className="h-full flex flex-col">
+                        <div className="h-9 border-b border-border-subtle flex items-center px-3 shrink-0">
+                          <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+                            Response
+                          </span>
+                        </div>
+                        <div className="flex-1 flex flex-col items-center justify-center p-4">
+                          {/* Response Placeholder */}
+                          <div className="opacity-20">
+                            <Icons.Rocket size={80} strokeWidth={1} className="rotate-45" />
+                          </div>
+                          <div className="mt-4 text-center">
+                            <div className="text-text-muted text-xs grid grid-cols-2 gap-x-4 gap-y-1">
+                              <span className="text-right">Send Request</span>
+                              <span className="text-left font-mono">Cmd + Enter</span>
+                              <span className="text-right">New Request</span>
+                              <span className="text-left font-mono">Cmd + B</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Panel>
+                  </PanelGroup>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center bg-bg-base select-none">
+                <div className="opacity-10 mb-8">
+                  <Icons.Rocket size={120} strokeWidth={0.5} className="rotate-45" />
+                </div>
+                <div className="text-center">
+                  <h2 className="text-text-secondary text-lg font-medium mb-2">
+                    Ready to explore?
+                  </h2>
+                  <p className="text-text-muted text-sm max-w-[300px] mb-8">
+                    Select a request from the sidebar or create a new one to get started.
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-text-muted/60">
+                    <span className="text-right">New Request</span>
+                    <span className="text-left font-mono">Cmd + N</span>
+                    <span className="text-right">Search Everything</span>
+                    <span className="text-left font-mono">Cmd + P</span>
+                    <span className="text-right">Toggle Sidebar</span>
+                    <span className="text-left font-mono">Cmd + \</span>
                   </div>
-                </Panel>
-              </PanelGroup>
-            </div>
+                </div>
+              </div>
+            )}
           </div>
         </Panel>
       </PanelGroup>

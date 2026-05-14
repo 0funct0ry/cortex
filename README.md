@@ -139,6 +139,8 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **IDE-Style Layout**: A compact, three-column shell with resizable panes.
 - **Theme System**: Premium themes (Dark, Light, Catppuccin, etc.) implemented via CSS variables.
 - **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
+- **Dynamic Tab Bar**: Managed request tabs with horizontal scrolling, dirty state indicators (•), manual reordering, and a comprehensive right-click context menu.
+- **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), and cycling (Cmd+Shift+[ / ]).
 
 ## File Formats
 
