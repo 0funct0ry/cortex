@@ -1,16 +1,20 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import RequestTabBar from './RequestTabBar'
 import UrlBar from './UrlBar'
+import Sidebar from './Sidebar'
+import { useUIStore } from '../../stores/uiStore'
 
 import * as Icons from '../ui/Icons'
 
 const STORAGE_KEY_MAIN = 'cortex.layout.main'
 const STORAGE_KEY_EDITOR = 'cortex.layout.editor'
 
-const ResizeHandle: React.FC<{ orientation?: 'horizontal' | 'vertical' }> = ({
+const ResizeHandle: React.FC<{ orientation?: 'horizontal' | 'vertical'; hidden?: boolean }> = ({
   orientation = 'vertical',
+  hidden = false,
 }) => {
+  if (hidden) return null
   return (
     <PanelResizeHandle
       className={`relative flex items-center justify-center bg-border-subtle hover:bg-border-default transition-colors ${
@@ -23,6 +27,8 @@ const ResizeHandle: React.FC<{ orientation?: 'horizontal' | 'vertical' }> = ({
 }
 
 const PanelShell: React.FC = () => {
+  const { sidebarCollapsed, toggleSidebar } = useUIStore()
+
   const [mainLayout, setMainLayout] = useState<number[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_MAIN)
     if (saved) {
@@ -47,6 +53,19 @@ const PanelShell: React.FC = () => {
     return [55, 45] // Default Composer: 55% of remaining
   })
 
+  // Keyboard shortcut for toggling sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+        e.preventDefault()
+        toggleSidebar()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [toggleSidebar])
+
   const onMainLayout = (sizes: number[]) => {
     setMainLayout(sizes)
     localStorage.setItem(STORAGE_KEY_MAIN, JSON.stringify(sizes))
@@ -61,31 +80,24 @@ const PanelShell: React.FC = () => {
     <main className="flex-1 overflow-hidden bg-bg-base">
       <PanelGroup direction="horizontal" onLayout={onMainLayout}>
         {/* SIDEBAR */}
-        <Panel
-          id="sidebar"
-          order={1}
-          defaultSize={mainLayout[0]}
-          minSize={15}
-          maxSize={35}
-          className="bg-bg-panel"
-        >
-          <div className="h-full flex flex-col">
-            <div className="h-9 border-b border-border-subtle flex items-center px-3 shrink-0">
-              <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-                Collections
-              </span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 text-text-secondary text-sm">
-              {/* Sidebar Content Placeholder */}
-              <div className="italic opacity-50">Sidebar content...</div>
-            </div>
-          </div>
-        </Panel>
-
-        <ResizeHandle />
+        {!sidebarCollapsed && (
+          <>
+            <Panel
+              id="sidebar"
+              order={1}
+              defaultSize={mainLayout[0]}
+              minSize={15}
+              maxSize={35}
+              className="bg-bg-panel transition-[width] duration-200"
+            >
+              <Sidebar />
+            </Panel>
+            <ResizeHandle />
+          </>
+        )}
 
         {/* CONTENT AREA */}
-        <Panel id="content" order={2} defaultSize={mainLayout[1]}>
+        <Panel id="content" order={2} defaultSize={sidebarCollapsed ? 100 : mainLayout[1]}>
           <div className="h-full flex flex-col">
             <RequestTabBar />
             <UrlBar />

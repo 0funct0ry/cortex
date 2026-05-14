@@ -52,6 +52,10 @@ The application uses a fixed-height grid layout:
 - **TopNav (36px)**: Navigation, workspace management, and environment switching.
 - **Main Content (flex-grow)**:
   - **Sidebar**: Resizable panel for collections and history.
+  - **IDE-style Sidebar**: Two-section sidebar with a scrollable Collections tree and a fixed API Specs footer.
+  - **Dynamic Collections Tree**: Recursive tree rendering collections, folders, and request nodes with theme-aware method badges.
+  - **Sidebar Collapse**: Collapsible sidebar with keyboard shortcut `Cmd+\` / `Ctrl+\` and persistence to local storage.
+  - **Method Badges**: Colored HTTP method labels (GET, POST, etc.) with specified opacity backgrounds.
   - **Content Area**:
     - **RequestTabBar (36px)**: Scoped request tabs.
     - **UrlBar (40px)**: Method selector and URL input.

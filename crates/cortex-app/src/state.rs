@@ -82,6 +82,7 @@ impl HistoryStore {
 impl AppSettings {
     pub fn load() -> Self {
         let path = Self::get_settings_path();
+        println!("Loading settings from: {:?}", path);
         if let Ok(content) = fs::read_to_string(path) {
             serde_json::from_str(&content).unwrap_or_default()
         } else {
@@ -91,6 +92,7 @@ impl AppSettings {
 
     pub fn save(&self) -> Result<(), std::io::Error> {
         let path = Self::get_settings_path();
+        println!("Saving settings to: {:?}", path);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
