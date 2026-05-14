@@ -13,7 +13,9 @@
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "react-resizable-panels": "^2.1.9",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
