@@ -137,6 +137,7 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 ### 🖥️ Professional IDE-Style GUI (Work in Progress)
 Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-performance, IDE-like desktop interface.
 - **IDE-Style Layout**: A compact, three-column shell with resizable panes.
+- **Request Composer**: A central area with a color-coded method selector, URL input with variable highlighting, and a robust Send button.
 - **Theme System**: Premium themes (Dark, Light, Catppuccin, etc.) implemented via CSS variables.
 - **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
 - **Dynamic Tab Bar**: Managed request tabs with horizontal scrolling, dirty state indicators (•), manual reordering, and a comprehensive right-click context menu.

@@ -1,31 +1,139 @@
-import React from 'react'
+import React, { useEffect, useCallback, useMemo } from 'react'
 import * as Icons from '../ui/Icons'
+import MethodSelector from '../composer/MethodSelector'
+import UrlInput from '../composer/UrlInput'
+import SendButton from '../composer/SendButton'
+import Tooltip from '../ui/Tooltip'
+import { useTabs } from '../../contexts/TabsContext'
+import { useRequestStore } from '../../stores/requestStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { commands } from '../../bindings'
 
 const UrlBar: React.FC = () => {
+  const { activeTab, activeTabId } = useTabs()
+  const { activeWorkspacePath } = useWorkspaceStore()
+  const { requestStates, updateRequest, setInFlight } = useRequestStore()
+
+  const tabState = useMemo(
+    () =>
+      activeTabId
+        ? requestStates[activeTabId] || { url: '', method: 'GET', inFlight: false, requestId: null }
+        : { url: '', method: 'GET', inFlight: false, requestId: null },
+    [activeTabId, requestStates]
+  )
+
+  // Initialize state from tab if not present
+  useEffect(() => {
+    if (
+      activeTabId &&
+      activeTab &&
+      (!requestStates[activeTabId] || !requestStates[activeTabId].method)
+    ) {
+      updateRequest(activeTabId, {
+        url: '', // Start empty for now, or load from file if we had that logic
+        method: activeTab.method,
+      })
+    }
+  }, [activeTabId, activeTab, updateRequest, requestStates])
+
+  const handleSend = useCallback(async () => {
+    if (!activeTabId || !activeTab || tabState.inFlight) return
+
+    const url = tabState.url.trim()
+    if (!url) return
+
+    setInFlight(activeTabId, true, 'pending')
+
+    try {
+      // In a real scenario, we'd gather all fields (headers, params, etc.)
+      const payload = {
+        request_name: activeTab.name,
+        method: tabState.method,
+        url: url,
+        headers: [], // TODO: Get from store
+        body: null, // TODO: Get from store
+      }
+
+      const result = await commands.sendRequest(
+        payload,
+        activeWorkspacePath,
+        activeTab.collectionId || null,
+        null, // environment
+        activeTab.requestPath
+      )
+
+      if (result.status === 'ok') {
+        // Handle success (response pane will listen to events or we update store)
+        console.log('Request success:', result.data)
+      } else {
+        console.error('Request failed:', result.error)
+      }
+    } catch (err) {
+      console.error('IPC Error:', err)
+    } finally {
+      setInFlight(activeTabId, false, null)
+    }
+  }, [activeTabId, activeTab, tabState, setInFlight, activeWorkspacePath])
+
+  const handleCancel = useCallback(() => {
+    if (!activeTabId || !tabState.requestId) return
+    // TODO: invoke("cancel_request", { requestId: tabState.requestId })
+    setInFlight(activeTabId, false, null)
+  }, [activeTabId, tabState, setInFlight])
+
+  const handleCopyUrl = () => {
+    if (tabState.url) {
+      navigator.clipboard.writeText(tabState.url)
+    }
+  }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        handleSend()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleSend])
+
+  if (!activeTabId) return null
+
   return (
-    <div className="h-10 border-b border-border-subtle flex items-center px-3 gap-3 shrink-0 bg-bg-panel">
-      <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-method-get/12 text-method-get border border-method-get/20 text-[11px] font-bold uppercase cursor-pointer hover:bg-method-get/20 transition-colors">
-        GET
-        <Icons.ChevronDown size={10} />
-      </div>
+    <div className="h-11 border-b border-border-subtle flex items-center px-2 gap-2 shrink-0 bg-bg-panel">
+      <MethodSelector
+        method={tabState.method}
+        onChange={(m) => updateRequest(activeTabId, { method: m })}
+      />
 
-      <div className="flex-1 h-7 bg-bg-surface border border-border-default rounded flex items-center px-3 font-mono text-[12px] text-text-primary focus-within:border-accent transition-colors overflow-hidden">
-        <span className="text-text-muted select-none mr-1">http://localhost:8080/api/v1/</span>
-        <span className="text-text-primary outline-none flex-1 truncate">resource</span>
-      </div>
-
-      <button className="h-7 px-4 rounded bg-accent text-accent-fg font-bold text-[11px] hover:bg-accent-hover transition-colors shadow-sm">
-        Send
-      </button>
+      <UrlInput
+        value={tabState.url}
+        onChange={(v) => updateRequest(activeTabId, { url: v })}
+        onEnter={handleSend}
+      />
 
       <div className="flex items-center gap-1">
-        <button
-          title="Code Snippet"
-          className="p-1.5 rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-        >
-          <Icons.MoreHorizontal size={14} />
-        </button>
+        <Tooltip content="Generate code snippet">
+          <button
+            onClick={() => {}} // Story 03a.14
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
+          >
+            <Icons.Code size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Copy URL">
+          <button
+            onClick={handleCopyUrl}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
+          >
+            <Icons.Copy size={14} />
+          </button>
+        </Tooltip>
       </div>
+
+      <SendButton inFlight={tabState.inFlight} onSend={handleSend} onCancel={handleCancel} />
     </div>
   )
 }
