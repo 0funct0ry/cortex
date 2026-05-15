@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import RequestTabBar from './RequestTabBar'
-import UrlBar from './UrlBar'
-import ComposerTabs from '../composer/ComposerTabs'
 import Sidebar from './Sidebar'
+import Composer from '../composer/Composer'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
 
@@ -115,14 +114,7 @@ const PanelShell: React.FC = () => {
                     minSize={30}
                     className="bg-bg-base"
                   >
-                    <div className="h-full flex flex-col">
-                      <UrlBar />
-                      <ComposerTabs />
-                      <div className="flex-1 overflow-y-auto bg-bg-surface">
-                        {/* Composer Content Placeholder */}
-                        <div className="p-4 italic opacity-50">Composer content...</div>
-                      </div>
-                    </div>
+                    <Composer />
                   </Panel>
 
                   <ResizeHandle />

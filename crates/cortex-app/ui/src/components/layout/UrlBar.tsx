@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react'
+import React, { useEffect, useCallback } from 'react'
 import * as Icons from '../ui/Icons'
 import MethodSelector from '../composer/MethodSelector'
 import UrlInput from '../composer/UrlInput'
@@ -12,32 +12,21 @@ import { commands } from '../../bindings'
 const UrlBar: React.FC = () => {
   const { activeTab, activeTabId } = useTabs()
   const { activeWorkspacePath } = useWorkspaceStore()
-  const { requestStates, updateRequest, setInFlight } = useRequestStore()
-
-  const tabState = useMemo(
-    () =>
-      activeTabId
-        ? requestStates[activeTabId] || { url: '', method: 'GET', inFlight: false, requestId: null }
-        : { url: '', method: 'GET', inFlight: false, requestId: null },
-    [activeTabId, requestStates]
-  )
+  const { getRequestState, updateRequest, setInFlight } = useRequestStore()
+  const tabState = activeTabId ? getRequestState(activeTabId) : null
 
   // Initialize state from tab if not present
   useEffect(() => {
-    if (
-      activeTabId &&
-      activeTab &&
-      (!requestStates[activeTabId] || !requestStates[activeTabId].method)
-    ) {
+    if (activeTabId && activeTab && !tabState) {
       updateRequest(activeTabId, {
-        url: '', // Start empty for now, or load from file if we had that logic
+        url: '',
         method: activeTab.method,
       })
     }
-  }, [activeTabId, activeTab, updateRequest, requestStates])
+  }, [activeTabId, activeTab, updateRequest, tabState])
 
   const handleSend = useCallback(async () => {
-    if (!activeTabId || !activeTab || tabState.inFlight) return
+    if (!activeTabId || !activeTab || !tabState || tabState.inFlight) return
 
     const url = tabState.url.trim()
     if (!url) return
@@ -45,13 +34,13 @@ const UrlBar: React.FC = () => {
     setInFlight(activeTabId, true, 'pending')
 
     try {
-      // In a real scenario, we'd gather all fields (headers, params, etc.)
+      // Gathers all fields from the store
       const payload = {
         request_name: activeTab.name,
         method: tabState.method,
         url: url,
-        headers: [], // TODO: Get from store
-        body: null, // TODO: Get from store
+        headers: tabState.headers.filter((h) => h.enabled),
+        body: tabState.body.type !== 'none' ? tabState.body.text : null,
       }
 
       const result = await commands.sendRequest(
@@ -76,13 +65,13 @@ const UrlBar: React.FC = () => {
   }, [activeTabId, activeTab, tabState, setInFlight, activeWorkspacePath])
 
   const handleCancel = useCallback(() => {
-    if (!activeTabId || !tabState.requestId) return
+    if (!activeTabId || !tabState?.requestId) return
     // TODO: invoke("cancel_request", { requestId: tabState.requestId })
     setInFlight(activeTabId, false, null)
   }, [activeTabId, tabState, setInFlight])
 
   const handleCopyUrl = () => {
-    if (tabState.url) {
+    if (tabState?.url) {
       navigator.clipboard.writeText(tabState.url)
     }
   }
@@ -99,7 +88,7 @@ const UrlBar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSend])
 
-  if (!activeTabId) return null
+  if (!activeTabId || !tabState) return null
 
   return (
     <div className="h-11 border-b border-border-subtle flex items-center px-2 gap-2 shrink-0 bg-bg-panel">

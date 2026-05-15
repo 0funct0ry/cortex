@@ -51,6 +51,16 @@ The application uses a fixed-height grid layout:
 
 - **TopNav (36px)**: Navigation, workspace management, and environment switching.
 - **Main Content (flex-grow)**:
+
+### Composer
+
+The Request Composer is the core area for configuring API calls. It features:
+
+- **Responsive Tab Bar**: 11 tabs covering all request aspects (Params, Body, Headers, Auth, Scripts, etc.).
+- **Dynamic Indicators**: Real-time feedback on modified content and entry counts.
+- **Advanced Editors**: CodeMirror 6 integration for JSON/XML/Script editing with custom themes.
+- **Smart KV Tables**: Reusable key-value editor with Bulk Edit and auto-extracted path params.
+- **Auth Manager**: Specialized forms for multiple authentication strategies.
   - **Sidebar**: Resizable panel for collections and history.
   - **IDE-style Sidebar**: Two-section sidebar with a scrollable Collections tree and a fixed API Specs footer.
   - **Dynamic Collections Tree**: Recursive tree rendering collections, folders, and request nodes with theme-aware method badges.
@@ -60,6 +70,7 @@ The application uses a fixed-height grid layout:
     - **RequestTabBar (36px)**: Scoped request tabs.
     - **UrlBar (40px)**: Method selector and URL input.
     - **Editor Panels**: Side-by-side resizable Composer and Response areas.
+
 - **StatusBar (22px)**: App metadata, search shortcut, and theme indicator.
 
 Panel sizes are persisted to `localStorage` under keys `cortex.layout.main` and `cortex.layout.editor`.

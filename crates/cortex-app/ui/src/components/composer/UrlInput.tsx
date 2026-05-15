@@ -72,6 +72,9 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
         onBlur={() => setIsFocused(false)}
         placeholder={!value ? 'Enter URL or paste text' : ''}
         className="absolute inset-0 bg-transparent border-none outline-none px-3 font-mono text-sm text-transparent caret-accent w-full"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
       />
     </div>
   )

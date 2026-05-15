@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import * as Icons from '../ui/Icons'
 import MethodBadge from '../ui/MethodBadge'
 import ContextMenu from '../ui/ContextMenu'
@@ -76,7 +76,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }
 
-  const handleDuplicate = async () => {
+  const handleDuplicate = useCallback(async () => {
     try {
       const res = await commands.duplicateRequest(path)
       if (res.status === 'ok') {
@@ -85,9 +85,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     } catch (err) {
       console.error('Duplicate failed', err)
     }
-  }
+  }, [path, activeWorkspacePath, loadWorkspace])
 
-  const handleCreateRequest = async () => {
+  const handleCreateRequest = useCallback(async () => {
     try {
       const res = await commands.createRequest('New Request', path)
       if (res.status === 'ok') {
@@ -96,9 +96,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     } catch (err) {
       console.error('Create request failed', err)
     }
-  }
+  }, [path, activeWorkspacePath, loadWorkspace])
 
-  const handleCreateFolder = async () => {
+  const handleCreateFolder = useCallback(async () => {
     try {
       const res = await commands.createFolder('New Folder', path)
       if (res.status === 'ok') {
@@ -107,7 +107,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     } catch (err) {
       console.error('Create folder failed', err)
     }
-  }
+  }, [path, activeWorkspacePath, loadWorkspace])
 
   const contextMenuItems = useMemo((): ContextMenuItem[] => {
     const common: ContextMenuItem[] = [{ label: 'Rename', onClick: () => setIsRenaming(true) }]
@@ -186,7 +186,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     handleDuplicate,
     onClick,
     loadWorkspace,
-    activeWorkspacePath,
   ])
 
   const highlightMatch = (text: string, query: string) => {
