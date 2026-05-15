@@ -167,9 +167,10 @@ export const Palette: React.FC<IconProps> = ({ size = 13, ...props }) => (
     strokeLinejoin="round"
     {...props}
   >
-    <circle cx="12" cy="12" r="10" />
-    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10c0 4.418-3.582 8-8 8a1 1 0 0 1-1-1v-1a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2a1 1 0 0 1-1 1z" />
+    <circle cx="7.5" cy="10.5" r="1" fill="currentColor" />
+    <circle cx="12" cy="7.5" r="1" fill="currentColor" />
+    <circle cx="16.5" cy="10.5" r="1" fill="currentColor" />
   </svg>
 )
 

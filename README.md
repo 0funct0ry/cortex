@@ -142,6 +142,7 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
 - **Dynamic Tab Bar**: Managed request tabs with horizontal scrolling, dirty state indicators (•), manual reordering, and a comprehensive right-click context menu.
 - **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), and cycling (Cmd+Shift+[ / ]).
+- **Theme Picker**: Quick-access popover in the status bar for switching between 13 premium themes with instant live preview on hover.
 
 ## File Formats
 
