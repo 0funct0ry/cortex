@@ -37,6 +37,7 @@ const RequestTabBar: React.FC = () => {
 
   const handleNewTab = () => {
     openTab({
+      type: 'request',
       requestPath: null,
       collectionId: null,
       name: 'Untitled',

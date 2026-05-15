@@ -17,11 +17,20 @@ pub struct WorkspaceManifest {
     /// Global variables for the workspace
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variables: Option<Vec<crate::variables::Variable>>,
+    /// Environments for the workspace
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub environments: Option<Vec<crate::environment::EnvironmentFile>>,
 }
 
 impl WorkspaceManifest {
     pub fn new(name: String) -> Self {
-        Self { version: "1".to_string(), name, collections: Vec::new(), variables: None }
+        Self {
+            version: "1".to_string(),
+            name,
+            collections: Vec::new(),
+            variables: None,
+            environments: None,
+        }
     }
 
     /// Serializes the manifest to a YAML string.
@@ -114,6 +123,8 @@ pub struct Workspace {
     pub manifest: WorkspaceManifest,
     /// Loaded collections or errors for each path defined in the manifest
     pub collections: Vec<(String, Result<Collection, CollectionError>)>,
+    /// Loaded environments
+    pub environments: Vec<crate::environment::EnvironmentFile>,
 }
 
 impl Workspace {
@@ -152,7 +163,33 @@ impl Workspace {
             })
             .collect();
 
-        Ok(Self { path: absolute_path, manifest, collections })
+        // Load environments
+        let mut environments = Vec::new();
+        let env_dir = workspace_dir.join("environments");
+        if env_dir.exists() && env_dir.is_dir() {
+            if let Ok(entries) = fs::read_dir(env_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file()
+                        && (path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
+                    {
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            if let Ok(mut env) =
+                                crate::environment::EnvironmentFile::from_yaml(&content)
+                            {
+                                // Decrypt secrets
+                                let key = crate::crypto::get_app_key();
+                                let _ = env.decrypt_secrets(&key);
+                                environments.push(env);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        environments.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(Self { path: absolute_path, manifest, collections, environments })
     }
 
     /// Loads only the workspace manifest, skipping the collections.
@@ -173,7 +210,33 @@ impl Workspace {
         let key = crate::crypto::get_app_key();
         let _ = manifest.decrypt_secrets(&key);
 
-        Ok(Self { path: absolute_path, manifest, collections: Vec::new() })
+        // Load environments
+        let mut environments = Vec::new();
+        let env_dir = absolute_path.parent().unwrap_or(Path::new(".")).join("environments");
+        if env_dir.exists() && env_dir.is_dir() {
+            if let Ok(entries) = fs::read_dir(env_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file()
+                        && (path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
+                    {
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            if let Ok(mut env) =
+                                crate::environment::EnvironmentFile::from_yaml(&content)
+                            {
+                                // Decrypt secrets
+                                let key = crate::crypto::get_app_key();
+                                let _ = env.decrypt_secrets(&key);
+                                environments.push(env);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        environments.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(Self { path: absolute_path, manifest, collections: Vec::new(), environments })
     }
 }
 
@@ -190,6 +253,7 @@ mod tests {
             name: "My Workspace".to_string(),
             collections: vec!["./col1".to_string(), "/absolute/path/to/col2".to_string()],
             variables: None,
+            environments: None,
         };
 
         let yaml = manifest.to_yaml().unwrap();

@@ -95,10 +95,16 @@ const TabItem: React.FC<TabItemProps> = ({
         `}
         title={tab.isDirty ? 'Unsaved changes' : tab.name}
       >
-        {/* Method Label */}
-        <span className={`text-[10px] font-bold uppercase shrink-0 ${getMethodColor(tab.method)}`}>
-          {tab.method}
-        </span>
+        {/* Icon / Method Label */}
+        {tab.type === 'environments' ? (
+          <Icons.Globe size={14} className="text-accent shrink-0" />
+        ) : (
+          <span
+            className={`text-[10px] font-bold uppercase shrink-0 ${getMethodColor(tab.method)}`}
+          >
+            {tab.method}
+          </span>
+        )}
 
         {/* Name */}
         <span className="text-[12px] truncate flex-1 font-medium">{tab.name}</span>
@@ -163,25 +169,29 @@ const TabItem: React.FC<TabItemProps> = ({
           >
             Close Tabs to the Right
           </button>
-          <div className="my-1 border-t border-border-subtle" />
-          <button
-            className="w-full flex items-center px-3 h-7 text-[12px] text-text-primary hover:bg-bg-highlight transition-colors"
-            onClick={() => {
-              duplicateTab(tab.id)
-              setShowMenu(false)
-            }}
-          >
-            Duplicate Tab
-          </button>
-          <button
-            className="w-full flex items-center px-3 h-7 text-[12px] text-text-primary hover:bg-bg-highlight transition-colors"
-            onClick={() => {
-              // Placeholder for Copy URL
-              setShowMenu(false)
-            }}
-          >
-            Copy Request URL
-          </button>
+          {tab.type === 'request' && (
+            <>
+              <div className="my-1 border-t border-border-subtle" />
+              <button
+                className="w-full flex items-center px-3 h-7 text-[12px] text-text-primary hover:bg-bg-highlight transition-colors"
+                onClick={() => {
+                  duplicateTab(tab.id)
+                  setShowMenu(false)
+                }}
+              >
+                Duplicate Tab
+              </button>
+              <button
+                className="w-full flex items-center px-3 h-7 text-[12px] text-text-primary hover:bg-bg-highlight transition-colors"
+                onClick={() => {
+                  // Placeholder for Copy URL
+                  setShowMenu(false)
+                }}
+              >
+                Copy Request URL
+              </button>
+            </>
+          )}
         </div>
       )}
     </>

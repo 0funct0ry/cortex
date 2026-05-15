@@ -25,6 +25,7 @@ pub struct WorkspaceResponse {
     pub name: String,
     pub collections: Vec<WorkspaceCollectionResult>,
     pub variables: Option<Vec<cortex_core::variables::Variable>>,
+    pub environments: Vec<cortex_core::environment::EnvironmentFile>,
 }
 
 #[derive(Serialize, Deserialize, Type)]
@@ -221,6 +222,7 @@ fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
         name: workspace.manifest.name,
         collections,
         variables: workspace.manifest.variables,
+        environments: workspace.environments,
     })
 }
 
@@ -240,6 +242,7 @@ pub fn load_workspace_manifest(path: String) -> Result<WorkspaceResponse, String
         name: workspace.manifest.name,
         collections,
         variables: workspace.manifest.variables,
+        environments: workspace.environments,
     })
 }
 
@@ -265,12 +268,8 @@ pub fn create_collection(name: String, path: String) -> Result<String, String> {
         std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     }
 
-    let collection = cortex_core::collection::Collection {
-        path: path.clone(),
-        manifest,
-        environments: Vec::new(),
-        items: Vec::new(),
-    };
+    let collection =
+        cortex_core::collection::Collection { path: path.clone(), manifest, items: Vec::new() };
 
     collection.save().map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
@@ -398,33 +397,52 @@ pub async fn update_collection_variables(
 #[tauri::command]
 #[specta::specta]
 pub async fn update_environment_variables(
-    collection_path: String,
+    workspace_path: String,
     environment_name: String,
     variables: Vec<cortex_core::variables::Variable>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        // Resolve the environments directory from the collection path without loading envs.
-        let col_path = std::path::PathBuf::from(&collection_path);
-        let env_dir = col_path.join("environments");
+        let ws_path = std::path::PathBuf::from(&workspace_path);
+        let env_dir = ws_path.parent().unwrap_or(std::path::Path::new(".")).join("environments");
         if !env_dir.exists() {
             std::fs::create_dir_all(&env_dir).map_err(|e| e.to_string())?;
         }
 
         let env_path = env_dir.join(format!("{}.yaml", environment_name));
-
-        let mut env = if env_path.exists() {
-            let content = std::fs::read_to_string(&env_path).map_err(|e| e.to_string())?;
-            cortex_core::environment::EnvironmentFile::from_yaml(&content)
-                .map_err(|e| e.to_string())?
-        } else {
-            cortex_core::environment::EnvironmentFile::new(environment_name)
+        let mut env = cortex_core::environment::EnvironmentFile {
+            version: "1".to_string(),
+            name: environment_name,
+            variables,
         };
 
-        env.variables = variables;
         let key = cortex_core::crypto::get_app_key();
-        let _ = env.encrypt_secrets(&key);
+        env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
+
         let yaml = env.to_yaml().map_err(|e| e.to_string())?;
-        std::fs::write(env_path, yaml).map_err(|e| e.to_string())
+        std::fs::write(env_path, yaml).map_err(|e| e.to_string())?;
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_environment(
+    workspace_path: String,
+    environment_name: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let ws_path = std::path::PathBuf::from(&workspace_path);
+        let env_dir = ws_path.parent().unwrap_or(std::path::Path::new(".")).join("environments");
+        let env_path = env_dir.join(format!("{}.yaml", environment_name));
+
+        if env_path.exists() {
+            std::fs::remove_file(env_path).map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -494,7 +512,7 @@ pub fn remove_ephemeral_variable(name: String, store: tauri::State<EphemeralStor
 #[specta::specta]
 pub async fn get_prompt_variables(
     collection_path: String,
-    environment_name: Option<String>,
+    _environment_name: Option<String>,
     store: tauri::State<'_, EphemeralStore>,
 ) -> Result<Vec<Variable>, String> {
     let ephemeral_vars: Vec<Variable> = store.0.lock().unwrap().values().cloned().collect();
@@ -507,14 +525,6 @@ pub async fn get_prompt_variables(
         if let Some(vars) = collection.manifest.variables {
             for var in vars {
                 resolver.collection_vars.insert(var.name.clone(), var);
-            }
-        }
-
-        if let Some(en) = environment_name {
-            if let Some(env) = collection.environments.iter().find(|e| e.name == en) {
-                for var in &env.variables {
-                    resolver.env_vars.insert(var.name.clone(), var.clone());
-                }
             }
         }
 
@@ -538,24 +548,27 @@ fn populate_resolver(
 ) -> Result<(), String> {
     // 1. Global (Workspace)
     if let Some(wp) = workspace_path {
-        let path = PathBuf::from(wp);
+        let path = PathBuf::from(&wp);
         let abs_path = if path.is_absolute() {
             path
         } else {
             std::env::current_dir().map(|d| d.join(&path)).unwrap_or(path)
         };
 
-        let manifest_path =
-            if abs_path.is_dir() { abs_path.join("cortex-workspace.yaml") } else { abs_path };
+        let workspace = Workspace::load_manifest(&abs_path).map_err(|e| e.to_string())?;
 
-        if manifest_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-                if let Ok(manifest) = WorkspaceManifest::from_yaml(&content) {
-                    if let Some(vars) = manifest.variables {
-                        for var in vars {
-                            resolver.global_vars.insert(var.name.clone(), var);
-                        }
-                    }
+        // 1.1 Workspace variables (Global)
+        if let Some(vars) = workspace.manifest.variables {
+            for var in vars {
+                resolver.global_vars.insert(var.name.clone(), var);
+            }
+        }
+
+        // 1.2 Environment variables (Workspace-scoped)
+        if let Some(en) = environment_name {
+            if let Some(env) = workspace.environments.iter().find(|e| e.name == en) {
+                for var in &env.variables {
+                    resolver.env_vars.insert(var.name.clone(), var.clone());
                 }
             }
         }
@@ -567,15 +580,6 @@ fn populate_resolver(
             if let Some(vars) = collection.manifest.variables {
                 for var in vars {
                     resolver.collection_vars.insert(var.name.clone(), var);
-                }
-            }
-
-            // 3. Environment
-            if let Some(en) = environment_name {
-                if let Some(env) = collection.environments.iter().find(|e| e.name == en) {
-                    for var in &env.variables {
-                        resolver.env_vars.insert(var.name.clone(), var.clone());
-                    }
                 }
             }
         }

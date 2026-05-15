@@ -3,6 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import RequestTabBar from './RequestTabBar'
 import Sidebar from './Sidebar'
 import ResponsePane from './ResponsePane'
+import EnvironmentsTab from './EnvironmentsTab'
 import Composer from '../composer/Composer'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
@@ -30,7 +31,7 @@ const ResizeHandle: React.FC<{ orientation?: 'horizontal' | 'vertical'; hidden?:
 
 const PanelShell: React.FC = () => {
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
-  const { tabs } = useTabs()
+  const { tabs, activeTab, openTab } = useTabs()
 
   const [mainLayout, setMainLayout] = useState<number[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_MAIN)
@@ -69,6 +70,25 @@ const PanelShell: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [toggleSidebar])
 
+  // Keyboard shortcut for environment editor
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+        e.preventDefault()
+        openTab({
+          type: 'environments',
+          name: 'Environments',
+          requestPath: null,
+          collectionId: null,
+          method: '',
+        })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openTab])
+
   const onMainLayout = (sizes: number[]) => {
     setMainLayout(sizes)
     localStorage.setItem(STORAGE_KEY_MAIN, JSON.stringify(sizes))
@@ -106,31 +126,35 @@ const PanelShell: React.FC = () => {
 
             {tabs.length > 0 ? (
               <div className="flex-1 overflow-hidden">
-                <PanelGroup direction="horizontal" onLayout={onEditorLayout}>
-                  {/* COMPOSER */}
-                  <Panel
-                    id="composer"
-                    order={1}
-                    defaultSize={editorLayout[0]}
-                    minSize={30}
-                    className="bg-bg-base"
-                  >
-                    <Composer />
-                  </Panel>
+                {activeTab?.type === 'environments' ? (
+                  <EnvironmentsTab />
+                ) : (
+                  <PanelGroup direction="horizontal" onLayout={onEditorLayout}>
+                    {/* COMPOSER */}
+                    <Panel
+                      id="composer"
+                      order={1}
+                      defaultSize={editorLayout[0]}
+                      minSize={30}
+                      className="bg-bg-base"
+                    >
+                      <Composer />
+                    </Panel>
 
-                  <ResizeHandle />
+                    <ResizeHandle />
 
-                  <Panel
-                    id="response"
-                    order={2}
-                    defaultSize={editorLayout[1]}
-                    minSize={20}
-                    maxSize={70}
-                    className="bg-bg-panel"
-                  >
-                    <ResponsePane />
-                  </Panel>
-                </PanelGroup>
+                    <Panel
+                      id="response"
+                      order={2}
+                      defaultSize={editorLayout[1]}
+                      minSize={20}
+                      maxSize={70}
+                      className="bg-bg-panel"
+                    >
+                      <ResponsePane />
+                    </Panel>
+                  </PanelGroup>
+                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center bg-bg-base select-none">
@@ -151,6 +175,8 @@ const PanelShell: React.FC = () => {
                     <span className="text-left font-mono">Cmd + P</span>
                     <span className="text-right">Toggle Sidebar</span>
                     <span className="text-left font-mono">Cmd + \</span>
+                    <span className="text-right">Environments</span>
+                    <span className="text-left font-mono">Cmd + E</span>
                   </div>
                 </div>
               </div>

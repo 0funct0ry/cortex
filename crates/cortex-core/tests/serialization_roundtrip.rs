@@ -172,6 +172,7 @@ fn test_workspace_manifest_roundtrip() {
             "./unicode-🚀-path".to_string(),
         ],
         variables: Some(variables),
+        environments: None,
     };
 
     let yaml = manifest.to_yaml().expect("Failed to serialize WorkspaceManifest");

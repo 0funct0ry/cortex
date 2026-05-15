@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
+export type TabType = 'request' | 'environments'
+
 export interface Tab {
   id: string
+  type: TabType
   requestPath: string | null // path to .crx file, null for scratch tabs
   collectionId: string | null
   method: string
@@ -64,8 +67,17 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const openTab = useCallback(
     (tabData: Omit<Tab, 'id' | 'isDirty'>) => {
-      // Check if tab already exists (by requestPath if not null)
-      if (tabData.requestPath) {
+      // Check for singleton tabs
+      if (tabData.type === 'environments') {
+        const existingTab = tabs.find((t) => t.type === 'environments')
+        if (existingTab) {
+          activateTab(existingTab.id)
+          return
+        }
+      }
+
+      // Check if request tab already exists (by requestPath if not null)
+      if (tabData.type === 'request' && tabData.requestPath) {
         const existingTab = tabs.find((t) => t.requestPath === tabData.requestPath)
         if (existingTab) {
           activateTab(existingTab.id)
@@ -199,6 +211,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
         openTab({
+          type: 'request',
           requestPath: null,
           collectionId: null,
           name: 'Untitled',

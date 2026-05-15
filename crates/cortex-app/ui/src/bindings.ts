@@ -166,9 +166,17 @@ async updateCollectionVariables(collectionPath: string, variables: Variable[]) :
     else return { status: "error", error: e  as any };
 }
 },
-async updateEnvironmentVariables(collectionPath: string, environmentName: string, variables: Variable[]) : Promise<Result<null, string>> {
+async updateEnvironmentVariables(workspacePath: string, environmentName: string, variables: Variable[]) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_environment_variables", { collectionPath, environmentName, variables }) };
+    return { status: "ok", data: await TAURI_INVOKE("update_environment_variables", { workspacePath, environmentName, variables }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteEnvironment(workspacePath: string, environmentName: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_environment", { workspacePath, environmentName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -295,7 +303,7 @@ export type AuthRef = ({ [key in string]: string }) & { type: string }
 /**
  * Represents a loaded collection.
  */
-export type Collection = { path: string; manifest: CollectionManifest; environments: EnvironmentFile[]; items: CollectionItem[] }
+export type Collection = { path: string; manifest: CollectionManifest; items: CollectionItem[] }
 export type CollectionItem = { type: "Request"; data: RequestFileWrapper } | { type: "Folder"; data: Folder }
 /**
  * Represents the structure of a `cortex.yaml` collection manifest file.
@@ -442,7 +450,7 @@ prompt?: boolean;
 description?: string | null }
 export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
-export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null }
+export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[] }
 
 /** tauri-specta globals **/
 

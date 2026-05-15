@@ -137,6 +137,7 @@ const SidebarTree: React.FC = () => {
             method={request.content?.method || 'GET'}
             onClick={() =>
               openTab({
+                type: 'request',
                 requestPath: request.path,
                 collectionId: collectionPath,
                 name: request.name,

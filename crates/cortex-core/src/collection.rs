@@ -1,4 +1,3 @@
-use crate::environment::EnvironmentFile;
 use crate::request::{AuthRef, RequestFile};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -136,7 +135,6 @@ pub struct Folder {
 pub struct Collection {
     pub path: PathBuf,
     pub manifest: CollectionManifest,
-    pub environments: Vec<EnvironmentFile>,
     pub items: Vec<CollectionItem>,
 }
 
@@ -208,26 +206,9 @@ impl Collection {
         let key = crate::crypto::get_app_key();
         let _ = manifest.decrypt_secrets(&key);
 
-        let mut environments = Vec::new();
-        let env_dir = path.join("environments");
-        if env_dir.exists() && env_dir.is_dir() {
-            for entry in fs::read_dir(env_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_file()
-                    && (path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
-                {
-                    let content = fs::read_to_string(&path)?;
-                    let mut env = EnvironmentFile::from_yaml(&content)?;
-                    let _ = env.decrypt_secrets(&key);
-                    environments.push(env);
-                }
-            }
-        }
-
         let items = load_tree(&path, &path)?;
 
-        Ok(Self { path, manifest, environments, items })
+        Ok(Self { path, manifest, items })
     }
 
     /// Loads only the manifest from a collection directory, skipping environments and the items tree.
@@ -254,7 +235,7 @@ impl Collection {
         let key = crate::crypto::get_app_key();
         let _ = manifest.decrypt_secrets(&key);
 
-        Ok(Self { path, manifest, environments: Vec::new(), items: Vec::new() })
+        Ok(Self { path, manifest, items: Vec::new() })
     }
 
     /// Loads only the manifest and environments from a collection directory, skipping the items tree.
@@ -281,24 +262,7 @@ impl Collection {
         let key = crate::crypto::get_app_key();
         let _ = manifest.decrypt_secrets(&key);
 
-        let mut environments = Vec::new();
-        let env_dir = path.join("environments");
-        if env_dir.exists() && env_dir.is_dir() {
-            for entry in fs::read_dir(env_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_file()
-                    && (path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
-                {
-                    let content = fs::read_to_string(&path)?;
-                    let mut env = EnvironmentFile::from_yaml(&content)?;
-                    let _ = env.decrypt_secrets(&key);
-                    environments.push(env);
-                }
-            }
-        }
-
-        Ok(Self { path, manifest, environments, items: Vec::new() })
+        Ok(Self { path, manifest, items: Vec::new() })
     }
 
     /// Saves the manifest back to disk.
@@ -514,12 +478,7 @@ mod tests {
     fn test_save_collection_with_gitignore() {
         let dir = tempdir().unwrap();
         let manifest = CollectionManifest::new("Test Collection".to_string());
-        let collection = Collection {
-            path: dir.path().to_path_buf(),
-            manifest,
-            environments: Vec::new(),
-            items: Vec::new(),
-        };
+        let collection = Collection { path: dir.path().to_path_buf(), manifest, items: Vec::new() };
 
         collection.save().unwrap();
         let gitignore_path = dir.path().join(".gitignore");

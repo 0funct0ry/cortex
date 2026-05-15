@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { commands } from '../bindings'
 import type { WorkspaceResponse, RecentWorkspace } from '../bindings'
+import { useEnvironmentStore } from './environmentStore'
 
 interface WorkspaceState {
   activeWorkspace: WorkspaceResponse | null
@@ -37,6 +38,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           activeWorkspacePath: path,
           isLoading: false,
         })
+        // Load environments into environment store
+        useEnvironmentStore.getState().loadEnvironments(result.data.environments)
         // Refresh recent list
         const recent = await commands.getRecentWorkspaces()
         set({ recentWorkspaces: recent })
