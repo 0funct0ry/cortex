@@ -7,12 +7,14 @@ import Tooltip from '../ui/Tooltip'
 import { useTabs } from '../../contexts/TabsContext'
 import { useRequestStore } from '../../stores/requestStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useResponseStore } from '../../stores/responseStore'
 import { commands } from '../../bindings'
 
 const UrlBar: React.FC = () => {
   const { activeTab, activeTabId } = useTabs()
   const { activeWorkspacePath } = useWorkspaceStore()
   const { getRequestState, updateRequest, setInFlight } = useRequestStore()
+  const { setResponse } = useResponseStore()
   const tabState = activeTabId ? getRequestState(activeTabId) : null
 
   // Initialize state from tab if not present
@@ -33,6 +35,8 @@ const UrlBar: React.FC = () => {
 
     setInFlight(activeTabId, true, 'pending')
 
+    const startTime = Date.now()
+
     try {
       // Gathers all fields from the store
       const payload = {
@@ -52,8 +56,18 @@ const UrlBar: React.FC = () => {
       )
 
       if (result.status === 'ok') {
-        // Handle success (response pane will listen to events or we update store)
-        console.log('Request success:', result.data)
+        const durationMs = Date.now() - startTime
+        const data = result.data
+
+        setResponse(activeTabId, {
+          requestId: activeTabId,
+          status: data.status_code || 200,
+          statusText: data.status_code === 200 ? 'OK' : 'Unknown', // In real app, this comes from backend
+          headers: data.headers || {},
+          body: data.response_body || '',
+          durationMs: durationMs,
+          bodySize: data.response_body ? new Blob([data.response_body]).size : 0,
+        })
       } else {
         console.error('Request failed:', result.error)
       }
@@ -62,7 +76,7 @@ const UrlBar: React.FC = () => {
     } finally {
       setInFlight(activeTabId, false, null)
     }
-  }, [activeTabId, activeTab, tabState, setInFlight, activeWorkspacePath])
+  }, [activeTabId, activeTab, tabState, setInFlight, activeWorkspacePath, setResponse])
 
   const handleCancel = useCallback(() => {
     if (!activeTabId || !tabState?.requestId) return

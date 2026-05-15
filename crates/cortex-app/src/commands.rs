@@ -336,6 +336,24 @@ pub async fn pick_file(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn save_file(
+    app: tauri::AppHandle,
+    title: String,
+    filter_name: String,
+    filter_ext: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let file = app
+        .dialog()
+        .file()
+        .set_title(&title)
+        .add_filter(filter_name, &[&filter_ext])
+        .blocking_save_file();
+    Ok(file.map(|p| p.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn pick_directory(
     app: tauri::AppHandle,
     title: String,

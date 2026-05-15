@@ -134,6 +134,14 @@ async pickDirectory(title: string) : Promise<Result<string | null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async saveFile(title: string, filterName: string, filterExt: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_file", { title, filterName, filterExt }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async createCollection(name: string, path: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_collection", { name, path }) };

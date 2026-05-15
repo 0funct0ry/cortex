@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import RequestTabBar from './RequestTabBar'
 import Sidebar from './Sidebar'
+import ResponsePane from './ResponsePane'
 import Composer from '../composer/Composer'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
@@ -119,7 +120,6 @@ const PanelShell: React.FC = () => {
 
                   <ResizeHandle />
 
-                  {/* RESPONSE */}
                   <Panel
                     id="response"
                     order={2}
@@ -128,27 +128,7 @@ const PanelShell: React.FC = () => {
                     maxSize={70}
                     className="bg-bg-panel"
                   >
-                    <div className="h-full flex flex-col">
-                      <div className="h-9 border-b border-border-subtle flex items-center px-3 shrink-0">
-                        <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-                          Response
-                        </span>
-                      </div>
-                      <div className="flex-1 flex flex-col items-center justify-center p-4">
-                        {/* Response Placeholder */}
-                        <div className="opacity-20">
-                          <Icons.Rocket size={80} strokeWidth={1} className="rotate-45" />
-                        </div>
-                        <div className="mt-4 text-center">
-                          <div className="text-text-muted text-xs grid grid-cols-2 gap-x-4 gap-y-1">
-                            <span className="text-right">Send Request</span>
-                            <span className="text-left font-mono">Cmd + Enter</span>
-                            <span className="text-right">New Request</span>
-                            <span className="text-left font-mono">Cmd + B</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <ResponsePane />
                   </Panel>
                 </PanelGroup>
               </div>
