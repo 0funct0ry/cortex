@@ -14,6 +14,7 @@ interface WorkspaceState {
   loadLastWorkspace: () => Promise<void>
   createWorkspace: (name: string, path: string) => Promise<void>
   openWorkspace: () => Promise<void>
+  closeWorkspace: () => Promise<void>
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -85,6 +86,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) })
+    }
+  },
+
+  closeWorkspace: async () => {
+    try {
+      await commands.closeWorkspace()
+      set({
+        activeWorkspace: null,
+        activeWorkspacePath: null,
+      })
+      // Refresh recent list to ensure it's up to date
+      const recent = await commands.getRecentWorkspaces()
+      set({ recentWorkspaces: recent })
+    } catch (e) {
+      console.error('Failed to close workspace', e)
     }
   },
 }))

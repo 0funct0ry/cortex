@@ -102,6 +102,19 @@ const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({ onClose, onCreate
         <Icons.Settings size={14} className="text-text-muted group-hover:text-text-primary" />
         <span>Manage workspaces</span>
       </button>
+
+      <div className="h-[1px] bg-border-subtle my-1" />
+
+      <button
+        onClick={() => {
+          useWorkspaceStore.getState().closeWorkspace()
+          onClose()
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-error hover:bg-bg-highlight transition-colors"
+      >
+        <Icons.X size={14} className="text-error" />
+        <span>Close workspace</span>
+      </button>
     </div>
   )
 }

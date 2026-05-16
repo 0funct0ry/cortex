@@ -261,6 +261,14 @@ pub fn create_workspace(name: String, path: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn close_workspace() -> Result<(), String> {
+    let mut settings = AppSettings::load();
+    settings.last_workspace_path = None;
+    settings.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn create_collection(name: String, path: String) -> Result<String, String> {
     let manifest = cortex_core::collection::CollectionManifest::new(name);
     let path = PathBuf::from(path);

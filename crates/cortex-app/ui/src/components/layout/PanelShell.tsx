@@ -4,11 +4,10 @@ import RequestTabBar from './RequestTabBar'
 import Sidebar from './Sidebar'
 import ResponsePane from './ResponsePane'
 import EnvironmentsTab from './EnvironmentsTab'
+import EmptyComposerState from './EmptyComposerState'
 import Composer from '../composer/Composer'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
-
-import * as Icons from '../ui/Icons'
 
 const STORAGE_KEY_MAIN = 'cortex.layout.main'
 const STORAGE_KEY_EDITOR = 'cortex.layout.editor'
@@ -157,29 +156,7 @@ const PanelShell: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center bg-bg-base select-none">
-                <div className="opacity-10 mb-8">
-                  <Icons.Rocket size={120} strokeWidth={0.5} className="rotate-45" />
-                </div>
-                <div className="text-center">
-                  <h2 className="text-text-secondary text-lg font-medium mb-2">
-                    Ready to explore?
-                  </h2>
-                  <p className="text-text-muted text-sm max-w-[300px] mb-8">
-                    Select a request from the sidebar or create a new one to get started.
-                  </p>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-text-muted/60">
-                    <span className="text-right">New Request</span>
-                    <span className="text-left font-mono">Cmd + N</span>
-                    <span className="text-right">Search Everything</span>
-                    <span className="text-left font-mono">Cmd + P</span>
-                    <span className="text-right">Toggle Sidebar</span>
-                    <span className="text-left font-mono">Cmd + \</span>
-                    <span className="text-right">Environments</span>
-                    <span className="text-left font-mono">Cmd + E</span>
-                  </div>
-                </div>
-              </div>
+              <EmptyComposerState />
             )}
           </div>
         </Panel>
