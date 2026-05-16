@@ -175,15 +175,6 @@ pub fn set_active_environment(name: Option<String>) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-#[allow(dead_code)]
-pub fn cancel_request(_request_id: String) -> Result<(), String> {
-    // In Epic 03a, this is a stub as the executor doesn't yet support cancellation by ID.
-    // Future epics will use this to abort the reqwest handle.
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
     tauri::async_runtime::spawn_blocking(move || load_workspace_blocking(path))
         .await
@@ -810,7 +801,16 @@ pub async fn preview_request_headers(
 }
 
 #[derive(Serialize, Deserialize, Type)]
+pub struct RequestMetadata {
+    pub workspace_path: Option<String>,
+    pub collection_path: Option<String>,
+    pub environment_name: Option<String>,
+    pub request_path: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Type)]
 pub struct SendRequestPayload {
+    pub request_id: String,
     pub request_name: String,
     pub method: String,
     pub url: String,
@@ -822,72 +822,112 @@ pub struct SendRequestPayload {
 #[specta::specta]
 pub async fn send_request(
     payload: SendRequestPayload,
-    workspace_path: Option<String>,
-    collection_path: Option<String>,
-    environment_name: Option<String>,
-    request_path: Option<String>,
+    metadata: RequestMetadata,
     ephemeral_store: tauri::State<'_, EphemeralStore>,
     history_store: tauri::State<'_, HistoryStore>,
+    app_state: tauri::State<'_, crate::state::AppState>,
 ) -> Result<RequestHistoryEntry, String> {
     let ephemeral_vars: Vec<Variable> =
         ephemeral_store.0.lock().unwrap().values().cloned().collect();
 
-    let entry = tauri::async_runtime::spawn_blocking(move || {
-        let mut resolver = cortex_core::variables::VariableResolver::new();
-        populate_resolver(
-            &mut resolver,
-            workspace_path,
-            collection_path.clone(),
-            environment_name,
-            ephemeral_vars,
-        )?;
+    let (url, body, rendered_headers, warnings, captured_variables) =
+        tauri::async_runtime::spawn_blocking(move || {
+            let mut resolver = cortex_core::variables::VariableResolver::new();
+            populate_resolver(
+                &mut resolver,
+                metadata.workspace_path,
+                metadata.collection_path.clone(),
+                metadata.environment_name,
+                ephemeral_vars,
+            )?;
 
-        let mut result = resolver.render(&payload.url);
+            let result = resolver.render(&payload.url);
+            let mut captured = result.captured_variables;
 
-        if let Some(b) = payload.body {
-            let body_res = resolver.render(&b);
-            result.captured_variables.extend(body_res.captured_variables);
-        }
+            let req_body = if let Some(b) = payload.body {
+                let body_res = resolver.render(&b);
+                captured.extend(body_res.captured_variables);
+                Some(cortex_core::request::RequestBody {
+                    text: Some(body_res.text),
+                    ..Default::default()
+                })
+            } else {
+                None
+            };
 
-        let (rendered_headers, warnings, headers_captured) = gather_and_render_headers(
-            &mut resolver,
-            collection_path,
-            request_path,
-            payload.headers,
-            true,
-        );
+            let (rendered_headers, headers_warnings, headers_captured) = gather_and_render_headers(
+                &mut resolver,
+                metadata.collection_path,
+                metadata.request_path,
+                payload.headers,
+                true,
+            );
+            captured.extend(headers_captured);
 
-        result.captured_variables.extend(headers_captured);
+            let mut all_warnings = result
+                .warnings
+                .iter()
+                .map(|w| format!("Variable '{}' not found in URL", w.name))
+                .collect::<Vec<_>>();
+            all_warnings.extend(headers_warnings);
 
-        let executed_at = RequestHistoryEntry::now_iso();
-        let id = RequestHistoryEntry::random_id();
-
-        let status_code = Some(200);
-        let response_body = Some(format!(
-            "{{\n  \"status\": \"success\",\n  \"message\": \"Simulated response for {}\",\n  \"rendered_url\": \"{}\"\n}}",
-            payload.method,
-            result.text.escape_default()
-        ));
-
-        Ok::<RequestHistoryEntry, String>(RequestHistoryEntry {
-            id,
-            request_name: payload.request_name,
-            method: payload.method,
-            raw_url: payload.url,
-            rendered_url: result.text,
-            captured_variables: result.captured_variables,
-            executed_at,
-            status_code,
-            response_body,
-            headers: rendered_headers,
-            warnings,
+            Ok::<
+                (
+                    String,
+                    Option<cortex_core::request::RequestBody>,
+                    BTreeMap<String, String>,
+                    Vec<String>,
+                    BTreeMap<String, String>,
+                ),
+                String,
+            >((result.text, req_body, rendered_headers, all_warnings, captured))
         })
-    })
-    .await
-    .map_err(|e| e.to_string())??;
+        .await
+        .map_err(|e| e.to_string())??;
 
-    history_store.add_entry(entry.clone());
-    Ok(entry)
+    let executor = app_state.executor.clone();
+    let history_store_inner = history_store.inner().clone();
+    let handle = tokio::spawn(async move {
+        let mut entry = executor
+            .execute(payload.request_name, &payload.method, &url, rendered_headers, body)
+            .await;
+
+        entry.captured_variables = captured_variables;
+        entry.warnings = warnings;
+
+        history_store_inner.add_entry(entry.clone());
+        entry
+    });
+
+    // Register handle for cancellation
+    let id_for_cancel = payload.request_id.clone();
+    {
+        let mut requests = app_state.requests.lock().unwrap();
+        requests.insert(id_for_cancel.clone(), handle.abort_handle());
+    }
+
+    let result = handle.await.map_err(|e| e.to_string())?;
+
+    // Unregister handle
+    {
+        let mut requests = app_state.requests.lock().unwrap();
+        requests.remove(&id_for_cancel);
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_request(
+    request_id: String,
+    app_state: tauri::State<'_, crate::state::AppState>,
+) -> Result<(), String> {
+    let mut requests = app_state.requests.lock().unwrap();
+    if let Some(handle) = requests.remove(&request_id) {
+        handle.abort();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -989,9 +1029,12 @@ pub async fn introspect_graphql(
             rendered_url: result.text,
             captured_variables,
             executed_at,
+            duration_ms: None,
             status_code,
+            status_text: Some("OK".to_string()),
             response_body,
             headers: rendered_headers,
+            error: None,
             warnings: header_warnings,
         })
     })

@@ -114,10 +114,13 @@ pub struct RequestHistoryEntry {
     /// Variables resolved and captured during execution/rendering
     pub captured_variables: BTreeMap<String, String>,
     pub executed_at: String, // ISO 8601 timestamp
+    pub duration_ms: Option<u32>,
     pub status_code: Option<u16>,
+    pub status_text: Option<String>,
     pub response_body: Option<String>,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
+    pub error: Option<String>,
     #[serde(default)]
     pub warnings: Vec<String>,
 }

@@ -29,9 +29,7 @@ const TopNav: React.FC = () => {
       </div>
 
       {/* Tabs Placeholder */}
-      <div className="flex-1 overflow-hidden flex items-center justify-center">
-        <div className="text-[11px] text-text-muted">Tabs area</div>
-      </div>
+      <div className="flex-1 overflow-hidden flex items-center justify-center"></div>
 
       {/* Right Group */}
       <div className="flex items-center gap-0.5 pr-2 shrink-0">

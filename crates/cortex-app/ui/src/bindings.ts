@@ -265,9 +265,9 @@ async getPromptVariables(collectionPath: string, environmentName: string | null)
     else return { status: "error", error: e  as any };
 }
 },
-async sendRequest(payload: SendRequestPayload, workspacePath: string | null, collectionPath: string | null, environmentName: string | null, requestPath: string | null) : Promise<Result<RequestHistoryEntry, string>> {
+async sendRequest(payload: SendRequestPayload, metadata: RequestMetadata) : Promise<Result<RequestHistoryEntry, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("send_request", { payload, workspacePath, collectionPath, environmentName, requestPath }) };
+    return { status: "ok", data: await TAURI_INVOKE("send_request", { payload, metadata }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -444,10 +444,11 @@ export type RequestHistoryEntry = { id: string; request_name: string; method: st
 /**
  * Variables resolved and captured during execution/rendering
  */
-captured_variables: { [key in string]: string }; executed_at: string; status_code: number | null; response_body: string | null; headers?: { [key in string]: string }; warnings?: string[] }
+captured_variables: { [key in string]: string }; executed_at: string; duration_ms: number | null; status_code: number | null; status_text: string | null; response_body: string | null; headers?: { [key in string]: string }; error: string | null; warnings?: string[] }
+export type RequestMetadata = { workspace_path: string | null; collection_path: string | null; environment_name: string | null; request_path: string | null }
 export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean; description?: string | null }
 export type Scripts = { pre?: string | null; post?: string | null }
-export type SendRequestPayload = { request_name: string; method: string; url: string; headers: HeaderEntry[]; body: string | null }
+export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; body: string | null }
 export type Settings = { timeout?: number | null }
 /**
  * A template syntax error encountered during parsing or rendering.

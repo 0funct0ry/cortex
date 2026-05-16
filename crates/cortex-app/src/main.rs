@@ -32,6 +32,7 @@ fn main() {
     tauri::Builder::default()
         .manage(state::EphemeralStore::new())
         .manage(state::HistoryStore::new())
+        .manage(state::AppState::new())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::greet,
@@ -73,6 +74,8 @@ fn main() {
             commands::clear_request_history,
             commands::preview_request_headers,
             commands::introspect_graphql,
+            commands::set_active_environment,
+            commands::cancel_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -10,6 +10,7 @@ export interface ResponsePayload {
   body: string
   durationMs: number
   bodySize: number
+  error?: string
 }
 
 interface ResponseState {

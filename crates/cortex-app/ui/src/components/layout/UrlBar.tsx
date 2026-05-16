@@ -29,10 +29,12 @@ const UrlBar: React.FC = () => {
 
     try {
       const { activeEnvironmentName } = useEnvironmentStore.getState()
-      const startTime = Date.now()
+      const requestId = crypto.randomUUID()
+      setInFlight(activeTabId, true, requestId)
 
       // Gathers all fields from the store
       const payload = {
+        request_id: requestId,
         request_name: activeTab.name,
         method: tabState.method,
         url: url,
@@ -40,32 +42,39 @@ const UrlBar: React.FC = () => {
         body: tabState.body.type !== 'none' ? tabState.body.text : null,
       }
 
-      const requestId = crypto.randomUUID()
-      setInFlight(activeTabId, true, requestId)
+      const metadata = {
+        workspace_path: activeWorkspacePath,
+        collection_path: activeTab.collectionId || null,
+        environment_name: activeEnvironmentName,
+        request_path: activeTab.requestPath,
+      }
 
-      const result = await commands.sendRequest(
-        payload,
-        activeWorkspacePath,
-        activeTab.collectionId || null,
-        activeEnvironmentName,
-        activeTab.requestPath
-      )
+      const result = await commands.sendRequest(payload, metadata)
 
       if (result.status === 'ok') {
-        const durationMs = Date.now() - startTime
         const data = result.data
 
         setResponse(activeTabId, {
           requestId: activeTabId,
-          status: data.status_code || 200,
-          statusText: data.status_code === 200 ? 'OK' : 'Unknown',
+          status: data.status_code || 0,
+          statusText: data.status_text || (data.error ? 'Error' : 'Unknown'),
           headers: data.headers || {},
           body: data.response_body || '',
-          durationMs: durationMs,
+          durationMs: data.duration_ms || 0,
           bodySize: data.response_body ? new Blob([data.response_body]).size : 0,
+          error: data.error || undefined,
         })
       } else {
-        toast.error(`Request failed: ${result.error}`)
+        setResponse(activeTabId, {
+          requestId: activeTabId,
+          status: 0,
+          statusText: 'Error',
+          headers: {},
+          body: '',
+          durationMs: 0,
+          bodySize: 0,
+          error: result.error,
+        })
       }
     } catch (err) {
       toast.error(`IPC Error: ${String(err)}`)

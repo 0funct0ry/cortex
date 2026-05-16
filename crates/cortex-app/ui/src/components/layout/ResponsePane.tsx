@@ -38,6 +38,23 @@ const ResponsePane: React.FC = () => {
       )
     }
 
+    if (response?.error) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-error-muted/10">
+          <div className="bg-error/10 p-4 rounded-full mb-4">
+            <Icons.AlertCircle size={40} className="text-error" />
+          </div>
+          <h3 className="text-text-primary font-medium mb-2 text-lg">Request Failed</h3>
+          <p className="text-error font-mono text-sm max-w-md bg-bg-panel p-4 border border-border-subtle rounded-md break-all">
+            {response.error}
+          </p>
+          <p className="mt-4 text-text-muted text-sm max-w-sm">
+            Check your internet connection, the URL syntax, or the server status.
+          </p>
+        </div>
+      )
+    }
+
     if (!response) {
       return (
         <div className="flex-1 flex flex-col items-center justify-center p-4 select-none">

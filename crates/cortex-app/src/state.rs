@@ -5,7 +5,7 @@ use specta::Type;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Type)]
 pub struct RecentWorkspace {
@@ -23,21 +23,38 @@ pub struct AppSettings {
 /// In-memory store for ephemeral (session-scoped) variables.
 /// These are never written to disk and are cleared when the app exits.
 /// Scripts can upsert individual entries; the UI replaces the whole set on save.
-pub struct EphemeralStore(pub Mutex<BTreeMap<String, Variable>>);
+#[derive(Clone)]
+pub struct EphemeralStore(pub Arc<Mutex<BTreeMap<String, Variable>>>);
 
 impl EphemeralStore {
     pub fn new() -> Self {
-        Self(Mutex::new(BTreeMap::new()))
+        Self(Arc::new(Mutex::new(BTreeMap::new())))
+    }
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    pub executor: cortex_core::executor::HttpExecutor,
+    pub requests: Arc<Mutex<BTreeMap<String, tokio::task::AbortHandle>>>,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        Self {
+            executor: cortex_core::executor::HttpExecutor::new(),
+            requests: Arc::new(Mutex::new(BTreeMap::new())),
+        }
     }
 }
 
 /// Persistent store for executed request history logs.
-pub struct HistoryStore(pub Mutex<Vec<RequestHistoryEntry>>);
+#[derive(Clone)]
+pub struct HistoryStore(pub Arc<Mutex<Vec<RequestHistoryEntry>>>);
 
 impl HistoryStore {
     pub fn new() -> Self {
         let entries = Self::load();
-        Self(Mutex::new(entries))
+        Self(Arc::new(Mutex::new(entries)))
     }
 
     pub fn load() -> Vec<RequestHistoryEntry> {
