@@ -28,7 +28,10 @@ fn test_request_file_roundtrip() {
     );
     req.headers = Some(headers);
     req.params = Some(params);
-    req.body = Some(RequestBody::Json(format!("{{\"data\": \"{}\"}}", long_string)));
+    req.body = Some(RequestBody {
+        json: Some(format!("{{\"data\": \"{}\"}}", long_string)),
+        ..Default::default()
+    });
     req.auth = Some(AuthRef { r#type: "bearer".to_string(), config: auth_config });
     req.scripts = Some(Scripts {
         pre: Some("// Pre-request script\nconst x = 'colons: are: tricky';\nconst y = \"dashes-too\";\nconsole.log(x, y);".to_string()),

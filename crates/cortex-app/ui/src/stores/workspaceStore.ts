@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { commands } from '../bindings'
 import type { WorkspaceResponse, RecentWorkspace } from '../bindings'
 import { useEnvironmentStore } from './environmentStore'
+import { toast } from './toastStore'
 
 interface WorkspaceState {
   activeWorkspace: WorkspaceResponse | null
@@ -10,9 +11,9 @@ interface WorkspaceState {
   isLoading: boolean
   error: string | null
   init: () => Promise<void>
-  loadWorkspace: (path: string) => Promise<void>
+  loadWorkspace: (path: string) => Promise<boolean>
   loadLastWorkspace: () => Promise<void>
-  createWorkspace: (name: string, path: string) => Promise<void>
+  createWorkspace: (name: string, path: string) => Promise<boolean>
   openWorkspace: () => Promise<void>
   closeWorkspace: () => Promise<void>
 }
@@ -41,14 +42,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         })
         // Load environments into environment store
         useEnvironmentStore.getState().loadEnvironments(result.data.environments)
+
+        // Restore active environment if it exists in backend settings
+        if (result.data.active_environment) {
+          useEnvironmentStore.getState().setActiveEnvironment(result.data.active_environment)
+        }
+
         // Refresh recent list
         const recent = await commands.getRecentWorkspaces()
         set({ recentWorkspaces: recent })
+        return true
       } else {
         set({ error: result.error, isLoading: false })
+        toast.error(`Failed to load workspace: ${result.error}`)
+        return false
       }
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e), isLoading: false })
+      return false
     }
   },
 
@@ -69,12 +80,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     try {
       const result = await commands.createWorkspace(name, path)
       if (result.status === 'ok') {
-        await get().loadWorkspace(result.data)
+        const loaded = await get().loadWorkspace(result.data)
+        if (loaded) {
+          toast.success(`Workspace "${name}" created`)
+          return true
+        }
+        return false
       } else {
         set({ error: result.error, isLoading: false })
+        toast.error(`Failed to create workspace: ${result.error}`)
+        return false
       }
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e), isLoading: false })
+      toast.error(`Failed to create workspace: ${String(e)}`)
+      return false
     }
   },
 

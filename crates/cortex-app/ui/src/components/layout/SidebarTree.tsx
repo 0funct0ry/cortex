@@ -2,8 +2,10 @@ import React, { useEffect } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useTabs } from '../../contexts/TabsContext'
+import { toast } from '../../stores/toastStore'
 import TreeNode from './TreeNode'
 import * as Icons from '../ui/Icons'
+import { useRequestStore } from '../../stores/requestStore'
 import type { CollectionItem } from '../../bindings'
 import { commands } from '../../bindings'
 
@@ -26,7 +28,7 @@ const SidebarTree: React.FC = () => {
     searchQuery,
   } = useCollectionStore()
 
-  const { openTab } = useTabs()
+  const { openTab, activeTab } = useTabs()
 
   // Load last workspace on mount
   useEffect(() => {
@@ -34,6 +36,25 @@ const SidebarTree: React.FC = () => {
       loadLastWorkspace()
     }
   }, [loadLastWorkspace, activeWorkspace])
+
+  // Ensure expanded collections are loaded
+  useEffect(() => {
+    if (activeWorkspace) {
+      activeWorkspace.collections.forEach((col) => {
+        const isExpanded = searchQuery ? true : expansionState[col.path] || false
+        if (isExpanded && !collections[col.path] && !loadingCollections[col.path]) {
+          loadCollection(col.path)
+        }
+      })
+    }
+  }, [
+    activeWorkspace,
+    expansionState,
+    collections,
+    loadingCollections,
+    loadCollection,
+    searchQuery,
+  ])
 
   const handleOpenCollection = async () => {
     try {
@@ -44,7 +65,7 @@ const SidebarTree: React.FC = () => {
         await loadWorkspace(result.data)
       }
     } catch (e) {
-      console.error('Failed to open collection', e)
+      toast.error(`Failed to open collection: ${String(e)}`)
     }
   }
 
@@ -65,7 +86,7 @@ const SidebarTree: React.FC = () => {
         }
       }
     } catch (e) {
-      console.error('Failed to create collection', e)
+      toast.error(`Failed to create collection: ${String(e)}`)
     }
   }
 
@@ -135,15 +156,20 @@ const SidebarTree: React.FC = () => {
             type="request"
             path={request.path}
             method={request.content?.method || 'GET'}
-            onClick={() =>
-              openTab({
+            error={request.error}
+            isActive={activeTab?.requestPath === request.path}
+            onClick={() => {
+              const tabId = openTab({
                 type: 'request',
                 requestPath: request.path,
                 collectionId: collectionPath,
                 name: request.name,
                 method: request.content?.method || 'GET',
               })
-            }
+              if (request.content) {
+                useRequestStore.getState().populateRequest(tabId, request.content)
+              }
+            }}
           />
         )
       }

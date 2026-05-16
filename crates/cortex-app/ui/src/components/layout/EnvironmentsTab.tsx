@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import * as Icons from '../ui/Icons'
 import { useEnvironmentStore } from '../../stores/environmentStore'
+import { toast } from '../../stores/toastStore'
 import VariableEditor from '../composer/VariableEditor'
 import type { Variable } from '../../bindings'
 
@@ -117,7 +118,7 @@ const EnvironmentsTab: React.FC = () => {
     const name = window.prompt('Enter environment name:')
     if (name) {
       if (environments.find((e) => e.name === name)) {
-        alert('Environment already exists')
+        toast.error('Environment already exists')
         return
       }
       await updateVariables(name, [])

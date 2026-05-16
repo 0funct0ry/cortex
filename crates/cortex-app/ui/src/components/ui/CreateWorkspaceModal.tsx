@@ -25,8 +25,10 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({ isOpen, onC
 
   const handleCreate = async () => {
     if (!name || !path) return
-    await createWorkspace(name, path)
-    onClose()
+    const success = await createWorkspace(name, path)
+    if (success) {
+      onClose()
+    }
   }
 
   return createPortal(

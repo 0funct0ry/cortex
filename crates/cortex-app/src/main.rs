@@ -125,6 +125,8 @@ mod tests {
                 commands::clear_request_history,
                 commands::preview_request_headers,
                 commands::introspect_graphql,
+                commands::set_active_environment,
+                commands::cancel_request,
             ]);
 
         builder

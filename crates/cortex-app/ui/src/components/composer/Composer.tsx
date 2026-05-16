@@ -10,15 +10,71 @@ import { useTabs } from '../../contexts/TabsContext'
 import { useRequestStore } from '../../stores/requestStore'
 
 const Composer: React.FC = () => {
-  const { activeTabId } = useTabs()
-  const { getRequestState, updateRequest } = useRequestStore()
+  const { activeTabId, activeTab, setDirty } = useTabs()
+  const { getRequestState, updateRequest, saveRequest } = useRequestStore()
 
-  if (!activeTabId) return null
-
-  const requestData = getRequestState(activeTabId)
+  const requestData = getRequestState(activeTabId || '')
   const activeComposerTab = requestData.activeComposerTab || 'params'
+  const lastSavedData = React.useRef('')
+
+  // Update lastSavedData when switching tabs
+  React.useEffect(() => {
+    if (!activeTabId) return
+    const {
+      activeComposerTab: _activeComposerTab,
+      inFlight: _inFlight,
+      requestId: _requestId,
+      ...rest
+    } = getRequestState(activeTabId)
+    lastSavedData.current = JSON.stringify(rest)
+  }, [activeTabId, getRequestState])
+
+  // Set dirty state when request data changes
+  React.useEffect(() => {
+    if (!activeTabId) return
+    const { activeComposerTab: _act, inFlight: _inf, requestId: _req, ...rest } = requestData
+    const currentData = JSON.stringify(rest)
+
+    if (lastSavedData.current && currentData !== lastSavedData.current) {
+      if (activeTabId && activeTab && !activeTab.isDirty) {
+        setDirty(activeTabId, true)
+      }
+    }
+  }, [requestData, activeTabId, setDirty, activeTab])
+
+  // Auto-save logic
+  React.useEffect(() => {
+    if (
+      !activeTabId ||
+      !activeTab ||
+      !activeTab.requestPath ||
+      activeTab.type !== 'request' ||
+      !activeTab.isDirty
+    )
+      return
+
+    const timer = setTimeout(async () => {
+      try {
+        await saveRequest(activeTabId, activeTab.requestPath!)
+        const {
+          activeComposerTab: _activeComposerTab,
+          inFlight: _inFlight,
+          requestId: _requestId,
+          ...rest
+        } = requestData
+        lastSavedData.current = JSON.stringify(rest)
+        setDirty(activeTabId, false)
+      } catch (err) {
+        console.error('Auto-save failed', err)
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [requestData, activeTab, activeTabId, saveRequest, setDirty])
 
   const renderContent = () => {
+    if (!activeTabId) return null
+
     switch (activeComposerTab) {
       case 'params':
         return <ParamsTab requestId={activeTabId} />
@@ -112,6 +168,8 @@ const Composer: React.FC = () => {
         return <div className="p-4">Content for {activeComposerTab}</div>
     }
   }
+
+  if (!activeTabId) return null
 
   return (
     <div className="h-full flex flex-col">

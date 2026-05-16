@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react'
 import * as Icons from '../ui/Icons'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { useTabs } from '../../contexts/TabsContext'
+import { toast } from '../../stores/toastStore'
 
 interface EnvironmentDropdownProps {
   onClose: () => void
@@ -53,7 +54,7 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
     const name = window.prompt('Enter environment name:')
     if (name) {
       if (environments.find((e) => e.name === name)) {
-        alert('Environment already exists')
+        toast.error('Environment already exists')
         return
       }
       await updateVariables(name, [])

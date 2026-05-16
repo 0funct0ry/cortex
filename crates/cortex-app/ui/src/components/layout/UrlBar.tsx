@@ -9,23 +9,17 @@ import { useRequestStore } from '../../stores/requestStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useResponseStore } from '../../stores/responseStore'
 import { commands } from '../../bindings'
+import { useEnvironmentStore } from '../../stores/environmentStore'
+import { toast } from '../../stores/toastStore'
 
 const UrlBar: React.FC = () => {
   const { activeTab, activeTabId } = useTabs()
   const { activeWorkspacePath } = useWorkspaceStore()
-  const { getRequestState, updateRequest, setInFlight } = useRequestStore()
+  const { updateRequest, setInFlight } = useRequestStore()
   const { setResponse } = useResponseStore()
-  const tabState = activeTabId ? getRequestState(activeTabId) : null
-
-  // Initialize state from tab if not present
-  useEffect(() => {
-    if (activeTabId && activeTab && !tabState) {
-      updateRequest(activeTabId, {
-        url: '',
-        method: activeTab.method,
-      })
-    }
-  }, [activeTabId, activeTab, updateRequest, tabState])
+  const tabState = useRequestStore((s) =>
+    activeTabId ? s.requestStates[activeTabId] || s.getRequestState(activeTabId) : null
+  )
 
   const handleSend = useCallback(async () => {
     if (!activeTabId || !activeTab || !tabState || tabState.inFlight) return
@@ -33,11 +27,10 @@ const UrlBar: React.FC = () => {
     const url = tabState.url.trim()
     if (!url) return
 
-    setInFlight(activeTabId, true, 'pending')
-
-    const startTime = Date.now()
-
     try {
+      const { activeEnvironmentName } = useEnvironmentStore.getState()
+      const startTime = Date.now()
+
       // Gathers all fields from the store
       const payload = {
         request_name: activeTab.name,
@@ -47,11 +40,14 @@ const UrlBar: React.FC = () => {
         body: tabState.body.type !== 'none' ? tabState.body.text : null,
       }
 
+      const requestId = crypto.randomUUID()
+      setInFlight(activeTabId, true, requestId)
+
       const result = await commands.sendRequest(
         payload,
         activeWorkspacePath,
         activeTab.collectionId || null,
-        null, // environment
+        activeEnvironmentName,
         activeTab.requestPath
       )
 
@@ -62,17 +58,17 @@ const UrlBar: React.FC = () => {
         setResponse(activeTabId, {
           requestId: activeTabId,
           status: data.status_code || 200,
-          statusText: data.status_code === 200 ? 'OK' : 'Unknown', // In real app, this comes from backend
+          statusText: data.status_code === 200 ? 'OK' : 'Unknown',
           headers: data.headers || {},
           body: data.response_body || '',
           durationMs: durationMs,
           bodySize: data.response_body ? new Blob([data.response_body]).size : 0,
         })
       } else {
-        console.error('Request failed:', result.error)
+        toast.error(`Request failed: ${result.error}`)
       }
     } catch (err) {
-      console.error('IPC Error:', err)
+      toast.error(`IPC Error: ${String(err)}`)
     } finally {
       setInFlight(activeTabId, false, null)
     }
@@ -80,7 +76,7 @@ const UrlBar: React.FC = () => {
 
   const handleCancel = useCallback(() => {
     if (!activeTabId || !tabState?.requestId) return
-    // TODO: invoke("cancel_request", { requestId: tabState.requestId })
+    commands.cancelRequest(tabState.requestId).catch(console.error)
     setInFlight(activeTabId, false, null)
   }, [activeTabId, tabState, setInFlight])
 

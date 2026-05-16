@@ -17,6 +17,7 @@ pub struct RecentWorkspace {
 pub struct AppSettings {
     pub last_workspace_path: Option<String>,
     pub recent_workspaces: Vec<RecentWorkspace>,
+    pub active_environment: Option<String>,
 }
 
 /// In-memory store for ephemeral (session-scoped) variables.

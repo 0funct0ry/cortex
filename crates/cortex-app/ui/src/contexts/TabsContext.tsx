@@ -16,7 +16,7 @@ interface TabsContextType {
   tabs: Tab[]
   activeTabId: string | null
   activeTab: Tab | null
-  openTab: (tab: Omit<Tab, 'id' | 'isDirty'>) => void
+  openTab: (tab: Omit<Tab, 'id' | 'isDirty'>) => string
   closeTab: (id: string) => void
   activateTab: (id: string) => void
   setDirty: (id: string, isDirty: boolean) => void
@@ -72,7 +72,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const existingTab = tabs.find((t) => t.type === 'environments')
         if (existingTab) {
           activateTab(existingTab.id)
-          return
+          return existingTab.id
         }
       }
 
@@ -81,7 +81,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const existingTab = tabs.find((t) => t.requestPath === tabData.requestPath)
         if (existingTab) {
           activateTab(existingTab.id)
-          return
+          return existingTab.id
         }
       }
 
@@ -93,6 +93,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setTabs((prev) => [...prev, newTab])
       setActiveTabId(newTab.id)
+      return newTab.id
     },
     [tabs, activateTab]
   )

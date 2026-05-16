@@ -8,6 +8,7 @@ import InlineInput from '../ui/InlineInput'
 import { commands } from '../../bindings'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { toast } from '../../stores/toastStore'
 
 interface TreeNodeProps {
   label: string
@@ -18,6 +19,7 @@ interface TreeNodeProps {
   isExpanded?: boolean
   isLoading?: boolean
   error?: string | null
+  isActive?: boolean
   onToggle?: () => void
   onClick?: () => void
   onDoubleClick?: () => void
@@ -32,6 +34,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   isExpanded,
   isLoading,
   error,
+  isActive,
   onToggle,
   onClick,
   onDoubleClick,
@@ -61,7 +64,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
       }
     } catch (err) {
-      console.error('Rename failed', err)
+      toast.error(`Rename failed: ${String(err)}`)
     }
   }
 
@@ -72,7 +75,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
       }
     } catch (err) {
-      console.error('Delete failed', err)
+      toast.error(`Delete failed: ${String(err)}`)
     }
   }
 
@@ -83,7 +86,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
       }
     } catch (err) {
-      console.error('Duplicate failed', err)
+      toast.error(`Duplicate failed: ${String(err)}`)
     }
   }, [path, activeWorkspacePath, loadWorkspace])
 
@@ -94,7 +97,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
       }
     } catch (err) {
-      console.error('Create request failed', err)
+      toast.error(`Create request failed: ${String(err)}`)
     }
   }, [path, activeWorkspacePath, loadWorkspace])
 
@@ -105,7 +108,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
       }
     } catch (err) {
-      console.error('Create folder failed', err)
+      toast.error(`Create folder failed: ${String(err)}`)
     }
   }, [path, activeWorkspacePath, loadWorkspace])
 
@@ -228,7 +231,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     <div className="flex flex-col" onContextMenu={handleContextMenu}>
       <div
         className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors ${
-          isHovered ? 'bg-bg-muted' : ''
+          isActive ? 'bg-bg-highlight' : isHovered ? 'bg-bg-muted' : ''
         }`}
         style={{ paddingLeft: `${indentation}px`, paddingRight: '12px' }}
         onMouseEnter={() => setIsHovered(true)}
@@ -259,7 +262,13 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               onCancel={() => setIsRenaming(false)}
             />
           ) : (
-            <span className="text-sm text-text-primary truncate">
+            <span
+              className={`text-sm truncate ${
+                isActive
+                  ? 'text-text-primary font-medium'
+                  : 'text-text-secondary group-hover:text-text-primary'
+              }`}
+            >
               {highlightMatch(label, searchQuery)}
             </span>
           )}

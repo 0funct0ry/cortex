@@ -47,6 +47,10 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
       } else {
         localStorage.removeItem(STORAGE_KEY_ACTIVE)
       }
+      // Persist to backend
+      commands.setActiveEnvironment(name).catch((err: unknown) => {
+        console.error('Failed to persist active environment', err)
+      })
     },
 
     setEditingEnvironment: (name) => set({ editingEnvironmentName: name }),

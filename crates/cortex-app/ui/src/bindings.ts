@@ -294,6 +294,22 @@ async introspectGraphql(payload: IntrospectionPayload, workspacePath: string | n
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async setActiveEnvironment(name: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_active_environment", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cancelRequest(requestId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_request", { requestId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -367,7 +383,7 @@ export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: stri
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
 export type RecentWorkspace = { name: string; path: string }
 export type RenderedHeader = { key: string; value: string }
-export type RequestBody = { text: string } | { json: string } | { form: { [key in string]: string } }
+export type RequestBody = { text?: string | null; json?: string | null; form?: { [key in string]: string } | null }
 /**
  * Represents the structure of a `.crx` request file.
  */
@@ -458,7 +474,7 @@ prompt?: boolean;
 description?: string | null }
 export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
-export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[] }
+export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; active_environment: string | null }
 
 /** tauri-specta globals **/
 

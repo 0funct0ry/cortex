@@ -26,6 +26,7 @@ pub struct WorkspaceResponse {
     pub collections: Vec<WorkspaceCollectionResult>,
     pub variables: Option<Vec<cortex_core::variables::Variable>>,
     pub environments: Vec<cortex_core::environment::EnvironmentFile>,
+    pub active_environment: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Type)]
@@ -165,6 +166,24 @@ pub fn open_in_explorer(path: String) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+#[allow(dead_code)]
+pub fn set_active_environment(name: Option<String>) -> Result<(), String> {
+    let mut settings = AppSettings::load();
+    settings.active_environment = name;
+    settings.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+#[allow(dead_code)]
+pub fn cancel_request(_request_id: String) -> Result<(), String> {
+    // In Epic 03a, this is a stub as the executor doesn't yet support cancellation by ID.
+    // Future epics will use this to abort the reqwest handle.
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn load_workspace(path: String) -> Result<WorkspaceResponse, String> {
     tauri::async_runtime::spawn_blocking(move || load_workspace_blocking(path))
         .await
@@ -223,6 +242,7 @@ fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
         collections,
         variables: workspace.manifest.variables,
         environments: workspace.environments,
+        active_environment: settings.active_environment,
     })
 }
 
@@ -230,6 +250,7 @@ fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
 #[specta::specta]
 pub fn load_workspace_manifest(path: String) -> Result<WorkspaceResponse, String> {
     let workspace = Workspace::load_manifest(&path).map_err(|e| e.to_string())?;
+    let settings = AppSettings::load();
 
     let collections = workspace
         .manifest
@@ -243,6 +264,7 @@ pub fn load_workspace_manifest(path: String) -> Result<WorkspaceResponse, String
         collections,
         variables: workspace.manifest.variables,
         environments: workspace.environments,
+        active_environment: settings.active_environment,
     })
 }
 
@@ -253,6 +275,9 @@ pub fn create_workspace(name: String, path: String) -> Result<String, String> {
     let mut path = PathBuf::from(path);
     if path.is_dir() {
         path.push("cortex-workspace.yaml");
+    }
+    if path.exists() {
+        return Err("A workspace already exists at this location.".to_string());
     }
 
     manifest.save(&path).map_err(|e| e.to_string())?;

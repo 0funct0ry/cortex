@@ -40,13 +40,15 @@ pub struct RequestFile {
     pub settings: Option<Settings>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type, Default)]
 #[serde(deny_unknown_fields)]
-pub enum RequestBody {
-    Text(String),
-    Json(String), // Stored as a string to preserve formatting/variables, or we could use serde_json::Value
-    Form(BTreeMap<String, String>),
+pub struct RequestBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub form: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
@@ -209,7 +211,10 @@ unknown_field: \"should fail\"
         );
         req.headers = Some(headers);
         req.params = Some(params);
-        req.body = Some(RequestBody::Json("{\"key\": \"value\"}".to_string()));
+        req.body = Some(RequestBody {
+            json: Some("{\"key\": \"value\"}".to_string()),
+            ..Default::default()
+        });
         req.auth = Some(AuthRef {
             r#type: "bearer".to_string(),
             config: {

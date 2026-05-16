@@ -8,6 +8,7 @@ import { useWorkspaceStore } from './stores/workspaceStore'
 
 import { listen } from '@tauri-apps/api/event'
 import { useResponseStore, type ResponsePayload } from './stores/responseStore'
+import ToastContainer from './components/ui/ToastContainer'
 
 function App() {
   const { setResponse } = useResponseStore()
@@ -39,6 +40,7 @@ function App() {
         {activeWorkspace ? <PanelShell /> : <WelcomeScreen />}
         <StatusBar />
       </div>
+      <ToastContainer />
     </TabsProvider>
   )
 }
