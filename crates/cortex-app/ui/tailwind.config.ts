@@ -43,6 +43,7 @@ export default {
         'method-sse': 'var(--color-method-sse)',
         'method-grpc': 'var(--color-method-grpc)',
         'method-graphql': 'var(--color-method-graphql)',
+        'method-trace': 'var(--color-method-trace)',
       },
       fontFamily: {
         sans: 'var(--font-sans)',

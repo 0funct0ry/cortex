@@ -13,7 +13,7 @@ import { useEnvironmentStore } from '../../stores/environmentStore'
 import { toast } from '../../stores/toastStore'
 
 const UrlBar: React.FC = () => {
-  const { activeTab, activeTabId } = useTabs()
+  const { activeTab, activeTabId, updateTab } = useTabs()
   const { activeWorkspacePath } = useWorkspaceStore()
   const { updateRequest, setInFlight } = useRequestStore()
   const { setResponse } = useResponseStore()
@@ -64,6 +64,10 @@ const UrlBar: React.FC = () => {
           bodySize: data.response_body ? new Blob([data.response_body]).size : 0,
           error: data.error || undefined,
         })
+
+        if (tabState.method.toUpperCase() === 'HEAD') {
+          useResponseStore.getState().setActiveTab(activeTabId, 'headers')
+        }
       } else {
         setResponse(activeTabId, {
           requestId: activeTabId,
@@ -113,7 +117,10 @@ const UrlBar: React.FC = () => {
     <div className="h-11 border-b border-border-subtle flex items-center px-2 gap-2 shrink-0 bg-bg-panel">
       <MethodSelector
         method={tabState.method}
-        onChange={(m) => updateRequest(activeTabId, { method: m })}
+        onChange={(m) => {
+          updateRequest(activeTabId, { method: m })
+          updateTab(activeTabId, { method: m })
+        }}
       />
 
       <UrlInput

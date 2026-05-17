@@ -20,6 +20,7 @@ interface TabsContextType {
   closeTab: (id: string) => void
   activateTab: (id: string) => void
   setDirty: (id: string, isDirty: boolean) => void
+  updateTab: (id: string, updates: Partial<Omit<Tab, 'id'>>) => void
   reorderTabs: (startIndex: number, endIndex: number) => void
   duplicateTab: (id: string) => void
   closeOtherTabs: (id: string) => void
@@ -124,6 +125,10 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setDirty = useCallback((id: string, isDirty: boolean) => {
     setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, isDirty } : t)))
+  }, [])
+
+  const updateTab = useCallback((id: string, updates: Partial<Omit<Tab, 'id'>>) => {
+    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
   }, [])
 
   const reorderTabs = useCallback((startIndex: number, endIndex: number) => {
@@ -235,6 +240,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         closeTab,
         activateTab,
         setDirty,
+        updateTab,
         reorderTabs,
         duplicateTab,
         closeOtherTabs,

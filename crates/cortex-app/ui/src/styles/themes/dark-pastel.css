@@ -35,6 +35,7 @@
   --color-method-sse: #f8a8e8;
   --color-method-grpc: #c8a8f8;
   --color-method-graphql: #f8a8a8;
+  --color-method-trace: #d0b0d0;
   --color-syntax-keyword: #d8a8f8;
   --color-syntax-string: #a8d8a8;
   --color-syntax-number: #f8d8a8;

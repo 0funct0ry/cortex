@@ -14,7 +14,7 @@ const SendButton: React.FC<SendButtonProps> = ({ inFlight, onSend, onCancel }) =
 
   if (inFlight) {
     return (
-      <Tooltip content="Cancel Request" position="bottom">
+      <Tooltip content="Cancel Request" position="bottom" align="end">
         <button
           onClick={onCancel}
           className="h-8 px-4 rounded-md bg-error text-white font-semibold text-sm hover:bg-error/90 transition-colors flex items-center gap-2"
@@ -27,7 +27,7 @@ const SendButton: React.FC<SendButtonProps> = ({ inFlight, onSend, onCancel }) =
   }
 
   return (
-    <Tooltip content={`Send Request (${shortcutHint})`} position="bottom">
+    <Tooltip content={`Send Request (${shortcutHint})`} position="bottom" align="end">
       <button
         onClick={onSend}
         className="h-8 px-5 rounded-md bg-accent text-accent-fg font-semibold text-sm hover:bg-accent-hover transition-colors shadow-sm"

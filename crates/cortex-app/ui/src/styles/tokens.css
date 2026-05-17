@@ -51,6 +51,7 @@
   --color-method-sse: #000000;
   --color-method-grpc: #000000;
   --color-method-graphql: #000000;
+  --color-method-trace: #000000;
 
   /* Syntax highlighting */
   --color-syntax-keyword: #000000;

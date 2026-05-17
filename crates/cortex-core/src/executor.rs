@@ -36,15 +36,9 @@ impl HttpExecutor {
         let id = RequestHistoryEntry::random_id();
         let start = Instant::now();
 
-        let method = match method.to_uppercase().as_str() {
-            "GET" => Method::GET,
-            "POST" => Method::POST,
-            "PUT" => Method::PUT,
-            "DELETE" => Method::DELETE,
-            "PATCH" => Method::PATCH,
-            "HEAD" => Method::HEAD,
-            "OPTIONS" => Method::OPTIONS,
-            _ => Method::GET,
+        let method = match Method::from_bytes(method.as_bytes()) {
+            Ok(m) => m,
+            Err(_) => Method::GET,
         };
 
         let mut req_builder = self.client.request(method.clone(), url);
@@ -78,7 +72,11 @@ impl HttpExecutor {
                     resp_headers.insert(key.to_string(), value.to_str().unwrap_or("").to_string());
                 }
 
-                let response_body = resp.text().await.ok();
+                let response_body = if method == Method::HEAD {
+                    Some(String::new())
+                } else {
+                    resp.text().await.ok()
+                };
 
                 RequestHistoryEntry {
                     id,

@@ -15,7 +15,25 @@ const ParamsTab: React.FC<ParamsTabProps> = ({ requestId }) => {
 
   const pathParams = useMemo(() => {
     const url = requestData.url || ''
-    const matches = url.match(/:[a-zA-Z0-9_]+|\{[a-zA-Z0-9_]+\}/g)
+
+    // Strip protocol
+    let urlWithoutProtocol = url
+    const protocolMatch = url.match(/^[a-zA-Z]+:\/\//)
+    if (protocolMatch) {
+      urlWithoutProtocol = url.slice(protocolMatch[0].length)
+    }
+
+    // Extract path part (everything after the first single slash, before query parameters)
+    const firstSlashIndex = urlWithoutProtocol.indexOf('/')
+    if (firstSlashIndex === -1) return []
+
+    let pathPart = urlWithoutProtocol.slice(firstSlashIndex)
+    const queryIndex = pathPart.indexOf('?')
+    if (queryIndex !== -1) {
+      pathPart = pathPart.slice(0, queryIndex)
+    }
+
+    const matches = pathPart.match(/:[a-zA-Z0-9_]+|\{[a-zA-Z0-9_]+\}/g)
     if (!matches) return []
 
     // Deduplicate and clean up

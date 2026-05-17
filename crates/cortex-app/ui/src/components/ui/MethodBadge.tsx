@@ -37,8 +37,10 @@ const MethodBadge: React.FC<MethodBadgeProps> = ({ method, className = '' }) => 
         return 'text-method-grpc bg-method-grpc/15'
       case 'graphql':
         return 'text-method-graphql bg-method-graphql/15'
+      case 'trace':
+        return 'text-method-trace bg-method-trace/15'
       default:
-        return 'text-text-muted bg-bg-muted'
+        return 'text-text-secondary bg-bg-muted/30 border border-border-subtle/30'
     }
   }
 

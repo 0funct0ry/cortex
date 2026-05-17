@@ -5,6 +5,7 @@ interface TooltipProps {
   children: React.ReactNode
   delay?: number
   position?: 'top' | 'bottom' | 'left' | 'right'
+  align?: 'start' | 'end' | 'center'
 }
 
 const Tooltip: React.FC<TooltipProps> = ({
@@ -12,6 +13,7 @@ const Tooltip: React.FC<TooltipProps> = ({
   children,
   delay = 300,
   position = 'bottom',
+  align = 'center',
 }) => {
   const [isVisible, setIsVisible] = useState(false)
   const timeoutRef = useRef<number | null>(null)
@@ -39,15 +41,21 @@ const Tooltip: React.FC<TooltipProps> = ({
   const getPositionClasses = () => {
     switch (position) {
       case 'top':
-        return 'bottom-full left-1/2 -translate-x-1/2 mb-2'
+        if (align === 'start') return 'bottom-full left-0 mb-1.5'
+        if (align === 'end') return 'bottom-full right-0 mb-1.5'
+        return 'bottom-full left-1/2 -translate-x-1/2 mb-1.5'
       case 'bottom':
-        return 'top-full left-1/2 -translate-x-1/2 mt-2'
+        if (align === 'start') return 'top-full left-0 mt-1.5'
+        if (align === 'end') return 'top-full right-0 mt-1.5'
+        return 'top-full left-1/2 -translate-x-1/2 mt-1.5'
       case 'left':
-        return 'right-full top-1/2 -translate-y-1/2 mr-2'
+        return 'right-full top-1/2 -translate-y-1/2 mr-1.5'
       case 'right':
-        return 'left-full top-1/2 -translate-y-1/2 ml-2'
+        return 'left-full top-1/2 -translate-y-1/2 ml-1.5'
       default:
-        return 'top-full left-1/2 -translate-x-1/2 mt-2'
+        if (align === 'start') return 'top-full left-0 mt-1.5'
+        if (align === 'end') return 'top-full right-0 mt-1.5'
+        return 'top-full left-1/2 -translate-x-1/2 mt-1.5'
     }
   }
 
@@ -61,9 +69,9 @@ const Tooltip: React.FC<TooltipProps> = ({
       {children}
       {isVisible && (
         <div
-          className={`absolute z-[100] px-2 py-1 bg-bg-overlay border border-border-subtle rounded-sm shadow-lg whitespace-nowrap pointer-events-none transition-opacity duration-150 ${getPositionClasses()}`}
+          className={`absolute z-[100] px-1.5 py-0.5 bg-bg-overlay border border-border-subtle rounded-sm shadow-md whitespace-nowrap pointer-events-none transition-opacity duration-150 ${getPositionClasses()}`}
         >
-          <span className="text-[11px] text-text-primary font-medium">{content}</span>
+          <span className="text-[10px] text-text-primary font-medium">{content}</span>
         </div>
       )}
     </div>

@@ -48,7 +48,7 @@ const TabItem: React.FC<TabItemProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showMenu])
 
-  const getMethodColor = (method: string) => {
+  const getMethodColor = (method: string, active: boolean) => {
     switch (method.toUpperCase()) {
       case 'GET':
         return 'text-method-get'
@@ -60,8 +60,22 @@ const TabItem: React.FC<TabItemProps> = ({
         return 'text-method-patch'
       case 'DELETE':
         return 'text-method-delete'
+      case 'HEAD':
+        return 'text-method-head'
+      case 'OPTIONS':
+        return 'text-method-options'
+      case 'TRACE':
+        return 'text-method-trace'
+      case 'WS':
+        return 'text-method-ws'
+      case 'SSE':
+        return 'text-method-sse'
+      case 'GRPC':
+        return 'text-method-grpc'
+      case 'GRAPHQL':
+        return 'text-method-graphql'
       default:
-        return 'text-text-muted'
+        return active ? 'text-text-primary' : 'text-text-muted'
     }
   }
 
@@ -100,7 +114,7 @@ const TabItem: React.FC<TabItemProps> = ({
           <Icons.Globe size={14} className="text-accent shrink-0" />
         ) : (
           <span
-            className={`text-[10px] font-bold uppercase shrink-0 ${getMethodColor(tab.method)}`}
+            className={`text-[10px] font-bold uppercase shrink-0 ${getMethodColor(tab.method, active)}`}
           >
             {tab.method}
           </span>
