@@ -38,7 +38,9 @@ const UrlBar: React.FC = () => {
         request_name: activeTab.name,
         method: tabState.method,
         url: url,
-        headers: tabState.headers.filter((h) => h.enabled),
+        headers: tabState.headers.filter(
+          (h) => h.enabled && (h.key.trim() !== '' || h.value.trim() !== '')
+        ),
         body: tabState.body.type !== 'none' ? tabState.body.text : null,
       }
 
@@ -114,7 +116,7 @@ const UrlBar: React.FC = () => {
   if (!activeTabId || !tabState) return null
 
   return (
-    <div className="h-11 border-b border-border-subtle flex items-center px-2 gap-2 shrink-0 bg-bg-panel">
+    <div className="min-h-11 border-b border-border-subtle flex items-center px-2 gap-2 shrink-0 bg-bg-panel py-1.5">
       <MethodSelector
         method={tabState.method}
         onChange={(m) => {

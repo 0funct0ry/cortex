@@ -138,6 +138,12 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-performance, IDE-like desktop interface.
 - **IDE-Style Layout**: A compact, three-column shell with resizable panes.
 - **Request Composer**: A central area with a color-coded method selector supporting all standard HTTP methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE) and fully custom verbs (e.g. `PURGE`, `LOCK`), URL input with variable highlighting, and a robust Send button.
+- **Query Parameters & Headers Editors**: Dedicated key-value editors (under the "Params" and "Headers" composer tabs) featuring:
+    - **Two-Way URL Sync**: Real-time bi-directional synchronization between the query parameters table and the URL bar (preserving disabled parameter strings perfectly).
+    - **Real-Time Variable Highlights**: Color-coded borders (green for resolved, orange for unresolved, rose for dynamic) and `position: fixed` tooltips.
+    - **Advanced Row Actions**: Drag-and-drop row reordering, multiselect (Shift/Cmd/Ctrl+click) batch deletions, soft duplicate key warnings, and a `Cmd+Z` / `Ctrl+Z` undo stack.
+    - **Bulk Edit Mode**: Direct switching to bulk-text mode with raw string merging, `#` line-comment disabling, and detailed line-by-line validation errors.
+    - **Header Autocomplete**: Autocomplete dropdown for common and collection-specific custom headers with keyboard arrow navigation.
 - **Theme System**: Premium themes (Dark, Light, Catppuccin, etc.) implemented via CSS variables.
 - **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
 - **Dynamic Tab Bar**: Managed request tabs with horizontal scrolling, dirty state indicators (•), manual reordering, and a comprehensive right-click context menu.

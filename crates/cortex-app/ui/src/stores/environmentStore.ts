@@ -116,10 +116,16 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
         const result = await commands.updateEnvironmentVariables(workspacePath, name, variables)
         if (result.status === 'error') throw new Error(result.error)
 
-        set((state) => ({
-          environments: state.environments.map((e) => (e.name === name ? { ...e, variables } : e)),
-          isLoading: false,
-        }))
+        set((state) => {
+          const exists = state.environments.some((e) => e.name === name)
+          const newEnvironments = exists
+            ? state.environments.map((e) => (e.name === name ? { ...e, variables } : e))
+            : [...state.environments, { version: '1', name, variables }]
+          return {
+            environments: newEnvironments,
+            isLoading: false,
+          }
+        })
       } catch (err) {
         set({ error: String(err), isLoading: false })
         throw err

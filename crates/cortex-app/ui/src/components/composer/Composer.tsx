@@ -8,10 +8,21 @@ import AuthTab from './AuthTab'
 import CodeEditor from '../ui/CodeEditor'
 import { useTabs } from '../../contexts/TabsContext'
 import { useRequestStore } from '../../stores/requestStore'
+import { useEnvironmentStore } from '../../stores/environmentStore'
 
 const Composer: React.FC = () => {
   const { activeTabId, activeTab, setDirty } = useTabs()
-  const { getRequestState, updateRequest, saveRequest } = useRequestStore()
+  const { getRequestState, updateRequest, saveRequest, fetchResolvedVariables } = useRequestStore()
+
+  const activeEnvironmentName = useEnvironmentStore((s) => s.activeEnvironmentName)
+  const environments = useEnvironmentStore((s) => s.environments)
+  const collectionId = activeTab?.collectionId || null
+
+  React.useEffect(() => {
+    if (activeTabId) {
+      fetchResolvedVariables(activeTabId, collectionId)
+    }
+  }, [activeTabId, collectionId, activeEnvironmentName, environments, fetchResolvedVariables])
 
   const requestData = getRequestState(activeTabId || '')
   const activeComposerTab = requestData.activeComposerTab || 'params'
