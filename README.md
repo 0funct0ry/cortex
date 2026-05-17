@@ -139,7 +139,8 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **IDE-Style Layout**: A compact, three-column shell with resizable panes.
 - **Request Composer**: A central area with a color-coded method selector supporting all standard HTTP methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE) and fully custom verbs (e.g. `PURGE`, `LOCK`), URL input with variable highlighting, and a robust Send button.
 - **Query Parameters & Headers Editors**: Dedicated key-value editors (under the "Params" and "Headers" composer tabs) featuring:
-    - **Two-Way URL Sync**: Real-time bi-directional synchronization between the query parameters table and the URL bar (preserving disabled parameter strings perfectly).
+    - **Two-Way URL Sync & Encoding**: Real-time bi-directional synchronization between the query parameters table and the URL bar. Supports valueless flag parameters (e.g. `?flag`), explicitly empty parameters (e.g. `?key=`), and duplicate parameter keys (e.g. `?tag=a&tag=b`). Includes strict RFC 3986 percent-encoding while preserving raw `{{placeholder}}` variables in the URL input bar.
+    - **Real-Time Resolved URL Preview Bar**: A premium, read-only preview bar displayed directly below the URL input bar at all times. It displays the fully resolved URL with variable interpolation evaluated, followed by strict RFC 3986 percent-encoding of all resolved keys and values, complete with a quick-copy action button.
     - **Real-Time Variable Highlights**: Color-coded borders (green for resolved, orange for unresolved, rose for dynamic) and `position: fixed` tooltips.
     - **Advanced Row Actions**: Drag-and-drop row reordering, multiselect (Shift/Cmd/Ctrl+click) batch deletions, soft duplicate key warnings, and a `Cmd+Z` / `Ctrl+Z` undo stack.
     - **Bulk Edit Mode**: Direct switching to bulk-text mode with raw string merging, `#` line-comment disabling, and detailed line-by-line validation errors.

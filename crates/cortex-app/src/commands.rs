@@ -42,6 +42,8 @@ pub struct HeaderEntry {
     pub key: String,
     pub value: String,
     pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_valueless: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Type)]

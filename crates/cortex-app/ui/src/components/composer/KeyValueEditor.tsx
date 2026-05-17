@@ -574,7 +574,7 @@ const KeyValueEditor: React.FC<KeyValueEditorProps> = ({
 
   // Value changes handler
   const handleValueChange = (index: number, val: string) => {
-    handleEntryChange(index, { value: val })
+    handleEntryChange(index, { value: val, is_valueless: false })
 
     if (isHeaders && entries[index].enabled) {
       const key = entries[index].key
@@ -961,7 +961,7 @@ const KeyValueEditor: React.FC<KeyValueEditorProps> = ({
                       onKeyDown={(e) => handleCellKeyDown(e, index, 'value')}
                       onFocus={(e) => handleCellFocus(index, 'value', entry.value, e)}
                       onBlur={handleCellBlur}
-                      placeholder={valuePlaceholder}
+                      placeholder={entry.is_valueless ? '(no value flag)' : valuePlaceholder}
                       readOnly={!entry.enabled}
                       id={`kv-value-${index}`}
                       data-row={index}

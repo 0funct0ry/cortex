@@ -1,5 +1,6 @@
 import React from 'react'
 import UrlBar from '../layout/UrlBar'
+import UrlPreviewBar from './UrlPreviewBar'
 import ComposerTabs from './ComposerTabs'
 import ParamsTab from './ParamsTab'
 import HeadersTab from './HeadersTab'
@@ -185,6 +186,7 @@ const Composer: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <UrlBar />
+      <UrlPreviewBar requestId={activeTabId} />
       <ComposerTabs requestId={activeTabId} />
       <div className="flex-1 overflow-hidden bg-bg-surface">{renderContent()}</div>
     </div>

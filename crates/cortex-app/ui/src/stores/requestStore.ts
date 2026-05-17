@@ -100,6 +100,35 @@ const DEFAULT_REQUEST_STATE: RequestData = {
   requestId: null,
 }
 
+export function rfc3986Encode(str: string): string {
+  return encodeURIComponent(str).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
+  )
+}
+
+function encodeParamSegment(str: string): string {
+  if (!str) return ''
+  const regex = /(\{\{[^{}]+\}\})/g
+  const parts = str.split(regex)
+  return parts
+    .map((part) => {
+      if (part.startsWith('{{') && part.endsWith('}}')) {
+        return part
+      }
+      return rfc3986Encode(part)
+    })
+    .join('')
+}
+
+function decodeParamSegment(str: string): string {
+  try {
+    return decodeURIComponent(str.replace(/\+/g, '%20'))
+  } catch (_e) {
+    return str
+  }
+}
+
 function syncParamsFromUrl(url: string, currentParams: HeaderEntry[]): HeaderEntry[] {
   const queryIndex = url.indexOf('?')
   if (queryIndex === -1) {
@@ -118,22 +147,17 @@ function syncParamsFromUrl(url: string, currentParams: HeaderEntry[]): HeaderEnt
       const eqIdx = pair.indexOf('=')
       let key: string
       let value = ''
-      try {
-        if (eqIdx === -1) {
-          key = decodeURIComponent(pair.replace(/\+/g, '%20'))
-        } else {
-          key = decodeURIComponent(pair.slice(0, eqIdx).replace(/\+/g, '%20'))
-          value = decodeURIComponent(pair.slice(eqIdx + 1).replace(/\+/g, '%20'))
-        }
-      } catch (_e) {
-        if (eqIdx === -1) {
-          key = pair
-        } else {
-          key = pair.slice(0, eqIdx)
-          value = pair.slice(eqIdx + 1)
-        }
+      let is_valueless = false
+
+      if (eqIdx === -1) {
+        key = decodeParamSegment(pair)
+        is_valueless = true
+      } else {
+        key = decodeParamSegment(pair.slice(0, eqIdx))
+        value = decodeParamSegment(pair.slice(eqIdx + 1))
       }
-      parsedParams.push({ key, value, enabled: true })
+
+      parsedParams.push({ key, value, enabled: true, is_valueless })
     })
   }
 
@@ -164,8 +188,11 @@ function syncUrlFromParams(url: string, params: HeaderEntry[]): string {
   if (enabledParams.length > 0) {
     const queryString = enabledParams
       .map((p) => {
-        const k = encodeURIComponent(p.key)
-        const v = encodeURIComponent(p.value)
+        const k = encodeParamSegment(p.key)
+        if (p.is_valueless) {
+          return k
+        }
+        const v = encodeParamSegment(p.value)
         return `${k}=${v}`
       })
       .join('&')
