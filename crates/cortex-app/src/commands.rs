@@ -348,12 +348,11 @@ pub async fn pick_file(
     filter_ext: String,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
-    let file = app
-        .dialog()
-        .file()
-        .set_title(&title)
-        .add_filter(filter_name, &[&filter_ext])
-        .blocking_pick_file();
+    let mut builder = app.dialog().file().set_title(&title);
+    if filter_ext != "*" && !filter_ext.is_empty() {
+        builder = builder.add_filter(filter_name, &[&filter_ext]);
+    }
+    let file = builder.blocking_pick_file();
     Ok(file.map(|p| p.to_string()))
 }
 
@@ -366,12 +365,11 @@ pub async fn save_file(
     filter_ext: String,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
-    let file = app
-        .dialog()
-        .file()
-        .set_title(&title)
-        .add_filter(filter_name, &[&filter_ext])
-        .blocking_save_file();
+    let mut builder = app.dialog().file().set_title(&title);
+    if filter_ext != "*" && !filter_ext.is_empty() {
+        builder = builder.add_filter(filter_name, &[&filter_ext]);
+    }
+    let file = builder.blocking_save_file();
     Ok(file.map(|p| p.to_string()))
 }
 
@@ -815,7 +813,7 @@ pub struct SendRequestPayload {
     pub method: String,
     pub url: String,
     pub headers: Vec<HeaderEntry>,
-    pub body: Option<String>,
+    pub body: Option<cortex_core::request::RequestBody>,
 }
 
 #[tauri::command]
@@ -844,16 +842,140 @@ pub async fn send_request(
             let result = resolver.render(&payload.url);
             let mut captured = result.captured_variables;
 
-            let req_body = if let Some(b) = payload.body {
-                let body_res = resolver.render(&b);
-                captured.extend(body_res.captured_variables);
-                Some(cortex_core::request::RequestBody {
-                    text: Some(body_res.text),
-                    ..Default::default()
-                })
+            let mut body_warnings = Vec::new();
+            let req_body = if let Some(mut b) = payload.body {
+                match b.active_type.as_deref() {
+                    Some("json") => {
+                        if let Some(json_str) = b.json.as_ref() {
+                            let render_res = resolver.render(json_str);
+                            captured.extend(render_res.captured_variables);
+                            for w in &render_res.warnings {
+                                body_warnings.push(format!("Variable '{}' not found in JSON body", w.name));
+                            }
+                            b.json = Some(render_res.text);
+                        }
+                    }
+                    Some("form_data") => {
+                        if let Some(fields) = b.form_data.as_mut() {
+                            for field in fields {
+                                if !field.is_file && field.enabled {
+                                    let render_res = resolver.render(&field.value);
+                                    captured.extend(render_res.captured_variables);
+                                    for w in &render_res.warnings {
+                                        body_warnings.push(format!("Variable '{}' not found in form-data field '{}'", w.name, field.key));
+                                    }
+                                    field.value = render_res.text;
+                                }
+                            }
+                        }
+                    }
+                    Some("url_encoded") => {
+                        if let Some(fields) = b.url_encoded.as_mut() {
+                            for field in fields {
+                                if field.enabled {
+                                    let render_res = resolver.render(&field.value);
+                                    captured.extend(render_res.captured_variables);
+                                    for w in &render_res.warnings {
+                                        body_warnings.push(format!("Variable '{}' not found in URL-encoded field '{}'", w.name, field.key));
+                                    }
+                                    field.value = render_res.text;
+                                }
+                            }
+                        }
+                    }
+                    Some("raw") => {
+                        if let Some(raw_str) = b.raw_text.as_ref() {
+                            let render_res = resolver.render(raw_str);
+                            captured.extend(render_res.captured_variables);
+                            for w in &render_res.warnings {
+                                body_warnings.push(format!("Variable '{}' not found in raw body", w.name));
+                            }
+                            b.raw_text = Some(render_res.text);
+                        }
+                    }
+                    Some("file") => {
+                        // Placeholders are not resolved in binary file body.
+                    }
+                    _ => {
+                        if let Some(text_str) = b.text.as_ref() {
+                            let render_res = resolver.render(text_str);
+                            captured.extend(render_res.captured_variables);
+                            for w in &render_res.warnings {
+                                body_warnings.push(format!("Variable '{}' not found in body text", w.name));
+                            }
+                            b.text = Some(render_res.text);
+                        }
+                        if let Some(json_str) = b.json.as_ref() {
+                            let render_res = resolver.render(json_str);
+                            captured.extend(render_res.captured_variables);
+                            for w in &render_res.warnings {
+                                body_warnings.push(format!("Variable '{}' not found in JSON body", w.name));
+                            }
+                            b.json = Some(render_res.text);
+                        }
+                        if let Some(form) = b.form.as_mut() {
+                            for (key, value) in form.iter_mut() {
+                                let render_res = resolver.render(value);
+                                captured.extend(render_res.captured_variables);
+                                for w in &render_res.warnings {
+                                    body_warnings.push(format!("Variable '{}' not found in form field '{}'", w.name, key));
+                                }
+                                *value = render_res.text;
+                            }
+                        }
+                    }
+                }
+                Some(b)
             } else {
                 None
             };
+
+            // Pre-send validation
+            if let Some(ref b) = req_body {
+                match b.active_type.as_deref() {
+                    Some("json") => {
+                        if let Some(json_str) = b.json.as_ref() {
+                            if !json_str.trim().is_empty() {
+                                if let Err(e) = serde_json::from_str::<serde_json::Value>(json_str) {
+                                    return Err(format!("Validation Error: Invalid JSON body: {}", e));
+                                }
+                            }
+                        }
+                    }
+                    Some("form_data") => {
+                        if let Some(fields) = b.form_data.as_ref() {
+                            for field in fields {
+                                if field.enabled {
+                                    if field.key.trim().is_empty() {
+                                        return Err("Validation Error: Form-Data contains an enabled row with an empty key".to_string());
+                                    }
+                                    if field.is_file {
+                                        if field.file_path.trim().is_empty() {
+                                            return Err(format!("Validation Error: Form-Data key '{}' expects a file but no path is selected", field.key));
+                                        }
+                                        if !std::path::Path::new(&field.file_path).exists() {
+                                            return Err(format!("Validation Error: Form-Data upload file does not exist on disk: '{}'", field.file_path));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Some("file") => {
+                        if let Some(file_path) = b.file_path.as_ref() {
+                            if file_path.trim().is_empty() {
+                                return Err("Validation Error: No file path selected for binary upload".to_string());
+                            }
+                            if !std::path::Path::new(file_path).exists() {
+                                return Err(format!("Validation Error: Binary upload file does not exist on disk: '{}'", file_path));
+                            }
+                        } else {
+                            return Err("Validation Error: No file path selected for binary upload".to_string());
+                        }
+                    }
+                    _ => {}
+                }
+            }
 
             let (rendered_headers, headers_warnings, headers_captured) = gather_and_render_headers(
                 &mut resolver,
@@ -870,6 +992,7 @@ pub async fn send_request(
                 .map(|w| format!("Variable '{}' not found in URL", w.name))
                 .collect::<Vec<_>>();
             all_warnings.extend(headers_warnings);
+            all_warnings.extend(body_warnings);
 
             Ok::<
                 (

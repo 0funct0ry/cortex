@@ -6,6 +6,8 @@ import { javascript } from '@codemirror/lang-javascript'
 import { EditorView } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import { createTheme } from '@uiw/codemirror-themes'
+import { linter, lintGutter } from '@codemirror/lint'
+import type { Diagnostic } from '@codemirror/lint'
 
 interface CodeEditorProps {
   value: string
@@ -13,6 +15,7 @@ interface CodeEditorProps {
   language?: 'json' | 'xml' | 'javascript' | 'text'
   readOnly?: boolean
   autoFocus?: boolean
+  wordWrap?: boolean
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -21,12 +24,87 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   language = 'json',
   readOnly = false,
   autoFocus = false,
+  wordWrap = false,
 }) => {
   const extensions = useMemo(() => {
     const exts = []
-    if (language === 'json') exts.push(json())
-    if (language === 'xml') exts.push(xml())
-    if (language === 'javascript') exts.push(javascript())
+    if (wordWrap) {
+      exts.push(EditorView.lineWrapping)
+    }
+    if (language === 'json') {
+      exts.push(json())
+      exts.push(
+        linter((view) => {
+          const diagnostics: Diagnostic[] = []
+          const doc = view.state.doc.toString()
+          if (!doc.trim()) return diagnostics
+          try {
+            JSON.parse(doc)
+          } catch (e) {
+            const err = e as Error
+            let pos = 0
+            const match = err.message.match(/at position (\d+)/)
+            if (match) {
+              pos = parseInt(match[1], 10)
+            }
+            diagnostics.push({
+              from: Math.max(0, pos - 1),
+              to: Math.min(doc.length, pos + 1),
+              severity: 'error' as const,
+              message: err.message,
+            })
+          }
+          return diagnostics
+        })
+      )
+      exts.push(lintGutter())
+    }
+    if (language === 'xml') {
+      exts.push(xml())
+      exts.push(
+        linter((view) => {
+          const diagnostics: Diagnostic[] = []
+          const doc = view.state.doc.toString()
+          if (!doc.trim()) return diagnostics
+          const parser = new DOMParser()
+          const xmlDoc = parser.parseFromString(doc, 'application/xml')
+          const errorNode = xmlDoc.querySelector('parsererror')
+          if (errorNode) {
+            diagnostics.push({
+              from: 0,
+              to: doc.length,
+              severity: 'error' as const,
+              message: errorNode.textContent || 'Invalid XML structure',
+            })
+          }
+          return diagnostics
+        })
+      )
+      exts.push(lintGutter())
+    }
+    if (language === 'javascript') {
+      exts.push(javascript())
+      exts.push(
+        linter((view) => {
+          const diagnostics: Diagnostic[] = []
+          const doc = view.state.doc.toString()
+          if (!doc.trim()) return diagnostics
+          try {
+            new Function(doc)
+          } catch (e) {
+            const err = e as Error
+            diagnostics.push({
+              from: 0,
+              to: doc.length,
+              severity: 'error' as const,
+              message: err.message,
+            })
+          }
+          return diagnostics
+        })
+      )
+      exts.push(lintGutter())
+    }
 
     // Custom theme logic based on CSS variables
     exts.push(
@@ -50,7 +128,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     )
 
     return exts
-  }, [language])
+  }, [language, wordWrap])
 
   const theme = useMemo(() => {
     return createTheme({

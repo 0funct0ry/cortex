@@ -32,6 +32,10 @@ const UrlBar: React.FC = () => {
       const requestId = crypto.randomUUID()
       setInFlight(activeTabId, true, requestId)
 
+      // Normalize body type: frontend uses kebab-case, backend executor expects snake_case
+      const normalizeBodyType = (t: string) =>
+        t === 'form-data' ? 'form_data' : t === 'url-encoded' ? 'url_encoded' : t
+
       // Gathers all fields from the store
       const payload = {
         request_id: requestId,
@@ -41,7 +45,37 @@ const UrlBar: React.FC = () => {
         headers: tabState.headers.filter(
           (h) => h.enabled && (h.key.trim() !== '' || h.value.trim() !== '')
         ),
-        body: tabState.body.type !== 'none' ? tabState.body.text : null,
+        body:
+          tabState.body.type !== 'none'
+            ? {
+                active_type: normalizeBodyType(tabState.body.type),
+                json: tabState.body.type === 'json' ? tabState.body.json : null,
+                raw_text: tabState.body.type === 'raw' ? tabState.body.rawText : null,
+                raw_subtype: tabState.body.type === 'raw' ? tabState.body.rawSubtype : null,
+                form_data:
+                  tabState.body.type === 'form-data'
+                    ? tabState.body.formFields.map((f) => ({
+                        key: f.key,
+                        value: f.value,
+                        is_file: f.isFile,
+                        file_path: f.filePath,
+                        enabled: f.enabled,
+                      }))
+                    : null,
+                url_encoded:
+                  tabState.body.type === 'url-encoded'
+                    ? tabState.body.urlEncodedFields.map((f) => ({
+                        key: f.key,
+                        value: f.value,
+                        enabled: f.enabled,
+                      }))
+                    : null,
+                file_path: tabState.body.type === 'file' ? tabState.body.filePath : null,
+                file_filter: tabState.body.type === 'file' ? tabState.body.fileFilter : null,
+                text: null,
+                form: null,
+              }
+            : null,
       }
 
       const metadata = {

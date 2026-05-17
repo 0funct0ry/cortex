@@ -19,7 +19,19 @@ const ComposerTabs: React.FC<ComposerTabsProps> = ({ requestId }) => {
   const tabs: { id: ComposerTabId; label: string }[] = useMemo(
     () => [
       { id: 'params', label: 'Params' },
-      { id: 'body', label: 'Body' },
+      {
+        id: 'body',
+        label:
+          requestData.body.type && requestData.body.type !== 'none'
+            ? `Body · ${
+                requestData.body.type === 'form-data'
+                  ? 'Form-Data'
+                  : requestData.body.type === 'url-encoded'
+                    ? 'URL-Encoded'
+                    : requestData.body.type.toUpperCase()
+              }`
+            : 'Body',
+      },
       { id: 'headers', label: 'Headers' },
       { id: 'auth', label: 'Auth' },
       { id: 'vars', label: 'Vars' },
@@ -30,7 +42,7 @@ const ComposerTabs: React.FC<ComposerTabsProps> = ({ requestId }) => {
       { id: 'file', label: 'File' },
       { id: 'settings', label: 'Settings' },
     ],
-    []
+    [requestData.body.type]
   )
 
   const getCount = (tabId: ComposerTabId) => {
@@ -53,9 +65,12 @@ const ComposerTabs: React.FC<ComposerTabsProps> = ({ requestId }) => {
     switch (tabId) {
       case 'body':
         return (
-          requestData.body.text.length > 0 ||
-          requestData.body.form.length > 0 ||
-          requestData.body.file !== null
+          (requestData.body.type && requestData.body.type !== 'none') ||
+          (requestData.body.json && requestData.body.json.length > 0) ||
+          (requestData.body.rawText && requestData.body.rawText.length > 0) ||
+          (requestData.body.formFields && requestData.body.formFields.length > 0) ||
+          (requestData.body.urlEncodedFields && requestData.body.urlEncodedFields.length > 0) ||
+          requestData.body.filePath !== null
         )
       case 'auth':
         return requestData.auth.type !== 'none'

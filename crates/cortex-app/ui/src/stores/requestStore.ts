@@ -29,10 +29,20 @@ export interface RequestData {
   params: HeaderEntry[]
   headers: HeaderEntry[]
   body: {
-    type: string
-    text: string
-    form: HeaderEntry[]
-    file: string | null
+    type: 'none' | 'json' | 'form-data' | 'url-encoded' | 'raw' | 'file'
+    json: string
+    rawText: string
+    rawSubtype: 'text' | 'html' | 'xml' | 'javascript' | 'other'
+    formFields: {
+      key: string
+      value: string
+      isFile: boolean
+      filePath: string
+      enabled: boolean
+    }[]
+    urlEncodedFields: { key: string; value: string; enabled: boolean }[]
+    filePath: string | null
+    fileFilter: string
   }
   auth: {
     type: string
@@ -68,9 +78,13 @@ const DEFAULT_REQUEST_STATE: RequestData = {
   headers: [],
   body: {
     type: 'none',
-    text: '',
-    form: [],
-    file: null,
+    json: '',
+    rawText: '',
+    rawSubtype: 'text',
+    formFields: [],
+    urlEncodedFields: [],
+    filePath: null,
+    fileFilter: '',
   },
   auth: {
     type: 'none',
@@ -214,24 +228,71 @@ export const useRequestStore = create<RequestState>((set, get) => ({
   },
 
   populateRequest: (tabId, content) => {
-    let bodyType: string = 'none'
-    let bodyText: string = ''
-    let bodyForm: HeaderEntry[] = []
+    let bodyType: 'none' | 'json' | 'form-data' | 'url-encoded' | 'raw' | 'file' = 'none'
+    let bodyJson = ''
+    let bodyRawText = ''
+    let bodyRawSubtype: 'text' | 'html' | 'xml' | 'javascript' | 'other' = 'text'
+    let bodyFormFields: {
+      key: string
+      value: string
+      isFile: boolean
+      filePath: string
+      enabled: boolean
+    }[] = []
+    let bodyUrlEncodedFields: { key: string; value: string; enabled: boolean }[] = []
+    let bodyFilePath: string | null = null
+    let bodyFileFilter = ''
 
     if (content.body) {
-      if (content.body.json) {
-        bodyType = 'json'
-        bodyText = content.body.json
-      } else if (content.body.text) {
-        bodyType = 'text'
-        bodyText = content.body.text
-      } else if (content.body.form) {
-        bodyType = 'form'
-        bodyForm = Object.entries(content.body.form).map(([key, value]) => ({
-          key,
-          value,
-          enabled: true,
+      if (content.body.active_type) {
+        bodyType = (
+          content.body.active_type === 'form_data'
+            ? 'form-data'
+            : content.body.active_type === 'url_encoded'
+              ? 'url-encoded'
+              : content.body.active_type
+        ) as 'none' | 'json' | 'form-data' | 'url-encoded' | 'raw' | 'file'
+        bodyJson = content.body.json || ''
+        bodyRawText = content.body.raw_text || ''
+        bodyRawSubtype = (content.body.raw_subtype || 'text') as
+          | 'text'
+          | 'html'
+          | 'xml'
+          | 'javascript'
+          | 'other'
+        bodyFormFields = (content.body.form_data || []).map((f) => ({
+          key: f.key,
+          value: f.value,
+          isFile: f.is_file,
+          filePath: f.file_path,
+          enabled: f.enabled,
         }))
+        bodyUrlEncodedFields = (content.body.url_encoded || []).map((f) => ({
+          key: f.key,
+          value: f.value,
+          enabled: f.enabled,
+        }))
+        bodyFilePath = content.body.file_path || null
+        bodyFileFilter = content.body.file_filter || ''
+      } else {
+        // Legacy file compatibility
+        if (content.body.json) {
+          bodyType = 'json'
+          bodyJson = content.body.json
+        } else if (content.body.text) {
+          bodyType = 'raw'
+          bodyRawText = content.body.text
+          bodyRawSubtype = 'text'
+        } else if (content.body.form) {
+          bodyType = 'form-data'
+          bodyFormFields = Object.entries(content.body.form).map(([key, value]) => ({
+            key,
+            value,
+            isFile: false,
+            filePath: '',
+            enabled: true,
+          }))
+        }
       }
     }
 
@@ -251,9 +312,13 @@ export const useRequestStore = create<RequestState>((set, get) => ({
       })),
       body: {
         type: bodyType,
-        text: bodyText,
-        form: bodyForm,
-        file: null,
+        json: bodyJson,
+        rawText: bodyRawText,
+        rawSubtype: bodyRawSubtype,
+        formFields: bodyFormFields,
+        urlEncodedFields: bodyUrlEncodedFields,
+        filePath: bodyFilePath,
+        fileFilter: bodyFileFilter,
       },
       auth: content.auth
         ? {
@@ -291,15 +356,30 @@ export const useRequestStore = create<RequestState>((set, get) => ({
         data.body.type === 'none'
           ? null
           : {
-              text: data.body.type === 'text' ? data.body.text : undefined,
-              json: data.body.type === 'json' ? data.body.text : undefined,
-              form:
-                data.body.type === 'form'
-                  ? data.body.form.reduce(
-                      (acc, f) => (f.key.trim() ? { ...acc, [f.key]: f.value } : acc),
-                      {}
-                    )
+              active_type: data.body.type,
+              json: data.body.type === 'json' ? data.body.json : undefined,
+              raw_text: data.body.type === 'raw' ? data.body.rawText : undefined,
+              raw_subtype: data.body.type === 'raw' ? data.body.rawSubtype : undefined,
+              form_data:
+                data.body.type === 'form-data'
+                  ? data.body.formFields.map((f) => ({
+                      key: f.key,
+                      value: f.value,
+                      is_file: f.isFile,
+                      file_path: f.filePath,
+                      enabled: f.enabled,
+                    }))
                   : undefined,
+              url_encoded:
+                data.body.type === 'url-encoded'
+                  ? data.body.urlEncodedFields.map((f) => ({
+                      key: f.key,
+                      value: f.value,
+                      enabled: f.enabled,
+                    }))
+                  : undefined,
+              file_path: data.body.type === 'file' ? data.body.filePath : undefined,
+              file_filter: data.body.type === 'file' ? data.body.fileFilter : undefined,
             },
       auth: data.auth.type === 'none' ? null : (data.auth as unknown as AuthRef),
       scripts: { pre: data.scripts.pre, post: data.scripts.post },

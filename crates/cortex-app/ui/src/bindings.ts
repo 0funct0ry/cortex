@@ -375,6 +375,7 @@ export type Folder = { name: string; path: string; relative_path: string; manife
  * Represents the optional `folder.yaml` configuration inside a folder directory.
  */
 export type FolderManifest = { headers?: { [key in string]: string } | null }
+export type FormEntry = { key: string; value: string; is_file: boolean; file_path: string; enabled: boolean }
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean }
 export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[] }
@@ -383,7 +384,7 @@ export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: stri
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
 export type RecentWorkspace = { name: string; path: string }
 export type RenderedHeader = { key: string; value: string }
-export type RequestBody = { text?: string | null; json?: string | null; form?: { [key in string]: string } | null }
+export type RequestBody = { text?: string | null; json?: string | null; form?: { [key in string]: string } | null; active_type?: string | null; raw_text?: string | null; raw_subtype?: string | null; form_data?: FormEntry[] | null; url_encoded?: UrlEncodedEntry[] | null; file_path?: string | null; file_filter?: string | null }
 /**
  * Represents the structure of a `.crx` request file.
  */
@@ -448,7 +449,7 @@ captured_variables: { [key in string]: string }; executed_at: string; duration_m
 export type RequestMetadata = { workspace_path: string | null; collection_path: string | null; environment_name: string | null; request_path: string | null }
 export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean; description?: string | null }
 export type Scripts = { pre?: string | null; post?: string | null }
-export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; body: string | null }
+export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; body: RequestBody | null }
 export type Settings = { timeout?: number | null }
 /**
  * A template syntax error encountered during parsing or rendering.
@@ -463,6 +464,7 @@ raw: string;
  */
 message: string }
 export type UnresolvedVariableWarning = { name: string }
+export type UrlEncodedEntry = { key: string; value: string; enabled: boolean }
 export type Variable = { name: string; value: JsonValue; secret?: boolean; enabled?: boolean; 
 /**
  * If true, the user is asked to supply a value before each collection run.

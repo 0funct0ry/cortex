@@ -40,15 +40,48 @@ pub struct RequestFile {
     pub settings: Option<Settings>,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct FormEntry {
+    pub key: String,
+    pub value: String,
+    pub is_file: bool,
+    pub file_path: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct UrlEncodedEntry {
+    pub key: String,
+    pub value: String,
+    pub enabled: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RequestBody {
+    // Legacy support fields:
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub form: Option<BTreeMap<String, String>>,
+
+    // Modern body support:
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_subtype: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub form_data: Option<Vec<FormEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url_encoded: Option<Vec<UrlEncodedEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_filter: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
@@ -233,6 +266,48 @@ unknown_field: \"should fail\"
         let yaml = req.to_yaml().unwrap();
         let decoded: RequestFile = RequestFile::from_yaml(&yaml).unwrap();
 
+        assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_advanced_body_roundtrip() {
+        let mut req = RequestFile::new(
+            "Advanced Body".to_string(),
+            "POST".to_string(),
+            "https://api.example.com".to_string(),
+        );
+        req.body = Some(RequestBody {
+            active_type: Some("form_data".to_string()),
+            form_data: Some(vec![
+                FormEntry {
+                    key: "field1".to_string(),
+                    value: "value1".to_string(),
+                    is_file: false,
+                    file_path: "".to_string(),
+                    enabled: true,
+                },
+                FormEntry {
+                    key: "file1".to_string(),
+                    value: "".to_string(),
+                    is_file: true,
+                    file_path: "/path/to/file.png".to_string(),
+                    enabled: false,
+                },
+            ]),
+            url_encoded: Some(vec![UrlEncodedEntry {
+                key: "key1".to_string(),
+                value: "value1".to_string(),
+                enabled: true,
+            }]),
+            raw_text: Some("hello".to_string()),
+            raw_subtype: Some("text".to_string()),
+            file_path: Some("/some/path".to_string()),
+            file_filter: Some("All Files (*)".to_string()),
+            ..Default::default()
+        });
+
+        let yaml = req.to_yaml().unwrap();
+        let decoded: RequestFile = RequestFile::from_yaml(&yaml).unwrap();
         assert_eq!(req, decoded);
     }
 }

@@ -43,18 +43,135 @@ impl HttpExecutor {
 
         let mut req_builder = self.client.request(method.clone(), url);
 
-        for (key, value) in headers {
+        let is_multipart = if let Some(ref b) = body {
+            b.active_type.as_deref() == Some("form_data")
+        } else {
+            false
+        };
+
+        let mut has_content_type = false;
+        for (key, value) in &headers {
+            if key.eq_ignore_ascii_case("content-type") {
+                has_content_type = true;
+                if is_multipart {
+                    continue; // Skip user-provided Content-Type header so reqwest can generate it with the correct boundary parameter
+                }
+            }
             req_builder = req_builder.header(key, value);
         }
 
         if let Some(b) = body {
-            if let Some(text) = b.text {
-                req_builder = req_builder.body(text);
-            } else if let Some(json) = b.json {
-                req_builder = req_builder.header("Content-Type", "application/json");
-                req_builder = req_builder.body(json);
-            } else if let Some(form) = b.form {
-                req_builder = req_builder.form(&form);
+            match b.active_type.as_deref() {
+                Some("none") => {
+                    // Send no body
+                }
+                Some("json") => {
+                    if let Some(json_str) = b.json {
+                        if !has_content_type {
+                            req_builder = req_builder.header("Content-Type", "application/json");
+                        }
+                        req_builder = req_builder.body(json_str);
+                    }
+                }
+                Some("form_data") => {
+                    let mut form = reqwest::multipart::Form::new();
+                    if let Some(fields) = b.form_data {
+                        for field in fields {
+                            if field.enabled {
+                                if field.is_file {
+                                    if !field.file_path.is_empty() {
+                                        match std::fs::read(&field.file_path) {
+                                            Ok(bytes) => {
+                                                let file_name =
+                                                    std::path::Path::new(&field.file_path)
+                                                        .file_name()
+                                                        .and_then(|n| n.to_str())
+                                                        .unwrap_or("file")
+                                                        .to_string();
+                                                let mime = mime_guess::from_path(&field.file_path)
+                                                    .first_raw()
+                                                    .unwrap_or("application/octet-stream");
+                                                let part = reqwest::multipart::Part::bytes(bytes)
+                                                    .file_name(file_name)
+                                                    .mime_str(mime)
+                                                    .unwrap_or_else(|_| {
+                                                        reqwest::multipart::Part::bytes(vec![])
+                                                    });
+                                                form = form.part(field.key, part);
+                                            }
+                                            Err(_) => {
+                                                form = form.part(
+                                                    field.key,
+                                                    reqwest::multipart::Part::bytes(vec![]),
+                                                );
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    form = form.text(field.key, field.value);
+                                }
+                            }
+                        }
+                    }
+                    req_builder = req_builder.multipart(form);
+                }
+                Some("url_encoded") => {
+                    let mut params = Vec::new();
+                    if let Some(fields) = b.url_encoded {
+                        for field in fields {
+                            if field.enabled {
+                                params.push((field.key, field.value));
+                            }
+                        }
+                    }
+                    if !has_content_type {
+                        req_builder =
+                            req_builder.header("Content-Type", "application/x-www-form-urlencoded");
+                    }
+                    req_builder = req_builder.form(&params);
+                }
+                Some("raw") => {
+                    if let Some(raw_text) = b.raw_text {
+                        if !has_content_type {
+                            let subtype = b.raw_subtype.as_deref().unwrap_or("text");
+                            let content_type = match subtype {
+                                "html" => "text/html",
+                                "xml" => "application/xml",
+                                "javascript" => "application/javascript",
+                                _ => "text/plain",
+                            };
+                            req_builder = req_builder.header("Content-Type", content_type);
+                        }
+                        req_builder = req_builder.body(raw_text);
+                    }
+                }
+                Some("file") => {
+                    if let Some(file_path) = b.file_path {
+                        if !file_path.is_empty() {
+                            if !has_content_type {
+                                let mime = mime_guess::from_path(&file_path)
+                                    .first_raw()
+                                    .unwrap_or("application/octet-stream");
+                                req_builder = req_builder.header("Content-Type", mime);
+                            }
+                            if let Ok(bytes) = std::fs::read(&file_path) {
+                                req_builder = req_builder.body(bytes);
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    if let Some(text) = b.text {
+                        req_builder = req_builder.body(text);
+                    } else if let Some(json) = b.json {
+                        if !has_content_type {
+                            req_builder = req_builder.header("Content-Type", "application/json");
+                        }
+                        req_builder = req_builder.body(json);
+                    } else if let Some(form) = b.form {
+                        req_builder = req_builder.form(&form);
+                    }
+                }
             }
         }
 
