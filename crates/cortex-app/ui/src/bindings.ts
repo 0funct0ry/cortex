@@ -126,6 +126,9 @@ async getLastWorkspacePath() : Promise<string | null> {
 async getRecentWorkspaces() : Promise<RecentWorkspace[]> {
     return await TAURI_INVOKE("get_recent_workspaces");
 },
+async getAppSettings() : Promise<AppSettings> {
+    return await TAURI_INVOKE("get_app_settings");
+},
 async pickFile(title: string, filterName: string, filterExt: string) : Promise<Result<string | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pick_file", { title, filterName, filterExt }) };
@@ -323,6 +326,7 @@ async cancelRequest(requestId: string) : Promise<Result<null, string>> {
 
 /** user-defined types **/
 
+export type AppSettings = { last_workspace_path: string | null; recent_workspaces?: RecentWorkspace[]; active_environment: string | null; timeout?: number; redirect_behavior?: string }
 export type AuthRef = ({ [key in string]: string }) & { type: string }
 /**
  * Represents a loaded collection.
@@ -383,6 +387,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key 
 export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: string[] }
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
 export type RecentWorkspace = { name: string; path: string }
+export type RedirectHop = { method: string; url: string; status_code: number }
 export type RenderedHeader = { key: string; value: string }
 export type RequestBody = { text?: string | null; json?: string | null; form?: { [key in string]: string } | null; active_type?: string | null; raw_text?: string | null; raw_subtype?: string | null; form_data?: FormEntry[] | null; url_encoded?: UrlEncodedEntry[] | null; file_path?: string | null; file_filter?: string | null }
 /**
@@ -445,12 +450,12 @@ export type RequestHistoryEntry = { id: string; request_name: string; method: st
 /**
  * Variables resolved and captured during execution/rendering
  */
-captured_variables: { [key in string]: string }; executed_at: string; duration_ms: number | null; status_code: number | null; status_text: string | null; response_body: string | null; headers?: { [key in string]: string }; error: string | null; warnings?: string[] }
+captured_variables: { [key in string]: string }; executed_at: string; duration_ms: number | null; status_code: number | null; status_text: string | null; response_body: string | null; headers?: { [key in string]: string }; error: string | null; warnings?: string[]; redirect_chain?: RedirectHop[] }
 export type RequestMetadata = { workspace_path: string | null; collection_path: string | null; environment_name: string | null; request_path: string | null }
 export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean; description?: string | null }
 export type Scripts = { pre?: string | null; post?: string | null }
-export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; body: RequestBody | null }
-export type Settings = { timeout?: number | null }
+export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; body: RequestBody | null; settings: Settings | null }
+export type Settings = { timeout?: string | null; redirect_behavior?: string | null }
 /**
  * A template syntax error encountered during parsing or rendering.
  */

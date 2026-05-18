@@ -76,6 +76,13 @@ const UrlBar: React.FC = () => {
                 form: null,
               }
             : null,
+        settings: {
+          timeout: tabState.settings?.timeout || null,
+          redirect_behavior:
+            tabState.settings?.redirectBehavior === 'default'
+              ? null
+              : tabState.settings?.redirectBehavior || null,
+        },
       }
 
       const metadata = {
@@ -99,6 +106,7 @@ const UrlBar: React.FC = () => {
           durationMs: data.duration_ms || 0,
           bodySize: data.response_body ? new Blob([data.response_body]).size : 0,
           error: data.error || undefined,
+          redirectChain: data.redirect_chain || undefined,
         })
 
         if (tabState.method.toUpperCase() === 'HEAD') {

@@ -343,6 +343,12 @@ pub fn get_last_workspace_path() -> Option<String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn get_app_settings() -> crate::state::AppSettings {
+    crate::state::AppSettings::load()
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn pick_file(
     app: tauri::AppHandle,
     title: String,
@@ -816,6 +822,7 @@ pub struct SendRequestPayload {
     pub url: String,
     pub headers: Vec<HeaderEntry>,
     pub body: Option<cortex_core::request::RequestBody>,
+    pub settings: Option<cortex_core::request::Settings>,
 }
 
 #[tauri::command]
@@ -830,7 +837,7 @@ pub async fn send_request(
     let ephemeral_vars: Vec<Variable> =
         ephemeral_store.0.lock().unwrap().values().cloned().collect();
 
-    let (url, body, rendered_headers, warnings, captured_variables) =
+    let (url, body, rendered_headers, warnings, captured_variables, timeout_ms, follow_redirects) =
         tauri::async_runtime::spawn_blocking(move || {
             let mut resolver = cortex_core::variables::VariableResolver::new();
             populate_resolver(
@@ -845,6 +852,48 @@ pub async fn send_request(
             let mut captured = result.captured_variables;
 
             let mut body_warnings = Vec::new();
+
+            // Resolve settings timeout variable
+            let mut resolved_timeout: Option<u32> = None;
+            let app_settings = crate::state::AppSettings::load();
+            let mut follow_redirects = app_settings.redirect_behavior == "follow";
+
+            if let Some(ref s) = payload.settings {
+                if let Some(ref t_str) = s.timeout {
+                    if !t_str.trim().is_empty() {
+                        let render_res = resolver.render(t_str);
+                        for w in &render_res.warnings {
+                            body_warnings.push(format!("Variable '{}' not found in Timeout setting", w.name));
+                        }
+                        captured.extend(render_res.captured_variables);
+                        let text = render_res.text.trim();
+                        if !text.is_empty() {
+                            match text.parse::<u32>() {
+                                Ok(val) => {
+                                    if val == 0 {
+                                        return Err("Validation Error: Timeout value cannot be zero".to_string());
+                                    }
+                                    resolved_timeout = Some(val);
+                                }
+                                Err(_) => {
+                                    return Err(format!("Validation Error: Timeout value '{}' is not a valid positive integer", text));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let Some(ref rb) = s.redirect_behavior {
+                    if rb == "follow" {
+                        follow_redirects = true;
+                    } else if rb == "manual" {
+                        follow_redirects = false;
+                    }
+                }
+            }
+
+            let timeout_val = resolved_timeout.unwrap_or(app_settings.timeout);
+
             let req_body = if let Some(mut b) = payload.body {
                 match b.active_type.as_deref() {
                     Some("json") => {
@@ -1003,9 +1052,11 @@ pub async fn send_request(
                     BTreeMap<String, String>,
                     Vec<String>,
                     BTreeMap<String, String>,
+                    Option<u32>,
+                    bool,
                 ),
                 String,
-            >((result.text, req_body, rendered_headers, all_warnings, captured))
+            >((result.text, req_body, rendered_headers, all_warnings, captured, Some(timeout_val), follow_redirects))
         })
         .await
         .map_err(|e| e.to_string())??;
@@ -1014,7 +1065,15 @@ pub async fn send_request(
     let history_store_inner = history_store.inner().clone();
     let handle = tokio::spawn(async move {
         let mut entry = executor
-            .execute(payload.request_name, &payload.method, &url, rendered_headers, body)
+            .execute(
+                payload.request_name,
+                &payload.method,
+                &url,
+                rendered_headers,
+                body,
+                timeout_ms,
+                follow_redirects,
+            )
             .await;
 
         entry.captured_variables = captured_variables;
@@ -1161,6 +1220,7 @@ pub async fn introspect_graphql(
             headers: rendered_headers,
             error: None,
             warnings: header_warnings,
+            redirect_chain: Vec::new(),
         })
     })
     .await

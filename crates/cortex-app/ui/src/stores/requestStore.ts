@@ -53,6 +53,10 @@ export interface RequestData {
     post: string
   }
   tests: string
+  settings: {
+    timeout: string
+    redirectBehavior: 'default' | 'follow' | 'manual'
+  }
   activeComposerTab: ComposerTabId
   inFlight: boolean
   requestId: string | null
@@ -95,6 +99,10 @@ const DEFAULT_REQUEST_STATE: RequestData = {
     post: '',
   },
   tests: '',
+  settings: {
+    timeout: '',
+    redirectBehavior: 'default',
+  },
   activeComposerTab: 'params',
   inFlight: false,
   requestId: null,
@@ -323,6 +331,14 @@ export const useRequestStore = create<RequestState>((set, get) => ({
       }
     }
 
+    const settingsTimeout = content.settings?.timeout || ''
+    let settingsRedirectBehavior: 'default' | 'follow' | 'manual' = 'default'
+    if (content.settings?.redirect_behavior === 'follow') {
+      settingsRedirectBehavior = 'follow'
+    } else if (content.settings?.redirect_behavior === 'manual') {
+      settingsRedirectBehavior = 'manual'
+    }
+
     const data: Partial<RequestData> = {
       name: content.name,
       method: content.method,
@@ -358,6 +374,10 @@ export const useRequestStore = create<RequestState>((set, get) => ({
         post: content.scripts?.post || '',
       },
       tests: content.tests || '',
+      settings: {
+        timeout: settingsTimeout,
+        redirectBehavior: settingsRedirectBehavior,
+      },
     }
     get().updateRequest(tabId, data)
   },
@@ -411,6 +431,13 @@ export const useRequestStore = create<RequestState>((set, get) => ({
       auth: data.auth.type === 'none' ? null : (data.auth as unknown as AuthRef),
       scripts: { pre: data.scripts.pre, post: data.scripts.post },
       tests: data.tests,
+      settings: {
+        timeout: data.settings?.timeout || null,
+        redirect_behavior:
+          data.settings?.redirectBehavior === 'default'
+            ? null
+            : data.settings?.redirectBehavior || null,
+      },
     }
 
     const result = await commands.saveRequest(requestFile, path)

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { RedirectHop } from '../bindings'
 
 export type ResponseTabId = 'pretty' | 'raw' | 'preview' | 'headers' | 'timeline'
 
@@ -11,6 +12,7 @@ export interface ResponsePayload {
   durationMs: number
   bodySize: number
   error?: string
+  redirectChain?: RedirectHop[]
 }
 
 interface ResponseState {

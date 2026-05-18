@@ -100,11 +100,45 @@ pub struct Scripts {
     pub post: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Serialize, Clone, PartialEq, Type)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout: Option<u32>,
+    pub timeout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect_behavior: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for Settings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let map = BTreeMap::<String, serde_json::Value>::deserialize(deserializer)?;
+        let mut timeout = None;
+        let mut redirect_behavior = None;
+
+        for (k, v) in map {
+            match k.as_str() {
+                "timeout" => {
+                    timeout = match v {
+                        serde_json::Value::String(s) => Some(s),
+                        serde_json::Value::Number(n) => Some(n.to_string()),
+                        _ => None,
+                    };
+                }
+                "redirect_behavior" => {
+                    if let serde_json::Value::String(s) = v {
+                        redirect_behavior = Some(s);
+                    }
+                }
+                other => {
+                    eprintln!("Warning: Unrecognized settings key loaded: {}", other);
+                }
+            }
+        }
+
+        Ok(Settings { timeout, redirect_behavior })
+    }
 }
 
 impl RequestFile {
@@ -136,6 +170,13 @@ impl RequestFile {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct RedirectHop {
+    pub method: String,
+    pub url: String,
+    pub status_code: u16,
+}
+
 /// Represents an executed request log entry captured in history.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 pub struct RequestHistoryEntry {
@@ -156,6 +197,8 @@ pub struct RequestHistoryEntry {
     pub error: Option<String>,
     #[serde(default)]
     pub warnings: Vec<String>,
+    #[serde(default)]
+    pub redirect_chain: Vec<RedirectHop>,
 }
 
 impl RequestHistoryEntry {
@@ -261,7 +304,7 @@ unknown_field: \"should fail\"
         });
         req.scripts = Some(Scripts { pre: Some("console.log('pre')".to_string()), post: None });
         req.tags = Some(vec!["test".to_string(), "api".to_string()]);
-        req.settings = Some(Settings { timeout: Some(30) });
+        req.settings = Some(Settings { timeout: Some("30".to_string()), redirect_behavior: None });
 
         let yaml = req.to_yaml().unwrap();
         let decoded: RequestFile = RequestFile::from_yaml(&yaml).unwrap();
@@ -309,5 +352,26 @@ unknown_field: \"should fail\"
         let yaml = req.to_yaml().unwrap();
         let decoded: RequestFile = RequestFile::from_yaml(&yaml).unwrap();
         assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_unrecognized_settings_keys() {
+        let yaml = "
+version: \"1\"
+name: \"Test Request\"
+method: \"GET\"
+url: \"https://example.com\"
+settings:
+  timeout: 5000
+  redirect_behavior: \"manual\"
+  some_future_unrecognized_key: \"hello\"
+";
+        let result = RequestFile::from_yaml(yaml);
+        assert!(result.is_ok());
+        let req = result.unwrap();
+        assert!(req.settings.is_some());
+        let settings = req.settings.unwrap();
+        assert_eq!(settings.timeout, Some("5000".to_string()));
+        assert_eq!(settings.redirect_behavior, Some("manual".to_string()));
     }
 }

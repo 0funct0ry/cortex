@@ -11,6 +11,19 @@ interface ResponseMetaBarProps {
 }
 
 const ResponseMetaBar: React.FC<ResponseMetaBarProps> = ({ response, inFlight }) => {
+  const [showRedirects, setShowRedirects] = React.useState(false)
+  const popoverRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowRedirects(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const getStatusColor = (status: number) => {
     if (status >= 200 && status < 300) return 'bg-success-muted text-success border-success/20'
     if (status >= 300 && status < 400) return 'bg-warning-muted text-warning border-warning/20'
@@ -58,12 +71,74 @@ const ResponseMetaBar: React.FC<ResponseMetaBarProps> = ({ response, inFlight })
         </div>
       ) : response ? (
         <>
-          <div className="flex items-center gap-2">
-            <span
-              className={`px-1.5 py-0.5 rounded-sm text-[11px] font-bold border ${getStatusColor(response.status)}`}
-            >
-              {response.status}
-            </span>
+          <div className="flex items-center gap-2 relative" ref={popoverRef}>
+            {response.redirectChain && response.redirectChain.length > 0 ? (
+              <>
+                <button
+                  onClick={() => setShowRedirects(!showRedirects)}
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-semibold border bg-warning/10 text-warning border-warning/20 hover:bg-warning/20 transition-colors select-none"
+                >
+                  <span>
+                    {response.redirectChain.length}{' '}
+                    {response.redirectChain.length === 1 ? 'redirect' : 'redirects'}
+                  </span>
+                  <Icons.ChevronDown
+                    size={10}
+                    className={`transform transition-transform ${showRedirects ? 'rotate-180' : ''}`}
+                  />
+                  <span>→</span>
+                  <span
+                    className={`font-extrabold px-1.5 py-0.2 rounded-sm border ${getStatusColor(response.status)}`}
+                  >
+                    {response.status}
+                  </span>
+                </button>
+
+                {showRedirects && (
+                  <div className="absolute top-full left-0 mt-1 w-80 bg-bg-overlay border border-border-subtle rounded-md shadow-lg z-50 p-3 flex flex-col gap-2 font-sans text-xs">
+                    <div className="font-semibold text-text-primary border-b border-border-subtle pb-1">
+                      Redirect History
+                    </div>
+                    <div className="max-h-60 overflow-y-auto flex flex-col gap-1.5 no-scrollbar">
+                      {response.redirectChain.map((hop, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 py-1 border-b border-border-subtle/30 last:border-b-0 font-mono text-[11px]"
+                        >
+                          <span className="text-[10px] text-text-muted shrink-0">#{i + 1}</span>
+                          <span className="text-[10px] font-bold uppercase px-1 py-0.2 bg-bg-muted rounded text-accent shrink-0">
+                            {hop.method}
+                          </span>
+                          <span
+                            className="truncate text-text-primary flex-1 max-w-[150px]"
+                            title={hop.url}
+                          >
+                            {hop.url}
+                          </span>
+                          <span
+                            className={`font-bold shrink-0 text-[11px] ${
+                              hop.status_code >= 200 && hop.status_code < 300
+                                ? 'text-success'
+                                : hop.status_code >= 300 && hop.status_code < 400
+                                  ? 'text-warning'
+                                  : 'text-error'
+                            }`}
+                          >
+                            {hop.status_code}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <span
+                className={`px-1.5 py-0.5 rounded-sm text-[11px] font-bold border ${getStatusColor(response.status)}`}
+              >
+                {response.status}
+              </span>
+            )}
             <span className="text-sm text-text-secondary font-medium">{response.statusText}</span>
           </div>
 

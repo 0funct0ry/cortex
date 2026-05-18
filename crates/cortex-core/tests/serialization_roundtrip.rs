@@ -46,7 +46,7 @@ fn test_request_file_roundtrip() {
         "unicode-🚀".to_string(),
         "very-long-tag-".to_string() + &"a".repeat(100),
     ]);
-    req.settings = Some(Settings { timeout: Some(5000) });
+    req.settings = Some(Settings { timeout: Some("5000".to_string()), redirect_behavior: None });
 
     let yaml = req.to_yaml().expect("Failed to serialize RequestFile");
     let decoded: RequestFile =

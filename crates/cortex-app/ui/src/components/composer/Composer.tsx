@@ -6,6 +6,7 @@ import ParamsTab from './ParamsTab'
 import HeadersTab from './HeadersTab'
 import BodyTab from './BodyTab'
 import AuthTab from './AuthTab'
+import SettingsTab from './SettingsTab'
 import CodeEditor from '../ui/CodeEditor'
 import { useTabs } from '../../contexts/TabsContext'
 import { useRequestStore } from '../../stores/requestStore'
@@ -171,11 +172,7 @@ const Composer: React.FC = () => {
           </div>
         )
       case 'settings':
-        return (
-          <div className="p-4 text-sm text-text-muted italic">
-            Request settings are not yet implemented
-          </div>
-        )
+        return <SettingsTab requestId={activeTabId} />
       default:
         return <div className="p-4">Content for {activeComposerTab}</div>
     }

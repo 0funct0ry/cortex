@@ -13,11 +13,36 @@ pub struct RecentWorkspace {
     pub path: String,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+fn default_timeout() -> u32 {
+    30000
+}
+
+fn default_redirect_behavior() -> String {
+    "follow".to_string()
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Type)]
 pub struct AppSettings {
     pub last_workspace_path: Option<String>,
+    #[serde(default)]
     pub recent_workspaces: Vec<RecentWorkspace>,
     pub active_environment: Option<String>,
+    #[serde(default = "default_timeout")]
+    pub timeout: u32,
+    #[serde(default = "default_redirect_behavior")]
+    pub redirect_behavior: String,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            last_workspace_path: None,
+            recent_workspaces: Vec::new(),
+            active_environment: None,
+            timeout: 30000,
+            redirect_behavior: "follow".to_string(),
+        }
+    }
 }
 
 /// In-memory store for ephemeral (session-scoped) variables.
