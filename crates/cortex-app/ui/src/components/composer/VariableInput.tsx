@@ -9,6 +9,7 @@ interface VariableInputProps {
   value: string
   onChange: (value: string) => void
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onPaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void
   placeholder?: string
   className?: string
   id?: string
@@ -18,6 +19,8 @@ interface VariableInputProps {
   inputRef?: React.RefObject<HTMLInputElement | null>
   'data-row'?: number
   'data-field'?: string
+  masked?: boolean
+  type?: string
 }
 
 interface TooltipState {
@@ -52,6 +55,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
   value,
   onChange,
   onKeyDown,
+  onPaste,
   placeholder = '',
   className = '',
   id,
@@ -61,6 +65,8 @@ export const VariableInput: React.FC<VariableInputProps> = ({
   inputRef: externalInputRef,
   'data-row': dataRow,
   'data-field': dataField,
+  masked = false,
+  type = 'text',
 }) => {
   const { activeTabId } = useTabs()
   const resolvedVariables = useRequestStore((s) =>
@@ -173,7 +179,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
           </span>
         )
       }
-      return <span key={i}>{part}</span>
+      return <span key={i}>{masked ? '•'.repeat(part.length) : part}</span>
     })
   }
 
@@ -199,11 +205,12 @@ export const VariableInput: React.FC<VariableInputProps> = ({
 
       <input
         ref={inputRef}
-        type="text"
+        type={type}
         id={id}
         value={value}
         onChange={handleInputChange}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
         onFocus={onFocus}
         onBlur={onBlur}
         placeholder={placeholder}

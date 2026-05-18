@@ -11,7 +11,7 @@ interface KeyValueEditorProps {
   valuePlaceholder?: string
   title?: string
   addButtonLabel?: string
-  readOnlyEntries?: { key: string; value: string }[]
+  readOnlyEntries?: { key: string; value: string; description?: string }[]
   readOnlyTitle?: string
   readOnlyTooltip?: string
   isHeaders?: boolean
@@ -1060,7 +1060,14 @@ const KeyValueEditor: React.FC<KeyValueEditorProps> = ({
                   <td className="border-r border-border-subtle px-3 text-sm font-mono w-1/3">
                     {entry.key}
                   </td>
-                  <td className="px-3 text-sm font-mono">{entry.value}</td>
+                  <td className="px-3 text-sm font-mono flex items-center justify-between h-[28px]">
+                    <span>{entry.value}</span>
+                    {entry.description && (
+                      <span className="bg-accent/10 text-accent text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded tracking-wider mr-2 select-none">
+                        {entry.description}
+                      </span>
+                    )}
+                  </td>
                   <td className="w-[30px]"></td>
                 </tr>
               ))}

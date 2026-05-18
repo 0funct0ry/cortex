@@ -6,9 +6,17 @@ interface SendButtonProps {
   inFlight: boolean
   onSend: () => void
   onCancel: () => void
+  disabled?: boolean
+  disabledReason?: string
 }
 
-const SendButton: React.FC<SendButtonProps> = ({ inFlight, onSend, onCancel }) => {
+const SendButton: React.FC<SendButtonProps> = ({
+  inFlight,
+  onSend,
+  onCancel,
+  disabled = false,
+  disabledReason = '',
+}) => {
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
   const shortcutHint = isMac ? '⌘ + Enter' : 'Ctrl + Enter'
 
@@ -27,10 +35,17 @@ const SendButton: React.FC<SendButtonProps> = ({ inFlight, onSend, onCancel }) =
   }
 
   return (
-    <Tooltip content={`Send Request (${shortcutHint})`} position="bottom" align="end">
+    <Tooltip
+      content={disabled && disabledReason ? disabledReason : `Send Request (${shortcutHint})`}
+      position="bottom"
+      align="end"
+    >
       <button
-        onClick={onSend}
-        className="h-8 px-5 rounded-md bg-accent text-accent-fg font-semibold text-sm hover:bg-accent-hover transition-colors shadow-sm"
+        onClick={disabled ? undefined : onSend}
+        disabled={disabled}
+        className={`h-8 px-5 rounded-md bg-accent text-accent-fg font-semibold text-sm transition-colors shadow-sm select-none ${
+          disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-accent-hover'
+        }`}
       >
         Send
       </button>

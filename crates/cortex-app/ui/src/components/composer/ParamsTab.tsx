@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react'
 import KeyValueEditor from './KeyValueEditor'
 import { useRequestStore } from '../../stores/requestStore'
+import { useCollectionStore } from '../../stores/collectionStore'
+import { useTabs } from '../../contexts/TabsContext'
+import { getEffectiveAuth } from './AuthTab'
 
 interface ParamsTabProps {
   requestId: string
@@ -8,6 +11,9 @@ interface ParamsTabProps {
 
 const ParamsTab: React.FC<ParamsTabProps> = ({ requestId }) => {
   const { getRequestState, updateRequest } = useRequestStore()
+  const { collections } = useCollectionStore()
+  const { tabs } = useTabs()
+
   const requestData = getRequestState(requestId)
 
   const pathParams = useMemo(() => {
@@ -37,8 +43,34 @@ const ParamsTab: React.FC<ParamsTabProps> = ({ requestId }) => {
     return Array.from(new Set(matches)).map((m) => ({
       key: m.startsWith(':') ? m.slice(1) : m.slice(1, -1),
       value: '',
+      description: 'Path parameter',
     }))
   }, [requestData.url])
+
+  const authParams = useMemo(() => {
+    const localAuth = requestData?.auth || { type: 'none', config: {} }
+    const { auth: effectiveAuth } = getEffectiveAuth(requestId, tabs, collections, localAuth)
+    const effectiveConfig = (effectiveAuth.config || {}) as Record<string, string>
+
+    if (effectiveAuth.type === 'api_key' && effectiveConfig.addTo === 'query') {
+      const keyName = effectiveConfig.key || 'api_key'
+      const keyVal = effectiveConfig.value || ''
+      const displayVal = keyVal.includes('{{') ? keyVal : '••••••••'
+      return [
+        {
+          key: keyName,
+          value: displayVal,
+          description: 'Auth-managed',
+        },
+      ]
+    }
+
+    return []
+  }, [requestId, tabs, collections, requestData])
+
+  const combinedReadOnly = useMemo(() => {
+    return [...pathParams, ...authParams]
+  }, [pathParams, authParams])
 
   return (
     <div className="h-full">
@@ -46,9 +78,9 @@ const ParamsTab: React.FC<ParamsTabProps> = ({ requestId }) => {
         title="Query"
         entries={requestData.params}
         onChange={(params) => updateRequest(requestId, { params })}
-        readOnlyTitle="Path"
-        readOnlyEntries={pathParams}
-        readOnlyTooltip="Path parameters are automatically extracted from the URL"
+        readOnlyTitle="Path & Auth-managed"
+        readOnlyEntries={combinedReadOnly}
+        readOnlyTooltip="Path parameters are parsed from the URL. Auth parameters are configured in the Auth tab."
         caseSensitiveKeys={true}
       />
     </div>

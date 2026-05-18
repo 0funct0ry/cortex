@@ -1,6 +1,6 @@
 use crate::state::{AppSettings, EphemeralStore, HistoryStore, RecentWorkspace};
 use cortex_core::collection::Collection;
-use cortex_core::request::{RequestFile, RequestHistoryEntry};
+use cortex_core::request::{AuthRef, RequestFile, RequestHistoryEntry};
 use cortex_core::variables::Variable;
 use cortex_core::workspace::{Workspace, WorkspaceManifest};
 use serde::{Deserialize, Serialize};
@@ -426,6 +426,85 @@ pub async fn update_collection_variables(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn update_collection_auth(
+    collection_path: String,
+    auth: Option<AuthRef>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.auth = auth;
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_folder_auth(folder_path: String, auth: Option<AuthRef>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder_path_buf = PathBuf::from(folder_path);
+        let fy = folder_path_buf.join("folder.yaml");
+        let mut fm = if fy.exists() {
+            let content = std::fs::read_to_string(&fy).map_err(|e| e.to_string())?;
+            cortex_core::collection::FolderManifest::from_yaml(&content)
+                .map_err(|e| e.to_string())?
+        } else {
+            cortex_core::collection::FolderManifest { headers: None, auth: None }
+        };
+        fm.auth = auth;
+        let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(&fy, yaml).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_collection_headers(
+    collection_path: String,
+    headers: Option<std::collections::BTreeMap<String, String>>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.headers = headers;
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_folder_headers(
+    folder_path: String,
+    headers: Option<std::collections::BTreeMap<String, String>>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder_path_buf = PathBuf::from(folder_path);
+        let fy = folder_path_buf.join("folder.yaml");
+        let mut fm = if fy.exists() {
+            let content = std::fs::read_to_string(&fy).map_err(|e| e.to_string())?;
+            cortex_core::collection::FolderManifest::from_yaml(&content)
+                .map_err(|e| e.to_string())?
+        } else {
+            cortex_core::collection::FolderManifest { headers: None, auth: None }
+        };
+        fm.headers = headers;
+        let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(&fy, yaml).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn update_environment_variables(
     workspace_path: String,
     environment_name: String,
@@ -814,6 +893,108 @@ pub struct RequestMetadata {
     pub request_path: Option<String>,
 }
 
+fn inject_query_param(url: &mut String, key: &str, value: &str) {
+    if url.contains('?') {
+        if let Some(pos) = url.find('?') {
+            let base = &url[..pos];
+            let query = &url[pos + 1..];
+            let mut params: Vec<(String, String)> = Vec::new();
+            let mut replaced = false;
+            for part in query.split('&') {
+                if part.is_empty() {
+                    continue;
+                }
+                let mut kv = part.splitn(2, '=');
+                let k = kv.next().unwrap_or("").to_string();
+                let v = kv.next().unwrap_or("").to_string();
+                if k == key {
+                    params.push((k, value.to_string()));
+                    replaced = true;
+                } else {
+                    params.push((k, v));
+                }
+            }
+            if !replaced {
+                params.push((key.to_string(), value.to_string()));
+            }
+            let new_query: Vec<String> =
+                params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+            *url = format!("{}?{}", base, new_query.join("&"));
+        }
+    } else {
+        *url = format!("{}?{}={}", url, key, value);
+    }
+}
+
+fn inject_header_case_insensitive(headers: &mut BTreeMap<String, String>, key: &str, value: &str) {
+    let key_lower = key.to_lowercase();
+    let keys_to_remove: Vec<String> =
+        headers.keys().filter(|k| k.to_lowercase() == key_lower).cloned().collect();
+    for k in keys_to_remove {
+        headers.remove(&k);
+    }
+    headers.insert(key.to_string(), value.to_string());
+}
+
+fn resolve_effective_auth(
+    request_path: &Option<String>,
+    collection_path: &Option<String>,
+    request_auth: &Option<AuthRef>,
+) -> Result<Option<AuthRef>, String> {
+    if let Some(auth) = request_auth {
+        return Ok(Some(auth.clone()));
+    }
+
+    if let (Some(req_path_str), Some(col_path_str)) = (request_path, collection_path) {
+        let req_path = PathBuf::from(req_path_str);
+        let col_path = PathBuf::from(col_path_str);
+
+        let mut current_dir = if req_path.is_file() {
+            req_path.parent().map(|p| p.to_path_buf())
+        } else {
+            Some(req_path)
+        };
+
+        while let Some(ref dir) = current_dir {
+            if !dir.starts_with(&col_path) {
+                break;
+            }
+
+            let folder_yaml = dir.join("folder.yaml");
+            if folder_yaml.exists() {
+                if let Ok(content) = std::fs::read_to_string(&folder_yaml) {
+                    if let Ok(manifest) =
+                        cortex_core::collection::FolderManifest::from_yaml(&content)
+                    {
+                        if let Some(auth) = manifest.auth {
+                            return Ok(Some(auth));
+                        }
+                    }
+                }
+            }
+
+            if dir == &col_path {
+                break;
+            }
+            current_dir = dir.parent().map(|p| p.to_path_buf());
+        }
+    }
+
+    if let Some(col_path_str) = collection_path {
+        let col_path = PathBuf::from(col_path_str);
+        let cortex_yaml = col_path.join("cortex.yaml");
+        if cortex_yaml.exists() {
+            if let Ok(collection) = Collection::load_manifest_no_envs(col_path_str) {
+                if let Some(auth) = collection.manifest.auth {
+                    return Ok(Some(auth));
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 #[derive(Serialize, Deserialize, Type)]
 pub struct SendRequestPayload {
     pub request_id: String,
@@ -821,6 +1002,7 @@ pub struct SendRequestPayload {
     pub method: String,
     pub url: String,
     pub headers: Vec<HeaderEntry>,
+    pub auth: Option<AuthRef>,
     pub body: Option<cortex_core::request::RequestBody>,
     pub settings: Option<cortex_core::request::Settings>,
 }
@@ -1028,14 +1210,79 @@ pub async fn send_request(
                 }
             }
 
-            let (rendered_headers, headers_warnings, headers_captured) = gather_and_render_headers(
+            let (mut rendered_headers, headers_warnings, headers_captured) = gather_and_render_headers(
                 &mut resolver,
-                metadata.collection_path,
-                metadata.request_path,
+                metadata.collection_path.clone(),
+                metadata.request_path.clone(),
                 payload.headers,
                 true,
             );
             captured.extend(headers_captured);
+
+            // Resolve effective auth
+            let effective_auth = resolve_effective_auth(
+                &metadata.request_path,
+                &metadata.collection_path,
+                &payload.auth,
+            )?;
+
+            let mut final_url = result.text.clone();
+
+            if let Some(auth) = effective_auth {
+                if auth.r#type != "none" {
+                    // Pre-send validation checks
+                    let mut resolved_config = BTreeMap::new();
+                    for (k, v) in &auth.config {
+                        let render_res = resolver.render(v);
+                        captured.extend(render_res.captured_variables);
+
+                        // Check for nested variable placeholders
+                        if render_res.text.contains("{{") && render_res.text.contains("}}") {
+                            body_warnings.push("Warning: Auth value contains nested variable placeholders which were not recursively expanded.".to_string());
+                        }
+
+                        resolved_config.insert(k.clone(), render_res.text);
+                    }
+
+                    // 1. Required fields check
+                    if auth.r#type == "bearer_token" {
+                        let token = resolved_config.get("token").cloned().unwrap_or_default();
+                        if token.trim().is_empty() {
+                            return Err("Validation Error: Bearer Token is empty after variable resolution.".to_string());
+                        }
+
+                        // 2. HTTP header safety checks
+                        if !token.chars().all(|c| c.is_ascii() && !c.is_control() && c != '\r' && c != '\n') {
+                            return Err("Validation Error: Auth value contains invalid characters for an HTTP header.".to_string());
+                        }
+
+                        // Inject Bearer Token
+                        let header_val = format!("Bearer {}", token);
+                        inject_header_case_insensitive(&mut rendered_headers, "Authorization", &header_val);
+                    } else if auth.r#type == "api_key" {
+                        let key_name = resolved_config.get("key").cloned().unwrap_or_default();
+                        let key_value = resolved_config.get("value").cloned().unwrap_or_default();
+                        let placement = resolved_config.get("addTo").cloned().unwrap_or_else(|| "header".to_string());
+
+                        if key_name.trim().is_empty() || key_value.trim().is_empty() {
+                            return Err("Validation Error: API Key auth is incomplete after variable resolution.".to_string());
+                        }
+
+                        if placement == "header" {
+                            // HTTP header safety checks
+                            if !key_name.chars().all(|c| c.is_ascii() && !c.is_control() && c != '\r' && c != '\n')
+                                || !key_value.chars().all(|c| c.is_ascii() && !c.is_control() && c != '\r' && c != '\n')
+                            {
+                                return Err("Validation Error: Auth value contains invalid characters for an HTTP header.".to_string());
+                            }
+
+                            inject_header_case_insensitive(&mut rendered_headers, &key_name, &key_value);
+                        } else {
+                            inject_query_param(&mut final_url, &key_name, &key_value);
+                        }
+                    }
+                }
+            }
 
             let mut all_warnings = result
                 .warnings
@@ -1056,7 +1303,7 @@ pub async fn send_request(
                     bool,
                 ),
                 String,
-            >((result.text, req_body, rendered_headers, all_warnings, captured, Some(timeout_val), follow_redirects))
+            >((final_url, req_body, rendered_headers, all_warnings, captured, Some(timeout_val), follow_redirects))
         })
         .await
         .map_err(|e| e.to_string())??;

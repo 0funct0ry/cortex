@@ -109,6 +109,8 @@ pub struct RequestFileWrapper {
 pub struct FolderManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthRef>,
 }
 
 impl FolderManifest {
@@ -541,7 +543,7 @@ description: \"Description\"
     fn test_folder_manifest_roundtrip() {
         let mut headers = BTreeMap::new();
         headers.insert("X-Folder-Level".to_string(), "true".to_string());
-        let manifest = FolderManifest { headers: Some(headers) };
+        let manifest = FolderManifest { headers: Some(headers), auth: None };
         let yaml = manifest.to_yaml().unwrap();
         let decoded = FolderManifest::from_yaml(&yaml).unwrap();
         assert_eq!(manifest, decoded);

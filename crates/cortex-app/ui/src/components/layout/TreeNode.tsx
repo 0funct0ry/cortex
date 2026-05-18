@@ -9,6 +9,7 @@ import { commands } from '../../bindings'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { toast } from '../../stores/toastStore'
+import { SettingsModal } from '../ui/SettingsModal'
 
 interface TreeNodeProps {
   label: string
@@ -43,8 +44,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [isRenaming, setIsRenaming] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const { searchQuery } = useCollectionStore()
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const { searchQuery, collections } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
+
+  const collectionPath = useMemo(() => {
+    if (type === 'collection') return path
+    for (const colPath of Object.keys(collections)) {
+      if (path.startsWith(colPath)) return colPath
+    }
+    return ''
+  }, [type, path, collections])
 
   const indentation = depth * 12 + 12
 
@@ -121,6 +131,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         { label: 'New Folder', onClick: handleCreateFolder },
         { label: '', separator: true },
         ...common,
+        { label: 'Settings', onClick: () => setIsSettingsOpen(true) },
         { label: '', separator: true },
         { label: 'Open in File Explorer', onClick: () => commands.openInExplorer(path) },
         { label: '', separator: true },
@@ -144,6 +155,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         { label: '', separator: true },
         ...common,
         { label: 'Duplicate', onClick: handleDuplicate },
+        { label: 'Settings', onClick: () => setIsSettingsOpen(true) },
         { label: '', separator: true },
         { label: 'Delete Folder', danger: true, onClick: () => setShowDeleteConfirm(true) },
       ]
@@ -314,6 +326,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         confirmLabel="Delete"
         variant="danger"
       />
+
+      {isSettingsOpen && (
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          type={type as 'collection' | 'folder'}
+          path={path}
+          name={label}
+          collectionPath={collectionPath}
+        />
+      )}
     </div>
   )
 }

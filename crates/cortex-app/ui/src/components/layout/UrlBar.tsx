@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react'
+import React, { useEffect, useCallback, useMemo } from 'react'
 import * as Icons from '../ui/Icons'
 import MethodSelector from '../composer/MethodSelector'
 import UrlInput from '../composer/UrlInput'
@@ -11,15 +11,39 @@ import { useResponseStore } from '../../stores/responseStore'
 import { commands } from '../../bindings'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { toast } from '../../stores/toastStore'
+import { useCollectionStore } from '../../stores/collectionStore'
+import { getEffectiveAuth } from '../composer/AuthTab'
 
 const UrlBar: React.FC = () => {
-  const { activeTab, activeTabId, updateTab } = useTabs()
+  const { tabs, activeTab, activeTabId, updateTab } = useTabs()
   const { activeWorkspacePath } = useWorkspaceStore()
   const { updateRequest, setInFlight } = useRequestStore()
   const { setResponse } = useResponseStore()
   const tabState = useRequestStore((s) =>
     activeTabId ? s.requestStates[activeTabId] || s.getRequestState(activeTabId) : null
   )
+  const { collections } = useCollectionStore()
+
+  const { disabled, disabledReason } = useMemo(() => {
+    if (!activeTabId || !tabState) return { disabled: false }
+    const localAuth = tabState.auth || { type: 'none', config: {} }
+    const { auth: effectiveAuth } = getEffectiveAuth(activeTabId, tabs, collections, localAuth)
+    const effectiveConfig = (effectiveAuth.config || {}) as Record<string, string>
+
+    if (effectiveAuth.type === 'bearer_token') {
+      const token = effectiveConfig.token || ''
+      if (!token.trim()) {
+        return { disabled: true, disabledReason: 'Bearer Token is empty' }
+      }
+    } else if (effectiveAuth.type === 'api_key') {
+      const key = effectiveConfig.key || ''
+      const value = effectiveConfig.value || ''
+      if (!key.trim() || !value.trim()) {
+        return { disabled: true, disabledReason: 'API Key auth is incomplete' }
+      }
+    }
+    return { disabled: false }
+  }, [activeTabId, tabState, tabs, collections])
 
   const handleSend = useCallback(async () => {
     if (!activeTabId || !activeTab || !tabState || tabState.inFlight) return
@@ -36,6 +60,15 @@ const UrlBar: React.FC = () => {
       const normalizeBodyType = (t: string) =>
         t === 'form-data' ? 'form_data' : t === 'url-encoded' ? 'url_encoded' : t
 
+      // Flatten nested UI store auth configuration to the flat AuthRef expected by backend
+      let authPayload = null
+      if (tabState.auth && tabState.auth.type !== 'none') {
+        authPayload = {
+          type: tabState.auth.type,
+          ...tabState.auth.config,
+        }
+      }
+
       // Gathers all fields from the store
       const payload = {
         request_id: requestId,
@@ -45,6 +78,7 @@ const UrlBar: React.FC = () => {
         headers: tabState.headers.filter(
           (h) => h.enabled && (h.key.trim() !== '' || h.value.trim() !== '')
         ),
+        auth: authPayload,
         body:
           tabState.body.type !== 'none'
             ? {
@@ -192,7 +226,13 @@ const UrlBar: React.FC = () => {
         </Tooltip>
       </div>
 
-      <SendButton inFlight={tabState.inFlight} onSend={handleSend} onCancel={handleCancel} />
+      <SendButton
+        inFlight={tabState.inFlight}
+        onSend={handleSend}
+        onCancel={handleCancel}
+        disabled={disabled}
+        disabledReason={disabledReason}
+      />
     </div>
   )
 }

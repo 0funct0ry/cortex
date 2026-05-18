@@ -428,7 +428,17 @@ export const useRequestStore = create<RequestState>((set, get) => ({
               file_path: data.body.type === 'file' ? data.body.filePath : undefined,
               file_filter: data.body.type === 'file' ? data.body.fileFilter : undefined,
             },
-      auth: data.auth.type === 'none' ? null : (data.auth as unknown as AuthRef),
+      auth:
+        data.auth.type === 'none'
+          ? null
+          : (() => {
+              const cleanConfig = { ...data.auth.config }
+              delete cleanConfig.type
+              return {
+                type: data.auth.type,
+                ...cleanConfig,
+              } as unknown as AuthRef
+            })(),
       scripts: { pre: data.scripts.pre, post: data.scripts.post },
       tests: data.tests,
       settings: {

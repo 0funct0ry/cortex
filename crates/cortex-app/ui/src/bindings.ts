@@ -177,6 +177,38 @@ async updateCollectionVariables(collectionPath: string, variables: Variable[]) :
     else return { status: "error", error: e  as any };
 }
 },
+async updateCollectionAuth(collectionPath: string, auth: AuthRef | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_collection_auth", { collectionPath, auth }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateFolderAuth(folderPath: string, auth: AuthRef | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_folder_auth", { folderPath, auth }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateCollectionHeaders(collectionPath: string, headers: { [key in string]: string } | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_collection_headers", { collectionPath, headers }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateFolderHeaders(folderPath: string, headers: { [key in string]: string } | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_folder_headers", { folderPath, headers }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async updateEnvironmentVariables(workspacePath: string, environmentName: string, variables: Variable[]) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_environment_variables", { workspacePath, environmentName, variables }) };
@@ -378,7 +410,7 @@ export type Folder = { name: string; path: string; relative_path: string; manife
 /**
  * Represents the optional `folder.yaml` configuration inside a folder directory.
  */
-export type FolderManifest = { headers?: { [key in string]: string } | null }
+export type FolderManifest = { headers?: { [key in string]: string } | null; auth?: AuthRef | null }
 export type FormEntry = { key: string; value: string; is_file: boolean; file_path: string; enabled: boolean }
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean; is_valueless?: boolean | null }
@@ -454,7 +486,7 @@ captured_variables: { [key in string]: string }; executed_at: string; duration_m
 export type RequestMetadata = { workspace_path: string | null; collection_path: string | null; environment_name: string | null; request_path: string | null }
 export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean; description?: string | null }
 export type Scripts = { pre?: string | null; post?: string | null }
-export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; body: RequestBody | null; settings: Settings | null }
+export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; auth: AuthRef | null; body: RequestBody | null; settings: Settings | null }
 export type Settings = { timeout?: string | null; redirect_behavior?: string | null }
 /**
  * A template syntax error encountered during parsing or rendering.
