@@ -1019,7 +1019,7 @@ pub async fn send_request(
     let ephemeral_vars: Vec<Variable> =
         ephemeral_store.0.lock().unwrap().values().cloned().collect();
 
-    let (url, body, rendered_headers, warnings, captured_variables, timeout_ms, follow_redirects) =
+    let (url, body, rendered_headers, warnings, captured_variables, timeout_ms, follow_redirects, digest_auth) =
         tauri::async_runtime::spawn_blocking(move || {
             let mut resolver = cortex_core::variables::VariableResolver::new();
             populate_resolver(
@@ -1227,6 +1227,7 @@ pub async fn send_request(
             )?;
 
             let mut final_url = result.text.clone();
+            let mut digest_auth_tuple = None;
 
             if let Some(auth) = effective_auth {
                 if auth.r#type != "none" {
@@ -1280,6 +1281,28 @@ pub async fn send_request(
                         } else {
                             inject_query_param(&mut final_url, &key_name, &key_value);
                         }
+                    } else if auth.r#type == "basic" {
+                        let username = resolved_config.get("username").cloned().unwrap_or_default();
+                        let password = resolved_config.get("password").cloned().unwrap_or_default();
+
+                        if username.trim().is_empty() && password.trim().is_empty() {
+                            return Err("Validation Error: Basic Auth credentials are empty after variable resolution.".to_string());
+                        }
+
+                        use base64::Engine;
+                        let credentials = format!("{}:{}", username, password);
+                        let encoded = base64::engine::general_purpose::STANDARD.encode(credentials.as_bytes());
+                        let header_val = format!("Basic {}", encoded);
+                        inject_header_case_insensitive(&mut rendered_headers, "Authorization", &header_val);
+                    } else if auth.r#type == "digest" {
+                        let username = resolved_config.get("username").cloned().unwrap_or_default();
+                        let password = resolved_config.get("password").cloned().unwrap_or_default();
+
+                        if username.trim().is_empty() && password.trim().is_empty() {
+                            return Err("Validation Error: Digest Auth credentials are empty after variable resolution.".to_string());
+                        }
+
+                        digest_auth_tuple = Some((username, password));
                     }
                 }
             }
@@ -1292,6 +1315,17 @@ pub async fn send_request(
             all_warnings.extend(headers_warnings);
             all_warnings.extend(body_warnings);
 
+            let mut masked_captured = BTreeMap::new();
+            for (k, v) in captured {
+                if let Some(resolved) = resolver.resolve(&k) {
+                    if resolved.secret {
+                        masked_captured.insert(k, "********".to_string());
+                        continue;
+                    }
+                }
+                masked_captured.insert(k, v);
+            }
+
             Ok::<
                 (
                     String,
@@ -1301,9 +1335,10 @@ pub async fn send_request(
                     BTreeMap<String, String>,
                     Option<u32>,
                     bool,
+                    Option<(String, String)>,
                 ),
                 String,
-            >((final_url, req_body, rendered_headers, all_warnings, captured, Some(timeout_val), follow_redirects))
+            >((final_url, req_body, rendered_headers, all_warnings, masked_captured, Some(timeout_val), follow_redirects, digest_auth_tuple))
         })
         .await
         .map_err(|e| e.to_string())??;
@@ -1320,6 +1355,7 @@ pub async fn send_request(
                 body,
                 timeout_ms,
                 follow_redirects,
+                digest_auth,
             )
             .await;
 

@@ -114,6 +114,8 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
   // Masking states
   const [isApiKeyMasked, setIsApiKeyMasked] = useState(true)
   const [isBearerMasked, setIsBearerMasked] = useState(true)
+  const [isBasicPasswordMasked, setIsBasicPasswordMasked] = useState(true)
+  const [isDigestPasswordMasked, setIsDigestPasswordMasked] = useState(true)
 
   // Switch warning states
   const [pendingType, setPendingType] = useState<string | null>(null)
@@ -140,7 +142,11 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
   // Detect conflicts with manually defined headers
   const headerConflictKey = useMemo(() => {
     const headers = requestData?.headers || []
-    if (effectiveAuth.type === 'bearer_token') {
+    if (
+      effectiveAuth.type === 'bearer_token' ||
+      effectiveAuth.type === 'basic' ||
+      effectiveAuth.type === 'digest'
+    ) {
       const hasAuthHeader = headers.some(
         (h) => h.enabled && h.key.toLowerCase() === 'authorization'
       )
@@ -173,6 +179,14 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
         (key.includes('{{') && key.includes('}}')) || (value.includes('{{') && value.includes('}}'))
       )
     }
+    if (effectiveAuth.type === 'basic' || effectiveAuth.type === 'digest') {
+      const username = effectiveConfig.username || ''
+      const password = effectiveConfig.password || ''
+      return (
+        (username.includes('{{') && username.includes('}}')) ||
+        (password.includes('{{') && password.includes('}}'))
+      )
+    }
     return false
   }, [effectiveAuth, effectiveConfig])
 
@@ -182,7 +196,9 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
     // Guard if non-empty fields exist
     const hasFields =
       (auth.type === 'api_key' && (config.key || config.value)) ||
-      (auth.type === 'bearer_token' && config.token)
+      (auth.type === 'bearer_token' && config.token) ||
+      (auth.type === 'basic' && (config.username || config.password)) ||
+      (auth.type === 'digest' && (config.username || config.password))
 
     if (hasFields) {
       setPendingType(type)
@@ -343,7 +359,16 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
               </svg>
               <div className="text-xs text-text-primary font-medium">
                 Switching auth type will clear the current{' '}
-                {auth.type === 'api_key' ? 'API Key' : 'Bearer Token'} configuration. Continue?
+                {auth.type === 'api_key'
+                  ? 'API Key'
+                  : auth.type === 'bearer_token'
+                    ? 'Bearer Token'
+                    : auth.type === 'basic'
+                      ? 'Basic Auth'
+                      : auth.type === 'digest'
+                        ? 'Digest Auth'
+                        : 'No Auth'}{' '}
+                configuration. Continue?
               </div>
             </div>
             <div className="flex gap-2 justify-end">
@@ -414,11 +439,23 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
           >
             <option value="none">
               {source !== 'local' && source !== 'none'
-                ? `Inherit from ${source === 'collection' ? 'Collection' : 'Folder'} (${effectiveAuth.type === 'api_key' ? 'API Key' : 'Bearer Token'})`
+                ? `Inherit from ${source === 'collection' ? 'Collection' : 'Folder'} (${
+                    effectiveAuth.type === 'api_key'
+                      ? 'API Key'
+                      : effectiveAuth.type === 'bearer_token'
+                        ? 'Bearer Token'
+                        : effectiveAuth.type === 'basic'
+                          ? 'Basic Auth'
+                          : effectiveAuth.type === 'digest'
+                            ? 'Digest Auth'
+                            : effectiveAuth.type
+                  })`
                 : 'No Auth'}
             </option>
             <option value="api_key">API Key</option>
             <option value="bearer_token">Bearer Token</option>
+            <option value="basic">Basic Auth</option>
+            <option value="digest">Digest Auth</option>
           </select>
         </div>
 
@@ -506,6 +543,94 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
                   title={isBearerMasked ? 'Show token' : 'Hide token'}
                 >
                   {isBearerMasked ? <Icons.Eye size={16} /> : <Icons.EyeOff size={16} />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Basic Auth Form */}
+        {effectiveAuth.type === 'basic' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Username
+              </label>
+              <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                <VariableInput
+                  value={effectiveConfig.username || ''}
+                  onChange={(val) => handleConfigChange('username', val)}
+                  placeholder="Username or {{username_var}}"
+                  readOnly={source !== 'local'}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Password
+              </label>
+              <div className="flex gap-2">
+                <div className="flex-1 h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.password || ''}
+                    onChange={(val) => handleConfigChange('password', val)}
+                    placeholder="Password or {{password_var}}"
+                    masked={isBasicPasswordMasked}
+                    type={isBasicPasswordMasked ? 'password' : 'text'}
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+                <button
+                  onClick={() => setIsBasicPasswordMasked(!isBasicPasswordMasked)}
+                  className="h-9 w-9 bg-bg-muted hover:bg-bg-highlight border border-border-default hover:border-border-strong rounded flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+                  title={isBasicPasswordMasked ? 'Show password' : 'Hide password'}
+                >
+                  {isBasicPasswordMasked ? <Icons.Eye size={16} /> : <Icons.EyeOff size={16} />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Digest Auth Form */}
+        {effectiveAuth.type === 'digest' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Username
+              </label>
+              <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                <VariableInput
+                  value={effectiveConfig.username || ''}
+                  onChange={(val) => handleConfigChange('username', val)}
+                  placeholder="Username or {{username_var}}"
+                  readOnly={source !== 'local'}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Password
+              </label>
+              <div className="flex gap-2">
+                <div className="flex-1 h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.password || ''}
+                    onChange={(val) => handleConfigChange('password', val)}
+                    placeholder="Password or {{password_var}}"
+                    masked={isDigestPasswordMasked}
+                    type={isDigestPasswordMasked ? 'password' : 'text'}
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+                <button
+                  onClick={() => setIsDigestPasswordMasked(!isDigestPasswordMasked)}
+                  className="h-9 w-9 bg-bg-muted hover:bg-bg-highlight border border-border-default hover:border-border-strong rounded flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+                  title={isDigestPasswordMasked ? 'Show password' : 'Hide password'}
+                >
+                  {isDigestPasswordMasked ? <Icons.Eye size={16} /> : <Icons.EyeOff size={16} />}
                 </button>
               </div>
             </div>

@@ -35,6 +35,7 @@ impl HttpExecutor {
         body: Option<RequestBody>,
         timeout_ms: Option<u32>,
         follow_redirects: bool,
+        digest_auth: Option<(String, String)>,
     ) -> RequestHistoryEntry {
         let executed_at = RequestHistoryEntry::now_iso();
         let id = RequestHistoryEntry::random_id();
@@ -49,6 +50,9 @@ impl HttpExecutor {
 
         let max_redirects = 10;
         let mut redirect_count = 0;
+
+        let mut digest_header_val: Option<String> = None;
+        let mut digest_attempted = false;
 
         loop {
             let method_enum = match Method::from_bytes(current_method.as_bytes()) {
@@ -72,7 +76,14 @@ impl HttpExecutor {
                         continue; // Skip user-provided Content-Type header so reqwest can generate it with the correct boundary parameter
                     }
                 }
+                if key.eq_ignore_ascii_case("authorization") && digest_header_val.is_some() {
+                    continue; // Skip user-provided auth if we are injecting our calculated digest header
+                }
                 req_builder = req_builder.header(key, value);
+            }
+
+            if let Some(ref dh) = digest_header_val {
+                req_builder = req_builder.header("Authorization", dh);
             }
 
             if let Some(b) = &current_body {
@@ -206,6 +217,51 @@ impl HttpExecutor {
             match response_result {
                 Ok(resp) => {
                     let status = resp.status();
+
+                    // Transparent Digest challenge-response handshake
+                    if status == reqwest::StatusCode::UNAUTHORIZED
+                        && digest_auth.is_some()
+                        && !digest_attempted
+                    {
+                        if let Some(auth_header) =
+                            resp.headers().get(reqwest::header::WWW_AUTHENTICATE)
+                        {
+                            if let Ok(auth_str) = auth_header.to_str() {
+                                if auth_str.to_lowercase().starts_with("digest ") {
+                                    if let Some(challenge) = parse_digest_challenge(auth_str) {
+                                        let cnonce = format!("{:x}", rand::random::<u32>());
+                                        let nc = 1;
+                                        let method_str = method_enum.to_string();
+                                        let uri = if let Ok(parsed) = Url::parse(&current_url) {
+                                            if let Some(q) = parsed.query() {
+                                                format!("{}?{}", parsed.path(), q)
+                                            } else {
+                                                parsed.path().to_string()
+                                            }
+                                        } else {
+                                            "/".to_string()
+                                        };
+                                        if let Some((uname, pwd)) = digest_auth.as_ref() {
+                                            if let Some(digest_header) = compute_digest_response(
+                                                uname,
+                                                pwd,
+                                                &method_str,
+                                                &uri,
+                                                &challenge,
+                                                nc,
+                                                &cnonce,
+                                            ) {
+                                                digest_header_val = Some(digest_header);
+                                                digest_attempted = true;
+                                                continue; // Retry the request with Authorization header
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if status.is_redirection() && follow_redirects {
                         if redirect_count >= max_redirects {
                             return RequestHistoryEntry {
@@ -361,5 +417,160 @@ impl HttpExecutor {
                 }
             }
         }
+    }
+}
+
+fn parse_digest_challenge(header_val: &str) -> Option<BTreeMap<String, String>> {
+    if !header_val.to_lowercase().starts_with("digest ") {
+        return None;
+    }
+    let mut params = BTreeMap::new();
+    let challenge = &header_val[7..];
+
+    let mut chars = challenge.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c.is_whitespace() {
+            continue;
+        }
+        let mut key = String::new();
+        key.push(c);
+        while let Some(&next_c) = chars.peek() {
+            if next_c == '=' {
+                chars.next();
+                break;
+            }
+            key.push(chars.next().unwrap());
+        }
+        let key = key.trim().to_string();
+
+        let mut value = String::new();
+        let mut in_quotes = false;
+        while let Some(&next_c) = chars.peek() {
+            if next_c == '"' {
+                in_quotes = !in_quotes;
+                chars.next();
+            } else if next_c == ',' && !in_quotes {
+                chars.next();
+                break;
+            } else {
+                value.push(chars.next().unwrap());
+            }
+        }
+        params.insert(key, value.trim().to_string());
+    }
+    Some(params)
+}
+
+fn compute_digest_response(
+    username: &str,
+    password: &str,
+    method: &str,
+    uri: &str,
+    challenge: &BTreeMap<String, String>,
+    nc: u32,
+    cnonce: &str,
+) -> Option<String> {
+    let realm = challenge.get("realm")?;
+    let nonce = challenge.get("nonce")?;
+    let opaque = challenge.get("opaque");
+    let algorithm = challenge.get("algorithm").map(|s| s.as_str()).unwrap_or("MD5");
+    let qop = challenge.get("qop");
+
+    let ha1_base = format!("{}:{}:{}", username, realm, password);
+    let ha1_hash = format!("{:x}", md5::compute(ha1_base.as_bytes()));
+    let ha1 = if algorithm.eq_ignore_ascii_case("md5-sess") {
+        let sess_base = format!("{}:{}:{}", ha1_hash, nonce, cnonce);
+        format!("{:x}", md5::compute(sess_base.as_bytes()))
+    } else {
+        ha1_hash
+    };
+
+    let ha2_base = format!("{}:{}", method, uri);
+    let ha2 = format!("{:x}", md5::compute(ha2_base.as_bytes()));
+
+    let nc_str = format!("{:08x}", nc);
+    let response = if let Some(qop_val) = qop {
+        if qop_val == "auth" || qop_val == "auth-int" {
+            let resp_base = format!("{}:{}:{}:{}:{}:{}", ha1, nonce, nc_str, cnonce, qop_val, ha2);
+            format!("{:x}", md5::compute(resp_base.as_bytes()))
+        } else {
+            let resp_base = format!("{}:{}:{}", ha1, nonce, ha2);
+            format!("{:x}", md5::compute(resp_base.as_bytes()))
+        }
+    } else {
+        let resp_base = format!("{}:{}:{}", ha1, nonce, ha2);
+        format!("{:x}", md5::compute(resp_base.as_bytes()))
+    };
+
+    let mut parts = vec![
+        format!("username=\"{}\"", username),
+        format!("realm=\"{}\"", realm),
+        format!("nonce=\"{}\"", nonce),
+        format!("uri=\"{}\"", uri),
+        format!("response=\"{}\"", response),
+    ];
+
+    if let Some(alg) = challenge.get("algorithm") {
+        parts.push(format!("algorithm={}", alg));
+    }
+    if let Some(op) = opaque {
+        parts.push(format!("opaque=\"{}\"", op));
+    }
+    if let Some(qop_val) = qop {
+        parts.push(format!("qop={}", qop_val));
+        parts.push(format!("nc={}", nc_str));
+        parts.push(format!("cnonce=\"{}\"", cnonce));
+    }
+
+    Some(format!("Digest {}", parts.join(", ")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_digest_challenge() {
+        let header = "Digest realm=\"MIA\", nonce=\"abcd\", qop=\"auth\", opaque=\"xyz\"";
+        let parsed = parse_digest_challenge(header).unwrap();
+        assert_eq!(parsed.get("realm").unwrap(), "MIA");
+        assert_eq!(parsed.get("nonce").unwrap(), "abcd");
+        assert_eq!(parsed.get("qop").unwrap(), "auth");
+        assert_eq!(parsed.get("opaque").unwrap(), "xyz");
+
+        let header_unquoted = "Digest realm=MIA, nonce=1234, algorithm=MD5";
+        let parsed_unquoted = parse_digest_challenge(header_unquoted).unwrap();
+        assert_eq!(parsed_unquoted.get("realm").unwrap(), "MIA");
+        assert_eq!(parsed_unquoted.get("nonce").unwrap(), "1234");
+        assert_eq!(parsed_unquoted.get("algorithm").unwrap(), "MD5");
+    }
+
+    #[test]
+    fn test_compute_digest_response() {
+        let mut challenge = BTreeMap::new();
+        challenge.insert("realm".to_string(), "test_realm".to_string());
+        challenge.insert("nonce".to_string(), "test_nonce".to_string());
+        challenge.insert("qop".to_string(), "auth".to_string());
+        challenge.insert("opaque".to_string(), "test_opaque".to_string());
+
+        let res = compute_digest_response(
+            "user1",
+            "pass1",
+            "GET",
+            "/api/v1/test",
+            &challenge,
+            1,
+            "client_nonce_val",
+        )
+        .unwrap();
+
+        assert!(res.contains("username=\"user1\""));
+        assert!(res.contains("realm=\"test_realm\""));
+        assert!(res.contains("nonce=\"test_nonce\""));
+        assert!(res.contains("uri=\"/api/v1/test\""));
+        assert!(res.contains("response="));
+        assert!(res.contains("qop=auth"));
+        assert!(res.contains("nc=00000001"));
+        assert!(res.contains("cnonce=\"client_nonce_val\""));
     }
 }

@@ -12,6 +12,7 @@ specta = { workspace = true }
 tauri-specta = { workspace = true }
 specta-typescript = { workspace = true }
 cortex-core = { workspace = true }
+base64 = "0.21"
 dirs = { workspace = true }
 tauri-plugin-dialog = { workspace = true }
 tokio = { version = "1", features = ["full"] }
