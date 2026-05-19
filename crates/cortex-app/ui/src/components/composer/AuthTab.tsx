@@ -4,10 +4,12 @@ import React, { useState, useMemo } from 'react'
 import { useRequestStore } from '../../stores/requestStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useEnvironmentStore } from '../../stores/environmentStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { VariableInput } from './VariableInput'
 import * as Icons from '../ui/Icons'
 
+import { commands } from '../../bindings'
 import type { CollectionItem, Folder } from '../../bindings'
 
 interface AuthTabProps {
@@ -116,6 +118,15 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
   const [isBearerMasked, setIsBearerMasked] = useState(true)
   const [isBasicPasswordMasked, setIsBasicPasswordMasked] = useState(true)
   const [isDigestPasswordMasked, setIsDigestPasswordMasked] = useState(true)
+  const [isClientSecretMasked, setIsClientSecretMasked] = useState(true)
+  const [isOAuthPasswordMasked, setIsOAuthPasswordMasked] = useState(true)
+  const [isAccessTokenMasked, setIsAccessTokenMasked] = useState(true)
+  const [isRefreshTokenMasked, setIsRefreshTokenMasked] = useState(true)
+
+  // Token fetching states
+  const [isFetchingToken, setIsFetchingToken] = useState(false)
+  const [oauthError, setOauthError] = useState<string | null>(null)
+  const [oauthSuccess, setOauthSuccess] = useState<string | null>(null)
 
   // Switch warning states
   const [pendingType, setPendingType] = useState<string | null>(null)
@@ -145,7 +156,8 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
     if (
       effectiveAuth.type === 'bearer_token' ||
       effectiveAuth.type === 'basic' ||
-      effectiveAuth.type === 'digest'
+      effectiveAuth.type === 'digest' ||
+      effectiveAuth.type === 'oauth2'
     ) {
       const hasAuthHeader = headers.some(
         (h) => h.enabled && h.key.toLowerCase() === 'authorization'
@@ -187,6 +199,11 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
         (password.includes('{{') && password.includes('}}'))
       )
     }
+    if (effectiveAuth.type === 'oauth2') {
+      return Object.values(effectiveConfig).some(
+        (v) => typeof v === 'string' && v.includes('{{') && v.includes('}}')
+      )
+    }
     return false
   }, [effectiveAuth, effectiveConfig])
 
@@ -198,13 +215,22 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
       (auth.type === 'api_key' && (config.key || config.value)) ||
       (auth.type === 'bearer_token' && config.token) ||
       (auth.type === 'basic' && (config.username || config.password)) ||
-      (auth.type === 'digest' && (config.username || config.password))
+      (auth.type === 'digest' && (config.username || config.password)) ||
+      (auth.type === 'oauth2' && Object.values(config).some((v) => !!v))
 
     if (hasFields) {
       setPendingType(type)
     } else {
       updateRequest(requestId, {
-        auth: { type, config: type === 'api_key' ? { addTo: 'header' } : {} },
+        auth: {
+          type,
+          config:
+            type === 'api_key'
+              ? { addTo: 'header' }
+              : type === 'oauth2'
+                ? { grantType: 'authorization_code' }
+                : {},
+        },
       })
     }
   }
@@ -214,7 +240,12 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
       updateRequest(requestId, {
         auth: {
           type: pendingType,
-          config: pendingType === 'api_key' ? { addTo: 'header' } : {},
+          config:
+            pendingType === 'api_key'
+              ? { addTo: 'header' }
+              : pendingType === 'oauth2'
+                ? { grantType: 'authorization_code' }
+                : {},
         },
       })
       setPendingType(null)
@@ -230,9 +261,125 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
     })
   }
 
+  const handleBatchConfigChange = (changes: Record<string, string>) => {
+    updateRequest(requestId, {
+      auth: {
+        ...auth,
+        config: { ...config, ...changes },
+      },
+    })
+  }
+
   // Paste interceptor to catch "Bearer " prefix
   const handleBearerPaste = (_e: React.ClipboardEvent) => {
     // Handled automatically via derived state on token change
+  }
+
+  const activeTab = useTabs().tabs.find((t) => t.id === requestId)
+  const workspacePath = useWorkspaceStore.getState().activeWorkspacePath || null
+  const activeEnvironment = useEnvironmentStore((state) => state.activeEnvironmentName)
+
+  // Derived oauth values
+  const grantType = effectiveConfig.grantType || 'authorization_code'
+  const tokenEndpoint = effectiveConfig.tokenEndpoint || ''
+  const authEndpoint = effectiveConfig.authEndpoint || ''
+  const clientId = effectiveConfig.clientId || ''
+  const clientSecret = effectiveConfig.clientSecret || ''
+  const scope = effectiveConfig.scope || ''
+  const username = effectiveConfig.username || ''
+  const password = effectiveConfig.password || ''
+  const additionalParams = effectiveConfig.additionalParams || ''
+  const redirectUriMode = effectiveConfig.redirectUriMode || 'default'
+  const customRedirectUri = effectiveConfig.customRedirectUri || ''
+  const refreshToken = effectiveConfig.refreshToken || ''
+
+  const handleFetchToken = async () => {
+    setIsFetchingToken(true)
+    setOauthError(null)
+    setOauthSuccess(null)
+    try {
+      const res = await commands.oauth2FetchToken({
+        grantType,
+        tokenEndpoint: tokenEndpoint || null,
+        authEndpoint: authEndpoint || null,
+        clientId: clientId || null,
+        clientSecret: clientSecret || null,
+        scope: scope || null,
+        username: username || null,
+        password: password || null,
+        additionalParams: additionalParams || null,
+        redirectUriMode: redirectUriMode || null,
+        customRedirectUri: customRedirectUri || null,
+        workspacePath,
+        collectionPath: activeTab?.collectionId
+          ? useCollectionStore.getState().collections[activeTab.collectionId]?.path || null
+          : null,
+        environmentName: activeEnvironment || null,
+      })
+
+      if (res.status === 'error') {
+        throw new Error(res.error)
+      }
+
+      const data = res.data
+      if (data.accessToken) {
+        handleBatchConfigChange({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken || '',
+          expiresAt: data.expiresAt || '',
+        })
+        setOauthSuccess('Access Token successfully acquired!')
+      } else {
+        throw new Error('No access_token returned by backend.')
+      }
+    } catch (err: any) {
+      console.error(err)
+      setOauthError(err.message || 'Failed to fetch access token.')
+    } finally {
+      setIsFetchingToken(false)
+    }
+  }
+
+  const handleRefreshToken = async () => {
+    if (!refreshToken || !tokenEndpoint || !clientId) return
+    setIsFetchingToken(true)
+    setOauthError(null)
+    setOauthSuccess(null)
+    try {
+      const res = await commands.oauth2RefreshToken({
+        refreshToken,
+        tokenEndpoint,
+        clientId,
+        clientSecret: clientSecret || null,
+        additionalParams: additionalParams || null,
+        workspacePath,
+        collectionPath: activeTab?.collectionId
+          ? useCollectionStore.getState().collections[activeTab.collectionId]?.path || null
+          : null,
+        environmentName: activeEnvironment || null,
+      })
+
+      if (res.status === 'error') {
+        throw new Error(res.error)
+      }
+
+      const data = res.data
+      if (data.accessToken) {
+        handleBatchConfigChange({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken || refreshToken,
+          expiresAt: data.expiresAt || '',
+        })
+        setOauthSuccess('Access Token successfully refreshed!')
+      } else {
+        throw new Error('No access_token returned by backend during refresh.')
+      }
+    } catch (err: any) {
+      console.error(err)
+      setOauthError(err.message || 'Failed to refresh access token.')
+    } finally {
+      setIsFetchingToken(false)
+    }
   }
 
   return (
@@ -448,7 +595,9 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
                           ? 'Basic Auth'
                           : effectiveAuth.type === 'digest'
                             ? 'Digest Auth'
-                            : effectiveAuth.type
+                            : effectiveAuth.type === 'oauth2'
+                              ? 'OAuth 2.0'
+                              : effectiveAuth.type
                   })`
                 : 'No Auth'}
             </option>
@@ -456,6 +605,7 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
             <option value="bearer_token">Bearer Token</option>
             <option value="basic">Basic Auth</option>
             <option value="digest">Digest Auth</option>
+            <option value="oauth2">OAuth 2.0</option>
           </select>
         </div>
 
@@ -634,6 +784,439 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* OAuth 2.0 Form */}
+        {effectiveAuth.type === 'oauth2' && (
+          <div className="space-y-4">
+            {/* Status alerts */}
+            {oauthError && (
+              <div className="bg-error/10 border border-error/30 text-error text-xs rounded-md p-3 flex items-start gap-2.5 animate-in fade-in duration-200">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-error mt-0.5 shrink-0"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <div className="min-w-0 flex-1 break-words whitespace-pre-wrap">
+                  <div className="font-semibold mb-0.5">Authentication Error</div>
+                  <div>{oauthError}</div>
+                </div>
+              </div>
+            )}
+
+            {oauthSuccess && (
+              <div className="bg-success/10 border border-success/30 text-success text-xs rounded-md p-3 flex items-start gap-2.5 animate-in fade-in duration-200">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-success mt-0.5 shrink-0"
+                >
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                <div>
+                  <div className="font-semibold mb-0.5">Success</div>
+                  <div>{oauthSuccess}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Grant Type */}
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Grant Type
+              </label>
+              <select
+                value={effectiveConfig.grantType || 'authorization_code'}
+                onChange={(e) => handleConfigChange('grantType', e.target.value)}
+                disabled={source !== 'local'}
+                className="w-full h-9 bg-bg-surface border border-border-default hover:border-border-strong focus:border-accent rounded px-3 text-sm text-text-primary outline-none transition-colors cursor-pointer"
+              >
+                <option value="authorization_code">Authorization Code</option>
+                <option value="client_credentials">Client Credentials</option>
+                <option value="password">Resource Owner Password</option>
+                <option value="implicit">Implicit</option>
+              </select>
+            </div>
+
+            {/* Client Credentials & Config Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                  Client ID
+                </label>
+                <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.clientId || ''}
+                    onChange={(val) => handleConfigChange('clientId', val)}
+                    placeholder="Client ID or {{client_id}}"
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                  Client Secret
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-grow h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                    <VariableInput
+                      value={effectiveConfig.clientSecret || ''}
+                      onChange={(val) => handleConfigChange('clientSecret', val)}
+                      placeholder="Optional Secret or {{client_secret}}"
+                      masked={isClientSecretMasked}
+                      type={isClientSecretMasked ? 'password' : 'text'}
+                      readOnly={source !== 'local'}
+                    />
+                  </div>
+                  <button
+                    onClick={() => setIsClientSecretMasked(!isClientSecretMasked)}
+                    className="h-9 w-9 bg-bg-muted hover:bg-bg-highlight border border-border-default hover:border-border-strong rounded flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                    title={isClientSecretMasked ? 'Show secret' : 'Hide secret'}
+                  >
+                    {isClientSecretMasked ? <Icons.Eye size={16} /> : <Icons.EyeOff size={16} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Auth and/or Token Endpoints depending on Grant Type */}
+            {(effectiveConfig.grantType === 'authorization_code' ||
+              effectiveConfig.grantType === 'implicit') && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                    Authorization Endpoint
+                  </label>
+                  <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                    <VariableInput
+                      value={effectiveConfig.authEndpoint || ''}
+                      onChange={(val) => handleConfigChange('authEndpoint', val)}
+                      placeholder="https://example.com/oauth/authorize"
+                      readOnly={source !== 'local'}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                      Redirect URI Mode
+                    </label>
+                    <select
+                      value={effectiveConfig.redirectUriMode || 'default'}
+                      onChange={(e) => handleConfigChange('redirectUriMode', e.target.value)}
+                      disabled={source !== 'local'}
+                      className="w-full h-9 bg-bg-surface border border-border-default hover:border-border-strong focus:border-accent rounded px-3 text-sm text-text-primary outline-none transition-colors cursor-pointer"
+                    >
+                      <option value="default">Default Listener (Automatic)</option>
+                      <option value="custom">Custom Redirect URI</option>
+                    </select>
+                  </div>
+
+                  {effectiveConfig.redirectUriMode === 'custom' && (
+                    <div className="animate-in slide-in-from-right duration-200">
+                      <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                        Custom Redirect URI
+                      </label>
+                      <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                        <VariableInput
+                          value={effectiveConfig.customRedirectUri || ''}
+                          onChange={(val) => handleConfigChange('customRedirectUri', val)}
+                          placeholder="e.g. http://localhost:3000/callback"
+                          readOnly={source !== 'local'}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {effectiveConfig.grantType !== 'implicit' && (
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                  Token Endpoint
+                </label>
+                <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.tokenEndpoint || ''}
+                    onChange={(val) => handleConfigChange('tokenEndpoint', val)}
+                    placeholder="https://example.com/oauth/token"
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Password Grant Credentials */}
+            {effectiveConfig.grantType === 'password' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                    Username
+                  </label>
+                  <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                    <VariableInput
+                      value={effectiveConfig.username || ''}
+                      onChange={(val) => handleConfigChange('username', val)}
+                      placeholder="Username or {{username}}"
+                      readOnly={source !== 'local'}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                    Password
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-grow h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                      <VariableInput
+                        value={effectiveConfig.password || ''}
+                        onChange={(val) => handleConfigChange('password', val)}
+                        placeholder="Password or {{password}}"
+                        masked={isOAuthPasswordMasked}
+                        type={isOAuthPasswordMasked ? 'password' : 'text'}
+                        readOnly={source !== 'local'}
+                      />
+                    </div>
+                    <button
+                      onClick={() => setIsOAuthPasswordMasked(!isOAuthPasswordMasked)}
+                      className="h-9 w-9 bg-bg-muted hover:bg-bg-highlight border border-border-default hover:border-border-strong rounded flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                      title={isOAuthPasswordMasked ? 'Show password' : 'Hide password'}
+                    >
+                      {isOAuthPasswordMasked ? <Icons.Eye size={16} /> : <Icons.EyeOff size={16} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Scopes and customizable token prefix */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                  Scope
+                </label>
+                <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.scope || ''}
+                    onChange={(val) => handleConfigChange('scope', val)}
+                    placeholder="e.g. read write offline_access"
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                  Token Prefix
+                </label>
+                <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.tokenHeaderPrefix || ''}
+                    onChange={(val) => handleConfigChange('tokenHeaderPrefix', val)}
+                    placeholder="Bearer"
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Query/Body params */}
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Additional Parameters (URL encoded)
+              </label>
+              <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                <VariableInput
+                  value={effectiveConfig.additionalParams || ''}
+                  onChange={(val) => handleConfigChange('additionalParams', val)}
+                  placeholder="e.g. prompt=consent&audience=api"
+                  readOnly={source !== 'local'}
+                />
+              </div>
+            </div>
+
+            {/* Token Action Control block */}
+            <div className="pt-2">
+              <button
+                onClick={handleFetchToken}
+                disabled={isFetchingToken || source !== 'local'}
+                className="w-full h-9 bg-accent hover:bg-accent-hover text-accent-fg disabled:bg-bg-muted disabled:text-text-muted rounded flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors shadow-sm select-none"
+              >
+                {isFetchingToken ? (
+                  <svg
+                    className="animate-spin h-4 w-4 text-current"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M15 3h6v6" />
+                    <path d="M10 14 21 3" />
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  </svg>
+                )}
+                {isFetchingToken ? 'Retrieving Token...' : 'Get New Access Token'}
+              </button>
+            </div>
+
+            {/* Active Credentials Panel */}
+            {(effectiveConfig.accessToken || effectiveConfig.refreshToken) && (
+              <div className="bg-bg-panel/40 border border-border-subtle rounded-lg p-4 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+                  <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+                    Current Token Status
+                  </span>
+                  {effectiveConfig.expiresAt && (
+                    <span className="text-[10px] text-text-muted font-medium bg-bg-muted px-2 py-0.5 rounded">
+                      Expires:{' '}
+                      {new Date(parseInt(effectiveConfig.expiresAt) * 1000).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+
+                {effectiveConfig.accessToken && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-semibold text-text-muted uppercase">
+                        Access Token
+                      </label>
+                      <button
+                        onClick={() => setIsAccessTokenMasked(!isAccessTokenMasked)}
+                        className="text-[10px] text-accent hover:text-accent-hover font-semibold transition-colors flex items-center gap-1 select-none"
+                      >
+                        {isAccessTokenMasked ? 'Reveal' : 'Mask'}
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs text-text-primary bg-bg-surface border border-border-default rounded p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-24">
+                      {isAccessTokenMasked ? '•'.repeat(32) : effectiveConfig.accessToken}
+                    </div>
+                  </div>
+                )}
+
+                {effectiveConfig.refreshToken && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-semibold text-text-muted uppercase">
+                        Refresh Token
+                      </label>
+                      <button
+                        onClick={() => setIsRefreshTokenMasked(!isRefreshTokenMasked)}
+                        className="text-[10px] text-accent hover:text-accent-hover font-semibold transition-colors flex items-center gap-1 select-none"
+                      >
+                        {isRefreshTokenMasked ? 'Reveal' : 'Mask'}
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs text-text-secondary bg-bg-surface/50 border border-border-default rounded p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-16">
+                      {isRefreshTokenMasked ? '•'.repeat(24) : effectiveConfig.refreshToken}
+                    </div>
+                  </div>
+                )}
+
+                {/* Refresh and Clear operations */}
+                {source === 'local' && (
+                  <div className="flex gap-2.5 pt-1.5">
+                    {effectiveConfig.refreshToken && effectiveConfig.tokenEndpoint && (
+                      <button
+                        onClick={handleRefreshToken}
+                        disabled={isFetchingToken}
+                        className="flex-1 h-8 bg-bg-muted hover:bg-bg-highlight border border-border-default hover:border-border-strong text-text-primary rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 select-none"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                        </svg>
+                        Refresh Token
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        handleBatchConfigChange({
+                          accessToken: '',
+                          refreshToken: '',
+                          expiresAt: '',
+                        })
+                        setOauthSuccess(null)
+                        setOauthError(null)
+                      }}
+                      className="flex-grow h-8 bg-error/10 hover:bg-error/20 border border-error/20 text-error rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 select-none"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      </svg>
+                      Clear Token
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

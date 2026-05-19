@@ -81,6 +81,8 @@ fn main() {
             commands::introspect_graphql,
             commands::set_active_environment,
             commands::cancel_request,
+            commands::oauth2_fetch_token,
+            commands::oauth2_refresh_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -140,6 +142,8 @@ mod tests {
                 commands::introspect_graphql,
                 commands::set_active_environment,
                 commands::cancel_request,
+                commands::oauth2_fetch_token,
+                commands::oauth2_refresh_token,
             ]);
 
         builder

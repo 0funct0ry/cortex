@@ -1303,6 +1303,105 @@ pub async fn send_request(
                         }
 
                         digest_auth_tuple = Some((username, password));
+                    } else if auth.r#type == "oauth2" {
+                        let mut access_token = resolved_config.get("accessToken").cloned().unwrap_or_default();
+                        let refresh_token = resolved_config.get("refreshToken").cloned().unwrap_or_default();
+                        let token_endpoint = resolved_config.get("tokenEndpoint").cloned().unwrap_or_default();
+                        let client_id = resolved_config.get("clientId").cloned().unwrap_or_default();
+                        let client_secret = resolved_config.get("clientSecret").cloned();
+                        let additional_params = resolved_config.get("additionalParams").cloned();
+                        let expires_at_str = resolved_config.get("expiresAt").cloned().unwrap_or_default();
+                        let prefix = resolved_config.get("tokenHeaderPrefix").cloned().unwrap_or_else(|| "Bearer".to_string());
+                        let prefix = if prefix.trim().is_empty() { "Bearer".to_string() } else { prefix.trim().to_string() };
+
+                        let current_time = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
+                        let is_expired = if expires_at_str.is_empty() {
+                            false
+                        } else if let Ok(exp) = expires_at_str.parse::<u64>() {
+                            current_time >= exp
+                        } else {
+                            false
+                        };
+
+                        if is_expired && !refresh_token.is_empty() && !token_endpoint.is_empty() && !client_id.is_empty() {
+                            let client = reqwest::Client::new();
+                            let mut params = std::collections::BTreeMap::new();
+                            params.insert("grant_type".to_string(), "refresh_token".to_string());
+                            params.insert("refresh_token".to_string(), refresh_token.clone());
+                            params.insert("client_id".to_string(), client_id.clone());
+                            if let Some(ref sec) = client_secret {
+                                if !sec.is_empty() {
+                                    params.insert("client_secret".to_string(), sec.clone());
+                                }
+                            }
+                            if let Some(ref add_params) = additional_params {
+                                for pair in add_params.trim().split('&') {
+                                    if pair.is_empty() { continue; }
+                                    let mut kv = pair.splitn(2, '=');
+                                    let k = kv.next().unwrap_or("").to_string();
+                                    let v = kv.next().unwrap_or("").to_string();
+                                    let decoded_v = percent_encoding::percent_decode_str(&v).decode_utf8_lossy().into_owned();
+                                    params.insert(k, decoded_v);
+                                }
+                            }
+
+                            let refresh_result = tokio::runtime::Handle::current().block_on(async {
+                                client.post(&token_endpoint).form(&params).send().await
+                            });
+
+                            match refresh_result {
+                                Ok(resp) => {
+                                    if resp.status().is_success() {
+                                        let token_resp: Result<serde_json::Value, _> = tokio::runtime::Handle::current().block_on(async {
+                                            resp.json().await
+                                        });
+                                        if let Ok(token_json) = token_resp {
+                                            if let Some(new_at) = token_json.get("access_token").and_then(|v| v.as_str()) {
+                                                access_token = new_at.to_string();
+                                                let new_rt = token_json.get("refresh_token").and_then(|v| v.as_str()).map(|s| s.to_string());
+                                                let mut new_exp = None;
+                                                if let Some(expires_in) = token_json.get("expires_in") {
+                                                    let sec = expires_in.as_u64()
+                                                        .or_else(|| expires_in.as_str().and_then(|s| s.parse::<u64>().ok()));
+                                                    if let Some(s) = sec {
+                                                        let now = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
+                                                        new_exp = Some((now + s).to_string());
+                                                    }
+                                                }
+
+                                                let _ = save_refreshed_oauth_token(
+                                                    &metadata.request_path,
+                                                    &metadata.collection_path,
+                                                    &payload.auth,
+                                                    &access_token,
+                                                    &new_rt,
+                                                    &new_exp,
+                                                );
+                                            }
+                                        }
+                                    } else {
+                                        let err_text = tokio::runtime::Handle::current().block_on(async {
+                                            resp.text().await.unwrap_or_default()
+                                        });
+                                        body_warnings.push(format!("Transparent OAuth 2.0 refresh failed: {}", err_text));
+                                    }
+                                }
+                                Err(e) => {
+                                    body_warnings.push(format!("Transparent OAuth 2.0 refresh network error: {}", e));
+                                }
+                            }
+                        }
+
+                        if access_token.trim().is_empty() {
+                            return Err("Validation Error: OAuth 2.0 access token is empty or expired, and could not be refreshed.".to_string());
+                        }
+
+                        if !access_token.chars().all(|c| c.is_ascii() && !c.is_control() && c != '\r' && c != '\n') {
+                            return Err("Validation Error: Auth value contains invalid characters for an HTTP header.".to_string());
+                        }
+
+                        let header_val = format!("{} {}", prefix, access_token);
+                        inject_header_case_insensitive(&mut rendered_headers, "Authorization", &header_val);
                     }
                 }
             }
@@ -1511,4 +1610,669 @@ pub async fn introspect_graphql(
 
     history_store.add_entry(entry.clone());
     Ok(entry)
+}
+
+fn open_browser_url(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(url).spawn().map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .arg("/C")
+            .arg(format!("start {}", url))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open").arg(url).spawn().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn save_refreshed_oauth_token(
+    request_path: &Option<String>,
+    collection_path: &Option<String>,
+    payload_auth: &Option<AuthRef>,
+    new_access_token: &str,
+    new_refresh_token: &Option<String>,
+    new_expires_at: &Option<String>,
+) -> Result<(), String> {
+    if payload_auth.is_some() {
+        if let Some(ref req_path_str) = request_path {
+            let path = PathBuf::from(req_path_str);
+            if path.exists() {
+                let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+                let mut req_file = RequestFile::from_yaml(&content).map_err(|e| e.to_string())?;
+                if let Some(mut req_auth) = req_file.auth {
+                    if req_auth.r#type == "oauth2" {
+                        req_auth
+                            .config
+                            .insert("accessToken".to_string(), new_access_token.to_string());
+                        if let Some(ref rt) = new_refresh_token {
+                            req_auth.config.insert("refreshToken".to_string(), rt.clone());
+                        }
+                        if let Some(ref exp) = new_expires_at {
+                            req_auth.config.insert("expiresAt".to_string(), exp.clone());
+                        }
+                        req_file.auth = Some(req_auth);
+                        Collection::save_request(&req_file, &path).map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    if let (Some(req_path_str), Some(col_path_str)) = (request_path, collection_path) {
+        let req_path = PathBuf::from(req_path_str);
+        let col_path = PathBuf::from(col_path_str);
+
+        let mut current_dir = if req_path.is_file() {
+            req_path.parent().map(|p| p.to_path_buf())
+        } else {
+            Some(req_path.clone())
+        };
+
+        while let Some(ref dir) = current_dir {
+            if !dir.starts_with(&col_path) {
+                break;
+            }
+
+            let folder_yaml = dir.join("folder.yaml");
+            if folder_yaml.exists() {
+                let content = std::fs::read_to_string(&folder_yaml).map_err(|e| e.to_string())?;
+                if let Ok(mut fm) = cortex_core::collection::FolderManifest::from_yaml(&content) {
+                    if let Some(mut auth) = fm.auth {
+                        if auth.r#type == "oauth2" {
+                            auth.config
+                                .insert("accessToken".to_string(), new_access_token.to_string());
+                            if let Some(ref rt) = new_refresh_token {
+                                auth.config.insert("refreshToken".to_string(), rt.clone());
+                            }
+                            if let Some(ref exp) = new_expires_at {
+                                auth.config.insert("expiresAt".to_string(), exp.clone());
+                            }
+                            fm.auth = Some(auth);
+                            let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
+                            std::fs::write(&folder_yaml, yaml).map_err(|e| e.to_string())?;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+
+            if dir == &col_path {
+                break;
+            }
+            current_dir = dir.parent().map(|p| p.to_path_buf());
+        }
+    }
+
+    if let Some(col_path_str) = collection_path {
+        let col_path = PathBuf::from(col_path_str);
+        let cortex_yaml = col_path.join("cortex.yaml");
+        if cortex_yaml.exists() {
+            let mut collection =
+                Collection::load_manifest_no_envs(col_path_str).map_err(|e| e.to_string())?;
+            if let Some(mut auth) = collection.manifest.auth {
+                if auth.r#type == "oauth2" {
+                    auth.config.insert("accessToken".to_string(), new_access_token.to_string());
+                    if let Some(ref rt) = new_refresh_token {
+                        auth.config.insert("refreshToken".to_string(), rt.clone());
+                    }
+                    if let Some(ref exp) = new_expires_at {
+                        auth.config.insert("expiresAt".to_string(), exp.clone());
+                    }
+                    collection.manifest.auth = Some(auth);
+                    collection.save().map_err(|e| e.to_string())?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuth2FetchPayload {
+    pub grant_type: String,
+    pub token_endpoint: Option<String>,
+    pub auth_endpoint: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub scope: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub additional_params: Option<String>,
+    pub redirect_uri_mode: Option<String>,
+    pub custom_redirect_uri: Option<String>,
+    pub workspace_path: Option<String>,
+    pub collection_path: Option<String>,
+    pub environment_name: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn oauth2_fetch_token(
+    payload: OAuth2FetchPayload,
+    ephemeral_store: tauri::State<'_, EphemeralStore>,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let ephemeral_vars: Vec<Variable> =
+        ephemeral_store.0.lock().unwrap().values().cloned().collect();
+
+    let (
+        grant_type,
+        token_endpoint,
+        auth_endpoint,
+        client_id,
+        client_secret,
+        scope,
+        username,
+        password,
+        additional_params,
+        redirect_uri_mode,
+        custom_redirect_uri,
+    ) = tauri::async_runtime::spawn_blocking(move || {
+        let mut resolver = cortex_core::variables::VariableResolver::new();
+        populate_resolver(
+            &mut resolver,
+            payload.workspace_path,
+            payload.collection_path,
+            payload.environment_name,
+            ephemeral_vars,
+        )?;
+
+        let grant_type = resolver.render(&payload.grant_type).text;
+        let token_endpoint = payload.token_endpoint.map(|v| resolver.render(&v).text);
+        let auth_endpoint = payload.auth_endpoint.map(|v| resolver.render(&v).text);
+        let client_id = payload.client_id.map(|v| resolver.render(&v).text);
+        let client_secret = payload.client_secret.map(|v| resolver.render(&v).text);
+        let scope = payload.scope.map(|v| resolver.render(&v).text);
+        let username = payload.username.map(|v| resolver.render(&v).text);
+        let password = payload.password.map(|v| resolver.render(&v).text);
+        let additional_params = payload.additional_params.map(|v| resolver.render(&v).text);
+        let redirect_uri_mode = payload.redirect_uri_mode.map(|v| resolver.render(&v).text);
+        let custom_redirect_uri = payload.custom_redirect_uri.map(|v| resolver.render(&v).text);
+
+        Ok::<
+            (
+                String,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+            ),
+            String,
+        >((
+            grant_type,
+            token_endpoint,
+            auth_endpoint,
+            client_id,
+            client_secret,
+            scope,
+            username,
+            password,
+            additional_params,
+            redirect_uri_mode,
+            custom_redirect_uri,
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let client = reqwest::Client::new();
+
+    if grant_type == "authorization_code" || grant_type == "implicit" {
+        let auth_ep =
+            auth_endpoint.ok_or("Authorization Endpoint is required for this grant type.")?;
+        let client_id_str = client_id.ok_or("Client ID is required.")?;
+        let scope_str = scope.unwrap_or_default();
+        let state = format!("{:x}", rand::random::<u64>());
+
+        let mut bind_addr = "127.0.0.1:0".to_string();
+        let mut redirect_uri = "".to_string();
+
+        if let (Some(mode), Some(custom_uri)) =
+            (redirect_uri_mode.as_deref(), custom_redirect_uri.as_deref())
+        {
+            if mode == "custom" && !custom_uri.is_empty() {
+                redirect_uri = custom_uri.to_string();
+                if let Ok(parsed_url) = reqwest::Url::parse(custom_uri) {
+                    let host = parsed_url.host_str().unwrap_or("");
+                    if host == "localhost" || host == "127.0.0.1" {
+                        let port = parsed_url.port().unwrap_or(80);
+                        bind_addr = format!("127.0.0.1:{}", port);
+                    }
+                }
+            }
+        }
+
+        let listener = tokio::net::TcpListener::bind(&bind_addr)
+            .await
+            .map_err(|e| format!("Failed to start redirect listener on {}: {}", bind_addr, e))?;
+
+        if redirect_uri.is_empty() {
+            let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+            redirect_uri = format!("http://127.0.0.1:{}", port);
+        }
+
+        let mut auth_url = format!(
+            "{}?response_type={}&client_id={}&redirect_uri={}&state={}",
+            auth_ep,
+            if grant_type == "authorization_code" { "code" } else { "token" },
+            percent_encoding::utf8_percent_encode(
+                &client_id_str,
+                percent_encoding::NON_ALPHANUMERIC
+            ),
+            percent_encoding::utf8_percent_encode(
+                &redirect_uri,
+                percent_encoding::NON_ALPHANUMERIC
+            ),
+            state
+        );
+        if !scope_str.is_empty() {
+            auth_url.push_str(&format!(
+                "&scope={}",
+                percent_encoding::utf8_percent_encode(
+                    &scope_str,
+                    percent_encoding::NON_ALPHANUMERIC
+                )
+            ));
+        }
+        if let Some(ref add_params) = additional_params {
+            if !add_params.trim().is_empty() {
+                auth_url.push_str(&format!("&{}", add_params.trim()));
+            }
+        }
+
+        open_browser_url(&auth_url)?;
+
+        let mut captured_params = std::collections::BTreeMap::new();
+        let timeout_duration = std::time::Duration::from_secs(60);
+
+        let serve_future = async {
+            loop {
+                if let Ok((mut stream, _)) = listener.accept().await {
+                    let mut buf = [0; 4096];
+                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                    if let Ok(n) = stream.read(&mut buf).await {
+                        let req_str = String::from_utf8_lossy(&buf[..n]);
+                        if req_str.starts_with("GET ") {
+                            let first_line = req_str.lines().next().unwrap_or("");
+                            let parts: Vec<&str> = first_line.split_whitespace().collect();
+                            if parts.len() >= 2 {
+                                let html = r#"HTTP/1.1 200 OK
+Content-Type: text/html
+Connection: close
+
+<!DOCTYPE html><html><head><title>Cortex Authentication</title><style>body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f141c; color: #abb2bf; } .card { background: #161c25; padding: 32px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); text-align: center; border: 1px solid #2e3440; max-width: 400px; width: 100%; } h1 { color: #50fa7b; margin-top: 0; font-size: 20px; } p { font-size: 14px; line-height: 1.5; color: #8fbcbb; }</style></head><body><div class="card"><h1>Connecting...</h1><p>Cortex is finalizing your authentication.</p></div><script>
+const hash = window.location.hash.substring(1);
+const search = window.location.search.substring(1);
+const params = (hash && search) ? (hash + '&' + search) : (hash || search || '');
+fetch('/callback?' + params, { method: 'POST' })
+    .then(() => {
+        document.querySelector('h1').innerText = 'Authentication Successful!';
+        document.querySelector('p').innerText = 'Cortex has captured the credentials. You can now close this tab/window and return to the app.';
+    })
+    .catch(err => {
+        document.querySelector('h1').style.color = '#ff5555';
+        document.querySelector('h1').innerText = 'Authentication Failed';
+        document.querySelector('p').innerText = err.toString();
+    });
+</script></body></html>"#;
+                                let _ = stream.write_all(html.as_bytes()).await;
+                                let _ = stream.flush().await;
+                            }
+                        } else if req_str.starts_with("POST /callback") {
+                            let first_line = req_str.lines().next().unwrap_or("");
+                            let parts: Vec<&str> = first_line.split_whitespace().collect();
+                            if parts.len() >= 2 {
+                                let path = parts[1];
+                                if let Some(pos) = path.find('?') {
+                                    let query = &path[pos + 1..];
+                                    for pair in query.split('&') {
+                                        let mut kv = pair.splitn(2, '=');
+                                        let k = kv.next().unwrap_or("").to_string();
+                                        let v = kv.next().unwrap_or("").to_string();
+                                        let decoded_val = percent_encoding::percent_decode_str(&v)
+                                            .decode_utf8_lossy()
+                                            .into_owned();
+                                        captured_params.insert(k, decoded_val);
+                                    }
+                                }
+                            }
+                            let response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\nContent-Length: 2\r\n\r\nOK";
+                            let _ = stream.write_all(response.as_bytes()).await;
+                            let _ = stream.flush().await;
+                            break;
+                        }
+                    }
+                }
+            }
+            Ok::<_, String>(())
+        };
+
+        match tokio::time::timeout(timeout_duration, serve_future).await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => return Err(e),
+            Err(_) => return Err("Authentication timed out after 60 seconds.".to_string()),
+        }
+
+        if let Some(state_received) = captured_params.get("state") {
+            if state_received != &state {
+                return Err("State mismatch: OAuth 2.0 security validation failed.".to_string());
+            }
+        }
+
+        if grant_type == "implicit" {
+            let access_token = captured_params.get("access_token").cloned().ok_or_else(|| {
+                format!(
+                    "No access token received in implicit redirect. Received params: {:?}",
+                    captured_params
+                )
+            })?;
+            let mut result = std::collections::BTreeMap::new();
+            result.insert("accessToken".to_string(), access_token);
+            if let Some(expires_in) = captured_params.get("expires_in") {
+                if let Ok(sec) = expires_in.parse::<u64>() {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    result.insert("expiresAt".to_string(), (now + sec).to_string());
+                }
+            }
+            return Ok(result);
+        } else {
+            let code = captured_params
+                .get("code")
+                .cloned()
+                .ok_or("No authorization code received in redirect.")?;
+            let token_ep = token_endpoint
+                .ok_or("Token Endpoint is required to exchange the authorization code.")?;
+
+            let mut params = std::collections::BTreeMap::new();
+            params.insert("grant_type".to_string(), "authorization_code".to_string());
+            params.insert("code".to_string(), code);
+            params.insert("redirect_uri".to_string(), redirect_uri);
+            params.insert("client_id".to_string(), client_id_str);
+            if let Some(ref sec) = client_secret {
+                if !sec.is_empty() {
+                    params.insert("client_secret".to_string(), sec.clone());
+                }
+            }
+            if let Some(ref add_params) = additional_params {
+                for pair in add_params.trim().split('&') {
+                    if pair.is_empty() {
+                        continue;
+                    }
+                    let mut kv = pair.splitn(2, '=');
+                    let k = kv.next().unwrap_or("").to_string();
+                    let v = kv.next().unwrap_or("").to_string();
+                    let decoded_v =
+                        percent_encoding::percent_decode_str(&v).decode_utf8_lossy().into_owned();
+                    params.insert(k, decoded_v);
+                }
+            }
+
+            let resp = client
+                .post(&token_ep)
+                .form(&params)
+                .send()
+                .await
+                .map_err(|e| format!("Failed to send token request: {}", e))?;
+
+            if !resp.status().is_success() {
+                let err_body = resp.text().await.unwrap_or_default();
+                return Err(format!("Token exchange failed: {}", err_body));
+            }
+
+            let token_resp: serde_json::Value =
+                resp.json().await.map_err(|e| format!("Failed to parse token response: {}", e))?;
+
+            let mut result = std::collections::BTreeMap::new();
+            if let Some(access_token) = token_resp.get("access_token").and_then(|v| v.as_str()) {
+                result.insert("accessToken".to_string(), access_token.to_string());
+            } else {
+                return Err("No access_token found in token response.".to_string());
+            }
+
+            if let Some(refresh_token) = token_resp.get("refresh_token").and_then(|v| v.as_str()) {
+                result.insert("refreshToken".to_string(), refresh_token.to_string());
+            }
+
+            if let Some(expires_in) = token_resp.get("expires_in") {
+                let sec = expires_in
+                    .as_u64()
+                    .or_else(|| expires_in.as_str().and_then(|s| s.parse::<u64>().ok()));
+                if let Some(s) = sec {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    result.insert("expiresAt".to_string(), (now + s).to_string());
+                }
+            }
+
+            return Ok(result);
+        }
+    }
+
+    let token_ep = token_endpoint.ok_or("Token Endpoint is required.")?;
+    let client_id_str = client_id.ok_or("Client ID is required.")?;
+
+    let mut params = std::collections::BTreeMap::new();
+    if grant_type == "client_credentials" {
+        params.insert("grant_type".to_string(), "client_credentials".to_string());
+        params.insert("client_id".to_string(), client_id_str);
+        if let Some(ref sec) = client_secret {
+            if !sec.is_empty() {
+                params.insert("client_secret".to_string(), sec.clone());
+            }
+        }
+        if let Some(ref sc) = scope {
+            if !sc.is_empty() {
+                params.insert("scope".to_string(), sc.clone());
+            }
+        }
+    } else if grant_type == "password" {
+        params.insert("grant_type".to_string(), "password".to_string());
+        params.insert("client_id".to_string(), client_id_str);
+        if let Some(ref sec) = client_secret {
+            if !sec.is_empty() {
+                params.insert("client_secret".to_string(), sec.clone());
+            }
+        }
+        if let Some(ref sc) = scope {
+            if !sc.is_empty() {
+                params.insert("scope".to_string(), sc.clone());
+            }
+        }
+        let uname = username.ok_or("Username is required for Resource Owner Password grant.")?;
+        let pwd = password.ok_or("Password is required for Resource Owner Password grant.")?;
+        params.insert("username".to_string(), uname);
+        params.insert("password".to_string(), pwd);
+    } else {
+        return Err(format!("Unsupported grant type: {}", grant_type));
+    }
+
+    if let Some(ref add_params) = additional_params {
+        for pair in add_params.trim().split('&') {
+            if pair.is_empty() {
+                continue;
+            }
+            let mut kv = pair.splitn(2, '=');
+            let k = kv.next().unwrap_or("").to_string();
+            let v = kv.next().unwrap_or("").to_string();
+            let decoded_v =
+                percent_encoding::percent_decode_str(&v).decode_utf8_lossy().into_owned();
+            params.insert(k, decoded_v);
+        }
+    }
+
+    let resp = client
+        .post(&token_ep)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send token request: {}", e))?;
+
+    if !resp.status().is_success() {
+        let err_body = resp.text().await.unwrap_or_default();
+        return Err(format!("Token fetch failed: {}", err_body));
+    }
+
+    let token_resp: serde_json::Value =
+        resp.json().await.map_err(|e| format!("Failed to parse token response: {}", e))?;
+
+    let mut result = std::collections::BTreeMap::new();
+    if let Some(access_token) = token_resp.get("access_token").and_then(|v| v.as_str()) {
+        result.insert("accessToken".to_string(), access_token.to_string());
+    } else {
+        return Err("No access_token found in token response.".to_string());
+    }
+
+    if let Some(refresh_token) = token_resp.get("refresh_token").and_then(|v| v.as_str()) {
+        result.insert("refreshToken".to_string(), refresh_token.to_string());
+    }
+
+    if let Some(expires_in) = token_resp.get("expires_in") {
+        let sec =
+            expires_in.as_u64().or_else(|| expires_in.as_str().and_then(|s| s.parse::<u64>().ok()));
+        if let Some(s) = sec {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            result.insert("expiresAt".to_string(), (now + s).to_string());
+        }
+    }
+
+    Ok(result)
+}
+
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuth2RefreshPayload {
+    pub refresh_token: String,
+    pub token_endpoint: String,
+    pub client_id: String,
+    pub client_secret: Option<String>,
+    pub additional_params: Option<String>,
+    pub workspace_path: Option<String>,
+    pub collection_path: Option<String>,
+    pub environment_name: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn oauth2_refresh_token(
+    payload: OAuth2RefreshPayload,
+    ephemeral_store: tauri::State<'_, EphemeralStore>,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let ephemeral_vars: Vec<Variable> =
+        ephemeral_store.0.lock().unwrap().values().cloned().collect();
+
+    let (refresh_token, token_endpoint, client_id, client_secret, additional_params) =
+        tauri::async_runtime::spawn_blocking(move || {
+            let mut resolver = cortex_core::variables::VariableResolver::new();
+            populate_resolver(
+                &mut resolver,
+                payload.workspace_path,
+                payload.collection_path,
+                payload.environment_name,
+                ephemeral_vars,
+            )?;
+
+            let refresh_token = resolver.render(&payload.refresh_token).text;
+            let token_endpoint = resolver.render(&payload.token_endpoint).text;
+            let client_id = resolver.render(&payload.client_id).text;
+            let client_secret = payload.client_secret.map(|v| resolver.render(&v).text);
+            let additional_params = payload.additional_params.map(|v| resolver.render(&v).text);
+
+            Ok::<(String, String, String, Option<String>, Option<String>), String>((
+                refresh_token,
+                token_endpoint,
+                client_id,
+                client_secret,
+                additional_params,
+            ))
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+
+    let client = reqwest::Client::new();
+    let mut params = std::collections::BTreeMap::new();
+    params.insert("grant_type".to_string(), "refresh_token".to_string());
+    params.insert("refresh_token".to_string(), refresh_token);
+    params.insert("client_id".to_string(), client_id);
+    if let Some(ref sec) = client_secret {
+        if !sec.is_empty() {
+            params.insert("client_secret".to_string(), sec.clone());
+        }
+    }
+    if let Some(ref add_params) = additional_params {
+        for pair in add_params.trim().split('&') {
+            if pair.is_empty() {
+                continue;
+            }
+            let mut kv = pair.splitn(2, '=');
+            let k = kv.next().unwrap_or("").to_string();
+            let v = kv.next().unwrap_or("").to_string();
+            let decoded_v =
+                percent_encoding::percent_decode_str(&v).decode_utf8_lossy().into_owned();
+            params.insert(k, decoded_v);
+        }
+    }
+
+    let resp = client
+        .post(&token_endpoint)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send refresh request: {}", e))?;
+
+    if !resp.status().is_success() {
+        let err_body = resp.text().await.unwrap_or_default();
+        return Err(format!("Refresh token failed: {}", err_body));
+    }
+
+    let token_resp: serde_json::Value =
+        resp.json().await.map_err(|e| format!("Failed to parse token response: {}", e))?;
+
+    let mut result = std::collections::BTreeMap::new();
+    if let Some(access_token) = token_resp.get("access_token").and_then(|v| v.as_str()) {
+        result.insert("accessToken".to_string(), access_token.to_string());
+    } else {
+        return Err("No access_token found in token response.".to_string());
+    }
+
+    if let Some(refresh_token) = token_resp.get("refresh_token").and_then(|v| v.as_str()) {
+        result.insert("refreshToken".to_string(), refresh_token.to_string());
+    }
+
+    if let Some(expires_in) = token_resp.get("expires_in") {
+        let sec =
+            expires_in.as_u64().or_else(|| expires_in.as_str().and_then(|s| s.parse::<u64>().ok()));
+        if let Some(s) = sec {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            result.insert("expiresAt".to_string(), (now + s).to_string());
+        }
+    }
+
+    Ok(result)
 }

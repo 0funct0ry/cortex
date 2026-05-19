@@ -345,6 +345,22 @@ async cancelRequest(requestId: string) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async oauth2FetchToken(payload: OAuth2FetchPayload) : Promise<Result<{ [key in string]: string }, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("oauth2_fetch_token", { payload }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async oauth2RefreshToken(payload: OAuth2RefreshPayload) : Promise<Result<{ [key in string]: string }, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("oauth2_refresh_token", { payload }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -416,6 +432,8 @@ export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean; is_valueless?: boolean | null }
 export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[] }
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
+export type OAuth2FetchPayload = { grantType: string; tokenEndpoint: string | null; authEndpoint: string | null; clientId: string | null; clientSecret: string | null; scope: string | null; username: string | null; password: string | null; additionalParams: string | null; redirectUriMode: string | null; customRedirectUri: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null }
+export type OAuth2RefreshPayload = { refreshToken: string; tokenEndpoint: string; clientId: string; clientSecret: string | null; additionalParams: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null }
 export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: string[] }
 export type PreviewResponse = { text: string; warnings: UnresolvedVariableWarning[]; syntax_errors: TemplateSyntaxError[]; captured_variables: { [key in string]: string } }
 export type RecentWorkspace = { name: string; path: string }
