@@ -1,3 +1,4 @@
+pub mod aws_sigv4;
 pub mod collection;
 pub mod crypto;
 pub mod environment;

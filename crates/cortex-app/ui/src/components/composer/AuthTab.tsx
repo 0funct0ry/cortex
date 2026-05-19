@@ -122,6 +122,8 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
   const [isOAuthPasswordMasked, setIsOAuthPasswordMasked] = useState(true)
   const [isAccessTokenMasked, setIsAccessTokenMasked] = useState(true)
   const [isRefreshTokenMasked, setIsRefreshTokenMasked] = useState(true)
+  const [isAwsSecretMasked, setIsAwsSecretMasked] = useState(true)
+  const [isAwsSessionTokenMasked, setIsAwsSessionTokenMasked] = useState(true)
 
   // Token fetching states
   const [isFetchingToken, setIsFetchingToken] = useState(false)
@@ -157,7 +159,8 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
       effectiveAuth.type === 'bearer_token' ||
       effectiveAuth.type === 'basic' ||
       effectiveAuth.type === 'digest' ||
-      effectiveAuth.type === 'oauth2'
+      effectiveAuth.type === 'oauth2' ||
+      effectiveAuth.type === 'aws_sigv4'
     ) {
       const hasAuthHeader = headers.some(
         (h) => h.enabled && h.key.toLowerCase() === 'authorization'
@@ -204,6 +207,11 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
         (v) => typeof v === 'string' && v.includes('{{') && v.includes('}}')
       )
     }
+    if (effectiveAuth.type === 'aws_sigv4') {
+      return Object.values(effectiveConfig).some(
+        (v) => typeof v === 'string' && v.includes('{{') && v.includes('}}')
+      )
+    }
     return false
   }, [effectiveAuth, effectiveConfig])
 
@@ -216,7 +224,8 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
       (auth.type === 'bearer_token' && config.token) ||
       (auth.type === 'basic' && (config.username || config.password)) ||
       (auth.type === 'digest' && (config.username || config.password)) ||
-      (auth.type === 'oauth2' && Object.values(config).some((v) => !!v))
+      (auth.type === 'oauth2' && Object.values(config).some((v) => !!v)) ||
+      (auth.type === 'aws_sigv4' && Object.values(config).some((v) => !!v))
 
     if (hasFields) {
       setPendingType(type)
@@ -229,7 +238,15 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
               ? { addTo: 'header' }
               : type === 'oauth2'
                 ? { grantType: 'authorization_code' }
-                : {},
+                : type === 'aws_sigv4'
+                  ? {
+                      region: '',
+                      service: '',
+                      accessKeyId: '',
+                      secretAccessKey: '',
+                      sessionToken: '',
+                    }
+                  : {},
         },
       })
     }
@@ -245,7 +262,15 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
               ? { addTo: 'header' }
               : pendingType === 'oauth2'
                 ? { grantType: 'authorization_code' }
-                : {},
+                : pendingType === 'aws_sigv4'
+                  ? {
+                      region: '',
+                      service: '',
+                      accessKeyId: '',
+                      secretAccessKey: '',
+                      sessionToken: '',
+                    }
+                  : {},
         },
       })
       setPendingType(null)
@@ -597,7 +622,9 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
                             ? 'Digest Auth'
                             : effectiveAuth.type === 'oauth2'
                               ? 'OAuth 2.0'
-                              : effectiveAuth.type
+                              : effectiveAuth.type === 'aws_sigv4'
+                                ? 'AWS SigV4'
+                                : effectiveAuth.type
                   })`
                 : 'No Auth'}
             </option>
@@ -606,6 +633,7 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
             <option value="basic">Basic Auth</option>
             <option value="digest">Digest Auth</option>
             <option value="oauth2">OAuth 2.0</option>
+            <option value="aws_sigv4">AWS SigV4</option>
           </select>
         </div>
 
@@ -1217,6 +1245,103 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* AWS SigV4 Form */}
+        {effectiveAuth.type === 'aws_sigv4' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                AWS Region
+              </label>
+              <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                <VariableInput
+                  value={effectiveConfig.region || ''}
+                  onChange={(val) => handleConfigChange('region', val)}
+                  placeholder="us-east-1 or {{aws_region}}"
+                  readOnly={source !== 'local'}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Service Name
+              </label>
+              <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                <VariableInput
+                  value={effectiveConfig.service || ''}
+                  onChange={(val) => handleConfigChange('service', val)}
+                  placeholder="s3, execute-api, iam or {{aws_service}}"
+                  readOnly={source !== 'local'}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Access Key ID
+              </label>
+              <div className="h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                <VariableInput
+                  value={effectiveConfig.accessKeyId || ''}
+                  onChange={(val) => handleConfigChange('accessKeyId', val)}
+                  placeholder="AKIAIOSFODNN7EXAMPLE or {{aws_access_key}}"
+                  readOnly={source !== 'local'}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Secret Access Key
+              </label>
+              <div className="flex gap-2">
+                <div className="flex-1 h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.secretAccessKey || ''}
+                    onChange={(val) => handleConfigChange('secretAccessKey', val)}
+                    placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLEKEY or {{aws_secret_key}}"
+                    masked={isAwsSecretMasked}
+                    type={isAwsSecretMasked ? 'password' : 'text'}
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+                <button
+                  onClick={() => setIsAwsSecretMasked(!isAwsSecretMasked)}
+                  className="h-9 w-9 bg-bg-muted hover:bg-bg-highlight border border-border-default hover:border-border-strong rounded flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                  title={isAwsSecretMasked ? 'Show secret key' : 'Hide secret key'}
+                >
+                  {isAwsSecretMasked ? <Icons.Eye size={16} /> : <Icons.EyeOff size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Session Token (Optional)
+              </label>
+              <div className="flex gap-2">
+                <div className="flex-1 h-9 border border-border-default hover:border-border-strong rounded focus-within:border-accent bg-bg-surface overflow-hidden">
+                  <VariableInput
+                    value={effectiveConfig.sessionToken || ''}
+                    onChange={(val) => handleConfigChange('sessionToken', val)}
+                    placeholder="Session token (optional) or {{aws_session_token}}"
+                    masked={isAwsSessionTokenMasked}
+                    type={isAwsSessionTokenMasked ? 'password' : 'text'}
+                    readOnly={source !== 'local'}
+                  />
+                </div>
+                <button
+                  onClick={() => setIsAwsSessionTokenMasked(!isAwsSessionTokenMasked)}
+                  className="h-9 w-9 bg-bg-muted hover:bg-bg-highlight border border-border-default hover:border-border-strong rounded flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                  title={isAwsSessionTokenMasked ? 'Show session token' : 'Hide session token'}
+                >
+                  {isAwsSessionTokenMasked ? <Icons.Eye size={16} /> : <Icons.EyeOff size={16} />}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

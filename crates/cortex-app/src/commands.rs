@@ -1007,6 +1007,55 @@ pub struct SendRequestPayload {
     pub settings: Option<cortex_core::request::Settings>,
 }
 
+fn get_body_bytes(body: &Option<cortex_core::request::RequestBody>) -> Vec<u8> {
+    if let Some(b) = body {
+        match b.active_type.as_deref() {
+            Some("none") => Vec::new(),
+            Some("json") => b.json.as_ref().map(|s| s.as_bytes().to_vec()).unwrap_or_default(),
+            Some("raw") => b.raw_text.as_ref().map(|s| s.as_bytes().to_vec()).unwrap_or_default(),
+            Some("url_encoded") => {
+                let mut params = Vec::new();
+                if let Some(fields) = &b.url_encoded {
+                    for field in fields {
+                        if field.enabled {
+                            let k_enc = percent_encoding::utf8_percent_encode(
+                                &field.key,
+                                percent_encoding::NON_ALPHANUMERIC,
+                            )
+                            .to_string();
+                            let v_enc = percent_encoding::utf8_percent_encode(
+                                &field.value,
+                                percent_encoding::NON_ALPHANUMERIC,
+                            )
+                            .to_string();
+                            params.push(format!("{}={}", k_enc, v_enc));
+                        }
+                    }
+                }
+                params.join("&").into_bytes()
+            }
+            Some("file") => {
+                if let Some(file_path) = &b.file_path {
+                    std::fs::read(file_path).unwrap_or_default()
+                } else {
+                    Vec::new()
+                }
+            }
+            _ => {
+                if let Some(text) = &b.text {
+                    text.as_bytes().to_vec()
+                } else if let Some(json) = &b.json {
+                    json.as_bytes().to_vec()
+                } else {
+                    Vec::new()
+                }
+            }
+        }
+    } else {
+        Vec::new()
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn send_request(
@@ -1019,6 +1068,7 @@ pub async fn send_request(
     let ephemeral_vars: Vec<Variable> =
         ephemeral_store.0.lock().unwrap().values().cloned().collect();
 
+    let method_for_signing = payload.method.clone();
     let (url, body, rendered_headers, warnings, captured_variables, timeout_ms, follow_redirects, digest_auth) =
         tauri::async_runtime::spawn_blocking(move || {
             let mut resolver = cortex_core::variables::VariableResolver::new();
@@ -1402,6 +1452,34 @@ pub async fn send_request(
 
                         let header_val = format!("{} {}", prefix, access_token);
                         inject_header_case_insensitive(&mut rendered_headers, "Authorization", &header_val);
+                    } else if auth.r#type == "aws_sigv4" {
+                        let region = resolved_config.get("region").cloned().unwrap_or_default();
+                        let service = resolved_config.get("service").cloned().unwrap_or_default();
+                        let access_key_id = resolved_config.get("accessKeyId").cloned().unwrap_or_default();
+                        let secret_access_key = resolved_config.get("secretAccessKey").cloned().unwrap_or_default();
+                        let session_token = resolved_config.get("sessionToken").cloned();
+
+                        if region.trim().is_empty()
+                            || service.trim().is_empty()
+                            || access_key_id.trim().is_empty()
+                            || secret_access_key.trim().is_empty()
+                        {
+                            return Err("Validation Error: AWS SigV4 auth is incomplete after variable resolution.".to_string());
+                        }
+
+                        let body_bytes = get_body_bytes(&req_body);
+
+                        cortex_core::aws_sigv4::sign_request(
+                            &method_for_signing,
+                            &final_url,
+                            &mut rendered_headers,
+                            &body_bytes,
+                            &region,
+                            &service,
+                            &access_key_id,
+                            &secret_access_key,
+                            session_token.as_deref(),
+                        )?;
                     }
                 }
             }
