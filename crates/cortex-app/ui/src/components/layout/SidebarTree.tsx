@@ -1,17 +1,191 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
 import TreeNode from './TreeNode'
 import * as Icons from '../ui/Icons'
+import Tooltip from '../ui/Tooltip'
 import { useRequestStore } from '../../stores/requestStore'
 import type { CollectionItem } from '../../bindings'
 import { commands } from '../../bindings'
 
+const InlineCreateRow: React.FC = () => {
+  const { activeWorkspace, activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
+  const { setCreatingInline, setExpanded, loadCollection } = useCollectionStore()
+
+  // Generate initial default name
+  const defaultName = useMemo(() => {
+    if (!activeWorkspace) return 'Untitled Collection - 1'
+    let counter = 1
+    let proposed = `Untitled Collection - ${counter}`
+    const existingNames = new Set(
+      activeWorkspace.collections
+        .map((c) => c.name?.toLowerCase().trim())
+        .filter((n): n is string => !!n)
+    )
+    while (existingNames.has(proposed.toLowerCase())) {
+      counter++
+      proposed = `Untitled Collection - ${counter}`
+    }
+    return proposed
+  }, [activeWorkspace])
+
+  const [name, setName] = useState(defaultName)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Focus and select text on mount
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [])
+
+  // Validation
+  const trimmedName = name.trim()
+  let isInvalid = false
+  let tooltipContent = ''
+
+  if (trimmedName === '') {
+    isInvalid = true
+    tooltipContent = 'Collection name cannot be empty'
+  } else if (activeWorkspace) {
+    const nameExists = activeWorkspace.collections.some(
+      (c) => c.name?.toLowerCase().trim() === trimmedName.toLowerCase()
+    )
+    if (nameExists) {
+      isInvalid = true
+      tooltipContent = 'A collection with this name already exists'
+    }
+  }
+
+  // Path resolution helpers
+  const getParentDirectory = (filePath: string) => {
+    const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+    if (lastSlash === -1) return ''
+    return filePath.substring(0, lastSlash)
+  }
+
+  const joinPath = (parent: string, child: string) => {
+    const isWindows = parent.includes('\\')
+    const separator = isWindows ? '\\' : '/'
+    return `${parent}${separator}${child}`
+  }
+
+  const handleConfirm = async () => {
+    if (isInvalid || isSubmitting || !activeWorkspacePath) return
+    setIsSubmitting(true)
+
+    try {
+      const workspaceDir = getParentDirectory(activeWorkspacePath)
+      const newCollectionPath = joinPath(workspaceDir, trimmedName)
+      const createRes = await commands.createCollection(trimmedName, newCollectionPath)
+
+      if (createRes.status === 'ok') {
+        const relativePath = `./${trimmedName}`
+        const addRes = await commands.addCollectionToWorkspace(activeWorkspacePath, relativePath)
+
+        if (addRes.status === 'ok') {
+          // Reload workspace
+          await loadWorkspace(activeWorkspacePath)
+          // Mark the new collection as expanded
+          setExpanded(newCollectionPath, true)
+          // Load the collection itself
+          await loadCollection(newCollectionPath)
+          toast.success(`Collection "${trimmedName}" created`)
+          setCreatingInline(false)
+        } else {
+          toast.error(`Failed to add collection to workspace: ${addRes.error}`)
+        }
+      } else {
+        toast.error(`Failed to create collection: ${createRes.error}`)
+      }
+    } catch (e) {
+      toast.error(`Error creating collection: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setCreatingInline(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleConfirm()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancel()
+    }
+  }
+
+  const checkButton = (
+    <button
+      disabled={isInvalid || isSubmitting}
+      onClick={handleConfirm}
+      className={`p-1 rounded transition-colors ${
+        isInvalid || isSubmitting
+          ? 'text-text-muted/40 cursor-not-allowed'
+          : 'text-success hover:bg-success/12'
+      }`}
+    >
+      <Icons.Check size={14} />
+    </button>
+  )
+
+  return (
+    <div
+      className="flex items-center gap-1.5 h-[28px] select-none"
+      style={{ paddingLeft: '12px', paddingRight: '12px' }}
+    >
+      {/* Spacer to align with collections that have a chevron */}
+      <div className="w-3 h-3 flex items-center justify-center">
+        <Icons.ChevronDown size={12} className="text-text-muted/50 -rotate-90" />
+      </div>
+
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <Icons.Folder size={14} className="text-text-muted" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="bg-bg-surface border border-border-default focus:border-accent rounded px-1 outline-none text-sm w-full h-[22px] text-text-primary placeholder:text-text-muted"
+          disabled={isSubmitting}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+
+      <div className="flex items-center gap-1 shrink-0">
+        <Icons.Settings size={14} className="text-text-muted/40 cursor-not-allowed mr-0.5" />
+        {isInvalid ? (
+          <Tooltip content={tooltipContent} position="top" align="center">
+            {checkButton}
+          </Tooltip>
+        ) : (
+          checkButton
+        )}
+        <button
+          onClick={handleCancel}
+          className="p-1 rounded text-error hover:bg-error/12 transition-colors"
+          disabled={isSubmitting}
+        >
+          <Icons.X size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const SidebarTree: React.FC = () => {
   const {
     activeWorkspace,
+    activeWorkspacePath,
     isLoading: isWorkspaceLoading,
     error: workspaceError,
     loadWorkspace,
@@ -26,6 +200,8 @@ const SidebarTree: React.FC = () => {
     loadCollection,
     toggleExpansion,
     searchQuery,
+    isCreatingInline,
+    setCreatingInline,
   } = useCollectionStore()
 
   const { openTab, activeTab } = useTabs()
@@ -59,34 +235,34 @@ const SidebarTree: React.FC = () => {
   const handleOpenCollection = async () => {
     try {
       const result = await commands.pickDirectory('Open Collection or Workspace')
-      if (result.status === 'ok' && result.data) {
-        // Try to load as workspace first. If it fails, maybe it's just a collection?
-        // For now, let's just load as workspace.
+      if (!result.status || result.status !== 'ok' || !result.data) return
+
+      const dirType = await commands.detectDirectoryType(result.data)
+
+      if (dirType === 'workspace') {
+        // It's a workspace directory — load it as such
         await loadWorkspace(result.data)
+      } else if (dirType === 'collection') {
+        // It's a bare collection directory — add it to the active workspace
+        if (!activeWorkspacePath) {
+          toast.error('Open a workspace first before adding a collection.')
+          return
+        }
+        const addRes = await commands.addCollectionToWorkspace(activeWorkspacePath, result.data)
+        if (addRes.status === 'ok') {
+          await loadWorkspace(activeWorkspacePath)
+          await loadCollection(result.data)
+          toast.success('Collection added to workspace')
+        } else {
+          toast.error(`Failed to add collection: ${addRes.error}`)
+        }
+      } else {
+        toast.error(
+          'The selected directory is neither a Cortex workspace nor a collection (no cortex-workspace.yaml or cortex.yaml found).'
+        )
       }
     } catch (e) {
       toast.error(`Failed to open collection: ${String(e)}`)
-    }
-  }
-
-  const handleCreateCollection = async () => {
-    try {
-      const name = window.prompt('Collection Name')
-      if (!name) return
-
-      const result = await commands.pickDirectory('Select Directory to Create Collection In')
-      if (result.status === 'ok' && result.data) {
-        const createRes = await commands.createCollection(name, result.data)
-        if (createRes.status === 'ok') {
-          // Add to workspace or load as standalone?
-          // For now, let's just load the workspace at that path if it's a workspace
-          // or load the collection directly.
-          // Better: just load the directory we just created.
-          await loadWorkspace(createRes.data)
-        }
-      }
-    } catch (e) {
-      toast.error(`Failed to create collection: ${String(e)}`)
     }
   }
 
@@ -177,7 +353,9 @@ const SidebarTree: React.FC = () => {
   }
 
   const renderCollections = () => {
-    if (!activeWorkspace || activeWorkspace.collections.length === 0) {
+    const showEmptyState =
+      !activeWorkspace || (activeWorkspace.collections.length === 0 && !isCreatingInline)
+    if (showEmptyState) {
       return (
         <div className="flex flex-col items-center justify-center h-full p-6 text-center select-none">
           <div className="mb-4 text-text-muted opacity-20">
@@ -189,7 +367,7 @@ const SidebarTree: React.FC = () => {
           </p>
           <div className="flex flex-col gap-2 w-full max-w-[200px]">
             <button
-              onClick={handleCreateCollection}
+              onClick={() => setCreatingInline(true)}
               className="h-8 flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-accent-fg text-sm font-medium rounded-md transition-colors"
             >
               <Icons.Plus size={14} />
@@ -209,45 +387,50 @@ const SidebarTree: React.FC = () => {
 
     let totalItemsFound = 0
 
-    const collectionsList = activeWorkspace.collections.map((colRef) => {
-      const colData = collections[colRef.path]
-      const isExpanded = searchQuery ? true : expansionState[colRef.path] || false
-      const isLoading = loadingCollections[colRef.path] || false
-      const error = errors[colRef.path] || colRef.error
+    const collectionsList = activeWorkspace
+      ? activeWorkspace.collections.map((colRef) => {
+          const colData = collections[colRef.path]
+          const isExpanded = searchQuery ? true : expansionState[colRef.path] || false
+          const isLoading = loadingCollections[colRef.path] || false
+          const error = errors[colRef.path] || colRef.error
 
-      const handleToggle = () => {
-        if (!isExpanded && !colData) {
-          loadCollection(colRef.path)
-        }
-        toggleExpansion(colRef.path)
-      }
+          const handleToggle = () => {
+            if (!isExpanded && !colData) {
+              loadCollection(colRef.path)
+            }
+            toggleExpansion(colRef.path)
+          }
 
-      const items = colData ? renderItems(colData.items, 1, colRef.path, searchQuery) : []
-      if (items.length > 0 || !searchQuery) {
-        totalItemsFound += items.length
-        if (!searchQuery) totalItemsFound++ // Count collection root if not searching
-      } else if (searchQuery && colRef.name?.toLowerCase().includes(searchQuery.toLowerCase())) {
-        totalItemsFound++
-      } else {
-        return null
-      }
+          const items = colData ? renderItems(colData.items, 1, colRef.path, searchQuery) : []
+          if (items.length > 0 || !searchQuery) {
+            totalItemsFound += items.length
+            if (!searchQuery) totalItemsFound++ // Count collection root if not searching
+          } else if (
+            searchQuery &&
+            colRef.name?.toLowerCase().includes(searchQuery.toLowerCase())
+          ) {
+            totalItemsFound++
+          } else {
+            return null
+          }
 
-      return (
-        <React.Fragment key={colRef.path}>
-          <TreeNode
-            label={colRef.name || colRef.path.split('/').pop() || 'Collection'}
-            depth={0}
-            type="collection"
-            path={colRef.path}
-            isExpanded={isExpanded}
-            isLoading={isLoading}
-            error={error}
-            onToggle={handleToggle}
-          />
-          {isExpanded && colData && items}
-        </React.Fragment>
-      )
-    })
+          return (
+            <React.Fragment key={colRef.path}>
+              <TreeNode
+                label={colRef.name || colRef.path.split('/').pop() || 'Collection'}
+                depth={0}
+                type="collection"
+                path={colRef.path}
+                isExpanded={isExpanded}
+                isLoading={isLoading}
+                error={error}
+                onToggle={handleToggle}
+              />
+              {isExpanded && colData && items}
+            </React.Fragment>
+          )
+        })
+      : []
 
     if (searchQuery && totalItemsFound === 0) {
       return (
@@ -257,7 +440,12 @@ const SidebarTree: React.FC = () => {
       )
     }
 
-    return <div className="py-1">{collectionsList}</div>
+    return (
+      <div className="py-1">
+        {collectionsList}
+        {isCreatingInline && <InlineCreateRow />}
+      </div>
+    )
   }
 
   if (isWorkspaceLoading) {

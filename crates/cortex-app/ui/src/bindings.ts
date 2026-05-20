@@ -126,6 +126,12 @@ async getLastWorkspacePath() : Promise<string | null> {
 async getRecentWorkspaces() : Promise<RecentWorkspace[]> {
     return await TAURI_INVOKE("get_recent_workspaces");
 },
+/**
+ * Returns "workspace", "collection", or "unknown" for a given directory path.
+ */
+async detectDirectoryType(path: string) : Promise<string> {
+    return await TAURI_INVOKE("detect_directory_type", { path });
+},
 async getAppSettings() : Promise<AppSettings> {
     return await TAURI_INVOKE("get_app_settings");
 },

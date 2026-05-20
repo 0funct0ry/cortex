@@ -137,6 +137,7 @@ Download the latest version of Cortex and the CLI from the [GitHub Releases](htt
 ### 🖥️ Professional IDE-Style GUI (Work in Progress)
 Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-performance, IDE-like desktop interface.
 - **IDE-Style Layout**: A compact, three-column shell with resizable panes.
+- **Inline Collection Creation**: Create collections directly from the sidebar header or empty workspace view with an inline input field. Supports auto-generated default names (`Untitled Collection - N`), live validation of empty or duplicate names with interactive tooltips, physical directory creation, automatically generated `.gitignore`, and workspace registration with portable relative paths.
 - **Request Composer**: A central area with a color-coded method selector supporting all standard HTTP methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE) and fully custom verbs (e.g. `PURGE`, `LOCK`), URL input with variable highlighting, and a robust Send button.
 - **Query Parameters & Headers Editors**: Dedicated key-value editors (under the "Params" and "Headers" composer tabs) featuring:
     - **Two-Way URL Sync & Encoding**: Real-time bi-directional synchronization between the query parameters table and the URL bar. Supports valueless flag parameters (e.g. `?flag`), explicitly empty parameters (e.g. `?key=`), and duplicate parameter keys (e.g. `?tag=a&tag=b`). Includes strict RFC 3986 percent-encoding while preserving raw `{{placeholder}}` variables in the URL input bar.

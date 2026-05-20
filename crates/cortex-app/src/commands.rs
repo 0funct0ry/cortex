@@ -109,9 +109,89 @@ pub fn delete_item(path: String) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn rename_item(path: String, new_name: String) -> Result<String, String> {
-    Collection::rename_item(&PathBuf::from(path), &new_name)
+    // 1. Resolve target absolute path of the item to be renamed
+    let target_path = std::path::Path::new(&path);
+    let target_abs = std::fs::canonicalize(target_path).unwrap_or(target_path.to_path_buf());
+
+    // 2. Identify if this item is a collection listed in the active workspace manifest
+    let mut workspace_to_update = None;
+    let mut collection_index_to_update = None;
+
+    if let Some(workspace_path) = AppSettings::load().last_workspace_path {
+        if let Ok(content) = std::fs::read_to_string(&workspace_path) {
+            if let Ok(manifest) = WorkspaceManifest::from_yaml(&content) {
+                let workspace_dir = std::path::Path::new(&workspace_path)
+                    .parent()
+                    .unwrap_or(std::path::Path::new("."));
+
+                for (idx, col_path_str) in manifest.collections.iter().enumerate() {
+                    let col_path = std::path::Path::new(col_path_str);
+                    let full_col_path = if col_path.is_absolute() {
+                        col_path.to_path_buf()
+                    } else {
+                        workspace_dir.join(col_path)
+                    };
+                    let full_col_abs =
+                        std::fs::canonicalize(&full_col_path).unwrap_or(full_col_path);
+
+                    if full_col_abs == target_abs {
+                        workspace_to_update = Some(workspace_path.clone());
+                        collection_index_to_update = Some(idx);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Rename the directory/file on disk
+    let result_path = Collection::rename_item(&PathBuf::from(&path), &new_name)
         .map(|p| p.to_string_lossy().to_string())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // 4. Update the manifest entry if a matching collection was found
+    if let (Some(ws_path), Some(idx)) = (workspace_to_update, collection_index_to_update) {
+        if let Ok(content) = std::fs::read_to_string(&ws_path) {
+            if let Ok(mut manifest) = WorkspaceManifest::from_yaml(&content) {
+                if idx < manifest.collections.len() {
+                    let col_path_str = &manifest.collections[idx];
+                    let old_path = std::path::Path::new(col_path_str);
+                    let parent = old_path.parent().unwrap_or(std::path::Path::new(""));
+                    let parent_str = parent.to_string_lossy();
+                    let new_col_path_str = if parent_str.is_empty() {
+                        new_name.clone()
+                    } else if parent_str == "." {
+                        if col_path_str.starts_with("./") {
+                            format!("./{}", new_name)
+                        } else {
+                            new_name.clone()
+                        }
+                    } else {
+                        let s = parent.join(&new_name).to_string_lossy().to_string();
+                        if col_path_str.starts_with("./") && !s.starts_with("./") {
+                            format!("./{}", s)
+                        } else {
+                            s
+                        }
+                    };
+                    manifest.collections[idx] = new_col_path_str;
+                    let _ = manifest.save(&ws_path);
+                }
+            }
+        }
+    }
+
+    // 5. If the renamed item is a collection directory, update its cortex.yaml name field
+    let result_path_buf = PathBuf::from(&result_path);
+    let cortex_yaml = result_path_buf.join("cortex.yaml");
+    if cortex_yaml.exists() {
+        if let Ok(mut col) = Collection::load_manifest_no_envs(&result_path_buf) {
+            col.manifest.name = new_name.clone();
+            let _ = col.save();
+        }
+    }
+
+    Ok(result_path)
 }
 
 #[tauri::command]
@@ -324,9 +404,45 @@ pub fn remove_collection_from_workspace(
     let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
     let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
 
-    manifest.remove_collection(&collection_path);
+    let workspace_dir =
+        std::path::Path::new(&workspace_path).parent().unwrap_or(std::path::Path::new("."));
+
+    let target_path = std::path::Path::new(&collection_path);
+    let target_abs = if target_path.is_absolute() {
+        target_path.to_path_buf()
+    } else {
+        workspace_dir.join(target_path)
+    };
+    let target_abs = std::fs::canonicalize(&target_abs).unwrap_or(target_abs);
+
+    manifest.collections.retain(|col_path_str| {
+        let col_path = std::path::Path::new(col_path_str);
+        let full_col_path = if col_path.is_absolute() {
+            col_path.to_path_buf()
+        } else {
+            workspace_dir.join(col_path)
+        };
+        let full_col_abs = std::fs::canonicalize(&full_col_path).unwrap_or(full_col_path);
+
+        full_col_abs != target_abs
+    });
+
     manifest.save(&workspace_path).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+/// Returns "workspace", "collection", or "unknown" for a given directory path.
+pub fn detect_directory_type(path: String) -> String {
+    let p = std::path::Path::new(&path);
+    if p.join("cortex-workspace.yaml").exists() {
+        "workspace".to_string()
+    } else if p.join("cortex.yaml").exists() {
+        "collection".to_string()
+    } else {
+        "unknown".to_string()
+    }
 }
 
 #[tauri::command]

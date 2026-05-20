@@ -8,11 +8,14 @@ interface CollectionState {
   errors: Record<string, string | null>
   expansionState: Record<string, boolean>
   searchQuery: string
+  isCreatingInline: boolean
 
   loadCollection: (path: string) => Promise<void>
+  clearCollection: (path: string) => void
   toggleExpansion: (path: string) => void
   setExpanded: (path: string, expanded: boolean) => void
   setSearchQuery: (query: string) => void
+  setCreatingInline: (val: boolean) => void
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -21,6 +24,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   errors: {},
   expansionState: {},
   searchQuery: '',
+  isCreatingInline: false,
+
+  setCreatingInline: (val: boolean) => {
+    set({ isCreatingInline: val })
+  },
 
   loadCollection: async (path: string) => {
     // If already loading or already loaded, don't reload unless needed?
@@ -51,6 +59,20 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         loadingCollections: { ...state.loadingCollections, [path]: false },
       }))
     }
+  },
+
+  clearCollection: (path: string) => {
+    set((state) => {
+      const collections = { ...state.collections }
+      const loadingCollections = { ...state.loadingCollections }
+      const errors = { ...state.errors }
+      const expansionState = { ...state.expansionState }
+      delete collections[path]
+      delete loadingCollections[path]
+      delete errors[path]
+      delete expansionState[path]
+      return { collections, loadingCollections, errors, expansionState }
+    })
   },
 
   toggleExpansion: (path: string) => {

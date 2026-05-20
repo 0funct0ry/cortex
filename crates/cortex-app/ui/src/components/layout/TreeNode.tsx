@@ -45,7 +45,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [isRenaming, setIsRenaming] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const { searchQuery, collections } = useCollectionStore()
+  const { searchQuery, collections, clearCollection, loadCollection } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
 
   const collectionPath = useMemo(() => {
@@ -70,8 +70,20 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     try {
       const res = await commands.renameItem(path, newName)
       if (res.status === 'ok') {
-        // Refresh collection/workspace
-        if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
+        if (type === 'collection') {
+          // Evict stale collection data keyed by old path
+          clearCollection(path)
+          // Reload workspace so activeWorkspace.collections reflects new path
+          if (activeWorkspacePath) {
+            await loadWorkspace(activeWorkspacePath)
+            // Eagerly load the renamed collection under its new path
+            await loadCollection(res.data)
+          }
+        } else {
+          if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
+        }
+      } else {
+        toast.error(`Rename failed: ${res.error}`)
       }
     } catch (err) {
       toast.error(`Rename failed: ${String(err)}`)
@@ -86,6 +98,28 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       }
     } catch (err) {
       toast.error(`Delete failed: ${String(err)}`)
+    }
+  }
+
+  const handleDeleteCollection = async () => {
+    if (!activeWorkspacePath) return
+    try {
+      // 1. Remove the collection reference from the workspace manifest
+      const removeRes = await commands.removeCollectionFromWorkspace(activeWorkspacePath, path)
+      if (removeRes.status === 'ok') {
+        // 2. Delete the physical directory (moves to trash)
+        const deleteRes = await commands.deleteItem(path)
+        if (deleteRes.status === 'ok') {
+          await loadWorkspace(activeWorkspacePath)
+          toast.success(`Collection "${label}" deleted`)
+        } else {
+          toast.error(`Failed to delete collection directory: ${deleteRes.error}`)
+        }
+      } else {
+        toast.error(`Failed to remove collection from workspace: ${removeRes.error}`)
+      }
+    } catch (err) {
+      toast.error(`Delete collection failed: ${String(err)}`)
     }
   }
 
@@ -144,6 +178,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 .removeCollectionFromWorkspace(activeWorkspacePath, path)
                 .then(() => loadWorkspace(activeWorkspacePath))
           },
+        },
+        {
+          label: 'Delete Collection',
+          danger: true,
+          onClick: () => setShowDeleteConfirm(true),
         },
       ]
     }
@@ -320,9 +359,13 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       <Dialog
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDelete}
-        title={`Delete ${type === 'request' ? 'Request' : 'Folder'}?`}
-        description={`This will permanently delete the ${type} file. This action cannot be undone.`}
+        onConfirm={type === 'collection' ? handleDeleteCollection : handleDelete}
+        title={`Delete ${type === 'request' ? 'Request' : type === 'folder' ? 'Folder' : 'Collection'}?`}
+        description={
+          type === 'collection'
+            ? 'This will permanently delete the collection folder from your disk and remove it from the workspace. This action cannot be undone.'
+            : `This will permanently delete the ${type} file. This action cannot be undone.`
+        }
         confirmLabel="Delete"
         variant="danger"
       />

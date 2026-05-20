@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
 import * as Icons from '../ui/Icons'
 import { useCollectionStore } from '../../stores/collectionStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 
 const SidebarHeader: React.FC = () => {
   const [isSearchActive, setIsSearchActive] = useState(false)
-  const { searchQuery, setSearchQuery } = useCollectionStore()
+  const { searchQuery, setSearchQuery, setCreatingInline } = useCollectionStore()
+  const { activeWorkspace, isLoading: isWorkspaceLoading } = useWorkspaceStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -28,6 +30,8 @@ const SidebarHeader: React.FC = () => {
       setIsSearchActive(false)
     }
   }
+
+  const isPlusDisabled = !activeWorkspace || isWorkspaceLoading
 
   if (isSearchActive) {
     return (
@@ -66,7 +70,18 @@ const SidebarHeader: React.FC = () => {
         >
           <Icons.Search size={14} />
         </button>
-        <button className="p-1 hover:bg-bg-muted rounded-md text-text-muted hover:text-text-primary transition-colors">
+        <button
+          disabled={isPlusDisabled}
+          onClick={() => setCreatingInline(true)}
+          className={`p-1 rounded-md transition-colors ${
+            isPlusDisabled
+              ? 'text-text-muted/40 cursor-not-allowed'
+              : 'text-text-muted hover:text-text-primary hover:bg-bg-muted'
+          }`}
+          title={
+            isPlusDisabled ? 'Open a workspace first to create collections' : 'Create Collection'
+          }
+        >
           <Icons.Plus size={14} />
         </button>
         <button className="p-1 hover:bg-bg-muted rounded-md text-text-muted hover:text-text-primary transition-colors">
