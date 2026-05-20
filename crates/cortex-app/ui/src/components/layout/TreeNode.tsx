@@ -281,7 +281,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   return (
     <div className="flex flex-col" onContextMenu={handleContextMenu}>
       <div
-        className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors ${
+        data-path={path}
+        tabIndex={0}
+        className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors outline-none focus:bg-bg-highlight ${
           isActive ? 'bg-bg-highlight' : isHovered ? 'bg-bg-muted' : ''
         }`}
         style={{ paddingLeft: `${indentation}px`, paddingRight: '12px' }}

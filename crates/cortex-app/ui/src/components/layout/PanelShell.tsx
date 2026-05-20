@@ -4,7 +4,7 @@ import RequestTabBar from './RequestTabBar'
 import Sidebar from './Sidebar'
 import ResponsePane from './ResponsePane'
 import EnvironmentsTab from './EnvironmentsTab'
-import EmptyComposerState from './EmptyComposerState'
+import WorkspaceOverview from './WorkspaceOverview'
 import Composer from '../composer/Composer'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
@@ -156,7 +156,7 @@ const PanelShell: React.FC = () => {
                 )}
               </div>
             ) : (
-              <EmptyComposerState />
+              <WorkspaceOverview />
             )}
           </div>
         </Panel>
