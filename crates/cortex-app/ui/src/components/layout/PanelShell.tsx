@@ -4,7 +4,7 @@ import RequestTabBar from './RequestTabBar'
 import Sidebar from './Sidebar'
 import ResponsePane from './ResponsePane'
 import EnvironmentsTab from './EnvironmentsTab'
-import WorkspaceOverview from './WorkspaceOverview'
+import WorkspaceHome from './WorkspaceHome'
 import Composer from '../composer/Composer'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
@@ -121,42 +121,43 @@ const PanelShell: React.FC = () => {
         {/* CONTENT AREA */}
         <Panel id="content" order={2} defaultSize={sidebarCollapsed ? 100 : mainLayout[1]}>
           <div className="h-full flex flex-col">
-            <RequestTabBar />
-
             {tabs.length > 0 ? (
-              <div className="flex-1 overflow-hidden">
-                {activeTab?.type === 'environments' ? (
-                  <EnvironmentsTab />
-                ) : (
-                  <PanelGroup direction="horizontal" onLayout={onEditorLayout}>
-                    {/* COMPOSER */}
-                    <Panel
-                      id="composer"
-                      order={1}
-                      defaultSize={editorLayout[0]}
-                      minSize={30}
-                      className="bg-bg-base"
-                    >
-                      <Composer />
-                    </Panel>
+              <>
+                <RequestTabBar />
+                <div className="flex-1 overflow-hidden">
+                  {activeTab?.type === 'environments' ? (
+                    <EnvironmentsTab />
+                  ) : (
+                    <PanelGroup direction="horizontal" onLayout={onEditorLayout}>
+                      {/* COMPOSER */}
+                      <Panel
+                        id="composer"
+                        order={1}
+                        defaultSize={editorLayout[0]}
+                        minSize={30}
+                        className="bg-bg-base"
+                      >
+                        <Composer />
+                      </Panel>
 
-                    <ResizeHandle />
+                      <ResizeHandle />
 
-                    <Panel
-                      id="response"
-                      order={2}
-                      defaultSize={editorLayout[1]}
-                      minSize={20}
-                      maxSize={70}
-                      className="bg-bg-panel"
-                    >
-                      <ResponsePane />
-                    </Panel>
-                  </PanelGroup>
-                )}
-              </div>
+                      <Panel
+                        id="response"
+                        order={2}
+                        defaultSize={editorLayout[1]}
+                        minSize={20}
+                        maxSize={70}
+                        className="bg-bg-panel"
+                      >
+                        <ResponsePane />
+                      </Panel>
+                    </PanelGroup>
+                  )}
+                </div>
+              </>
             ) : (
-              <WorkspaceOverview />
+              <WorkspaceHome />
             )}
           </div>
         </Panel>
