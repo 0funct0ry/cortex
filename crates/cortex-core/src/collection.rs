@@ -292,7 +292,11 @@ impl Collection {
     }
 
     /// Creates a new request file.
-    pub fn create_request(name: &str, parent_path: &Path) -> Result<PathBuf, CollectionError> {
+    pub fn create_request(
+        name: &str,
+        parent_path: &Path,
+        method: Option<&str>,
+    ) -> Result<PathBuf, CollectionError> {
         let file_name =
             if name.ends_with(".crx") { name.to_string() } else { format!("{}.crx", name) };
         let path = parent_path.join(file_name);
@@ -300,8 +304,11 @@ impl Collection {
             return Err(CollectionError::InvalidPath(format!("File already exists: {:?}", path)));
         }
 
+        let method_str = method.unwrap_or("GET");
+        let url_str = if method_str.eq_ignore_ascii_case("WS") { "ws://" } else { "https://" };
+
         let request =
-            RequestFile::new(name.replace(".crx", ""), "GET".to_string(), "https://".to_string());
+            RequestFile::new(name.replace(".crx", ""), method_str.to_string(), url_str.to_string());
         let yaml = request.to_yaml()?;
         fs::write(&path, yaml)?;
         Ok(path)
@@ -531,7 +538,7 @@ description: \"Description\"
     #[test]
     fn test_create_request() {
         let dir = tempdir().unwrap();
-        let path = Collection::create_request("New Request", dir.path()).unwrap();
+        let path = Collection::create_request("New Request", dir.path(), None).unwrap();
         assert!(path.exists());
         assert!(path.to_str().unwrap().contains("New Request.crx"));
 

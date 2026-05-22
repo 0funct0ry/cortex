@@ -24,9 +24,9 @@ async saveRequest(request: RequestFile, path: string) : Promise<Result<null, str
     else return { status: "error", error: e  as any };
 }
 },
-async createRequest(name: string, parentPath: string) : Promise<Result<string, string>> {
+async createRequest(name: string, parentPath: string, method: string | null) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("create_request", { name, parentPath }) };
+    return { status: "ok", data: await TAURI_INVOKE("create_request", { name, parentPath, method }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

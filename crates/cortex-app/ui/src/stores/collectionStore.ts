@@ -9,6 +9,8 @@ interface CollectionState {
   expansionState: Record<string, boolean>
   searchQuery: string
   isCreatingInline: boolean
+  selectedPath: string | null
+  renamingPath: string | null
 
   loadCollection: (path: string) => Promise<void>
   clearCollection: (path: string) => void
@@ -16,6 +18,8 @@ interface CollectionState {
   setExpanded: (path: string, expanded: boolean) => void
   setSearchQuery: (query: string) => void
   setCreatingInline: (val: boolean) => void
+  setSelectedPath: (path: string | null) => void
+  setRenamingPath: (path: string | null) => void
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -25,9 +29,19 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   expansionState: {},
   searchQuery: '',
   isCreatingInline: false,
+  selectedPath: null,
+  renamingPath: null,
 
   setCreatingInline: (val: boolean) => {
     set({ isCreatingInline: val })
+  },
+
+  setSelectedPath: (path: string | null) => {
+    set({ selectedPath: path })
+  },
+
+  setRenamingPath: (path: string | null) => {
+    set({ renamingPath: path })
   },
 
   loadCollection: async (path: string) => {

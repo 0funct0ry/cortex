@@ -94,8 +94,12 @@ pub async fn save_request(request: RequestFile, path: String) -> Result<(), Stri
 
 #[tauri::command]
 #[specta::specta]
-pub fn create_request(name: String, parent_path: String) -> Result<String, String> {
-    Collection::create_request(&name, &PathBuf::from(parent_path))
+pub fn create_request(
+    name: String,
+    parent_path: String,
+    method: Option<String>,
+) -> Result<String, String> {
+    Collection::create_request(&name, &PathBuf::from(parent_path), method.as_deref())
         .map(|p| p.to_string_lossy().to_string())
         .map_err(|e| e.to_string())
 }

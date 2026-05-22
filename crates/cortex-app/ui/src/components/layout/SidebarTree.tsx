@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useTabs } from '../../contexts/TabsContext'
@@ -7,7 +8,7 @@ import TreeNode from './TreeNode'
 import * as Icons from '../ui/Icons'
 import Tooltip from '../ui/Tooltip'
 import { useRequestStore } from '../../stores/requestStore'
-import type { CollectionItem } from '../../bindings'
+import type { CollectionItem, RequestFile } from '../../bindings'
 import { commands } from '../../bindings'
 
 const InlineCreateRow: React.FC = () => {
@@ -179,6 +180,268 @@ const InlineCreateRow: React.FC = () => {
         </button>
       </div>
     </div>
+  )
+}
+
+// Helper functions for path operations and name uniqueness
+const getParentDirectory = (filePath: string) => {
+  const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  if (lastSlash === -1) return ''
+  return filePath.substring(0, lastSlash)
+}
+
+const joinPath = (parent: string, child: string) => {
+  const isWindows = parent.includes('\\')
+  const separator = isWindows ? '\\' : '/'
+  return `${parent}${separator}${child}`
+}
+
+const doesPathExist = (items: CollectionItem[], pathToCheck: string): boolean => {
+  for (const item of items) {
+    if (item.type === 'Folder') {
+      if (item.data.path === pathToCheck) return true
+      if (doesPathExist(item.data.items, pathToCheck)) return true
+    } else if (item.type === 'Request') {
+      if (item.data.path === pathToCheck) return true
+    }
+  }
+  return false
+}
+
+const getUniqueRequestName = (parentPath: string, items: CollectionItem[]): string => {
+  let name = 'New Request'
+  let path = joinPath(parentPath, name + '.crx')
+  if (!doesPathExist(items, path)) {
+    return name
+  }
+  let counter = 1
+  while (true) {
+    name = `New Request ${counter}`
+    path = joinPath(parentPath, name + '.crx')
+    if (!doesPathExist(items, path)) {
+      return name
+    }
+    counter++
+  }
+}
+
+const getTargetDirectory = (collectionPath: string, selectedPath: string | null): string => {
+  if (!selectedPath) return collectionPath
+
+  // Ensure selectedPath belongs to the current collection
+  const isSubPath =
+    selectedPath === collectionPath ||
+    selectedPath.startsWith(collectionPath + '/') ||
+    selectedPath.startsWith(collectionPath + '\\')
+
+  if (!isSubPath) return collectionPath
+
+  if (selectedPath.endsWith('.crx')) {
+    return getParentDirectory(selectedPath)
+  }
+  return selectedPath
+}
+
+interface ProtocolDropdownProps {
+  x: number
+  y: number
+  onClose: () => void
+  onSelect: (method: string, url: string) => void
+}
+
+const ProtocolDropdown: React.FC<ProtocolDropdownProps> = ({ x, y, onClose, onSelect }) => {
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ x, y })
+
+  useEffect(() => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect()
+      let newX = x + 12 // Offset to align nicely with tree indentation and leave breathing room on left
+      let newY = y
+
+      // Clip to viewport
+      if (newX < 12) {
+        newX = 12
+      }
+      if (newX + rect.width > window.innerWidth) {
+        newX = window.innerWidth - rect.width - 8
+      }
+      if (y + rect.height > window.innerHeight) {
+        newY = window.innerHeight - rect.height - 8
+      }
+
+      setPosition({ x: newX, y: newY })
+    }
+  }, [x, y])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [onClose])
+
+  const options = [
+    {
+      label: 'HTTP',
+      method: 'GET',
+      url: 'https://',
+      icon: Icons.Api,
+      colorClass: 'text-method-get bg-method-get/15',
+    },
+    {
+      label: 'GraphQL',
+      method: 'GraphQL',
+      url: 'https://',
+      icon: Icons.Star,
+      colorClass: 'text-method-graphql bg-method-graphql/15',
+    },
+    {
+      label: 'gRPC',
+      method: 'gRPC',
+      url: 'https://',
+      icon: Icons.Code,
+      colorClass: 'text-method-grpc bg-method-grpc/15',
+    },
+    {
+      label: 'WebSocket',
+      method: 'WS',
+      url: 'ws://',
+      icon: Icons.Plug,
+      colorClass: 'text-method-ws bg-method-ws/15',
+    },
+  ]
+
+  return createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-[100] w-[180px] bg-bg-overlay border border-border-default rounded-md shadow-[0_4px_16px_rgba(0,0,0,0.3)] py-1 select-none animate-in fade-in zoom-in-95 duration-100"
+      style={{ left: position.x, top: position.y }}
+    >
+      {options.map((opt) => {
+        const IconComponent = opt.icon
+        return (
+          <div
+            key={opt.label}
+            className="flex items-center gap-2.5 px-3 h-[30px] text-sm text-text-primary hover:bg-bg-highlight cursor-pointer transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect(opt.method, opt.url)
+            }}
+          >
+            <div
+              className={`w-[20px] h-[20px] flex items-center justify-center rounded-sm ${opt.colorClass}`}
+            >
+              <IconComponent size={12} />
+            </div>
+            <span className="font-medium text-xs text-text-secondary">{opt.label}</span>
+          </div>
+        )
+      })}
+    </div>,
+    document.body
+  )
+}
+
+interface AddRequestLinkProps {
+  collectionPath: string
+}
+
+const AddRequestLink: React.FC<AddRequestLinkProps> = ({ collectionPath }) => {
+  const { collections, selectedPath, loadCollection } = useCollectionStore()
+  const { openTab } = useTabs()
+  const [dropdownPosition, setDropdownPosition] = useState<{ x: number; y: number } | null>(null)
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDropdownPosition({
+      x: rect.left,
+      y: rect.bottom,
+    })
+  }
+
+  const handleSelectProtocol = async (method: string, url: string) => {
+    setDropdownPosition(null)
+    const colData = collections[collectionPath]
+    if (!colData) return
+
+    const targetDir = getTargetDirectory(collectionPath, selectedPath)
+    const reqName = getUniqueRequestName(targetDir, colData.items)
+
+    try {
+      const res = await commands.createRequest(reqName, targetDir, method)
+      if (res.status === 'ok') {
+        const newRequestPath = res.data
+
+        // Pre-populate request tab
+        const defaultRequestContent: RequestFile = {
+          version: '1',
+          name: reqName,
+          method: method,
+          url: url,
+          headers: {},
+          params: {},
+          body: null,
+        }
+
+        // Load/Reload the collection to show the new item in tree
+        await loadCollection(collectionPath)
+
+        // Open the tab in composer
+        openTab({
+          type: 'request',
+          requestPath: newRequestPath,
+          collectionId: collectionPath,
+          name: reqName,
+          method: method,
+        })
+
+        useRequestStore.getState().populateRequest(newRequestPath, defaultRequestContent)
+
+        // Set renaming state to true for the new node path
+        useCollectionStore.getState().setRenamingPath(newRequestPath)
+      } else {
+        toast.error(`Failed to create request: ${res.error}`)
+      }
+    } catch (e) {
+      toast.error(`Error creating request: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  return (
+    <>
+      <div
+        className="flex items-center gap-1.5 h-[28px] cursor-pointer text-text-muted hover:text-text-primary transition-colors text-xs select-none group"
+        style={{ paddingLeft: '24px', paddingRight: '12px' }}
+        onClick={handleClick}
+      >
+        <Icons.Plus size={12} className="text-text-muted/60 group-hover:text-text-primary" />
+        <span>Add request</span>
+      </div>
+
+      {dropdownPosition && (
+        <ProtocolDropdown
+          x={dropdownPosition.x}
+          y={dropdownPosition.y}
+          onClose={() => setDropdownPosition(null)}
+          onSelect={handleSelectProtocol}
+        />
+      )}
+    </>
   )
 }
 
@@ -426,7 +689,12 @@ const SidebarTree: React.FC = () => {
                 error={error}
                 onToggle={handleToggle}
               />
-              {isExpanded && colData && items}
+              {isExpanded && colData && (
+                <>
+                  {items}
+                  <AddRequestLink collectionPath={colRef.path} />
+                </>
+              )}
             </React.Fragment>
           )
         })

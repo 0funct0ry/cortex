@@ -45,8 +45,26 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [isRenaming, setIsRenaming] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const { searchQuery, collections, clearCollection, loadCollection } = useCollectionStore()
+  const {
+    searchQuery,
+    collections,
+    clearCollection,
+    loadCollection,
+    selectedPath,
+    setSelectedPath,
+    renamingPath,
+    setRenamingPath,
+  } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
+
+  React.useEffect(() => {
+    if (renamingPath === path) {
+      setTimeout(() => {
+        setIsRenaming(true)
+        setRenamingPath(null)
+      }, 0)
+    }
+  }, [renamingPath, path, setRenamingPath])
 
   const collectionPath = useMemo(() => {
     if (type === 'collection') return path
@@ -136,7 +154,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
   const handleCreateRequest = useCallback(async () => {
     try {
-      const res = await commands.createRequest('New Request', path)
+      const res = await commands.createRequest('New Request', path, null)
       if (res.status === 'ok') {
         if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
       }
@@ -284,12 +302,19 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         data-path={path}
         tabIndex={0}
         className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors outline-none focus:bg-bg-highlight ${
-          isActive ? 'bg-bg-highlight' : isHovered ? 'bg-bg-muted' : ''
+          isActive || selectedPath === path ? 'bg-bg-highlight' : isHovered ? 'bg-bg-muted' : ''
         }`}
         style={{ paddingLeft: `${indentation}px`, paddingRight: '12px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={type === 'request' ? onClick : onToggle}
+        onClick={() => {
+          setSelectedPath(path)
+          if (type === 'request') {
+            onClick?.()
+          } else {
+            onToggle?.()
+          }
+        }}
         onDoubleClick={onDoubleClick}
       >
         {(type === 'collection' || type === 'folder') && (
