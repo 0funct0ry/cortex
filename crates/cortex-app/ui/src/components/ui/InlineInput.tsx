@@ -40,6 +40,10 @@ const InlineInput: React.FC<InlineInputProps> = ({
       defaultValue={initialValue}
       onKeyDown={handleKeyDown}
       onBlur={handleBlur}
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
       className={`bg-bg-surface border border-accent rounded px-1 outline-none text-sm w-full h-[22px] ${className}`}
       onClick={(e) => e.stopPropagation()}
     />

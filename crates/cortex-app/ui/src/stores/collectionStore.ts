@@ -45,8 +45,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   loadCollection: async (path: string) => {
-    // If already loading or already loaded, don't reload unless needed?
-    // For now, let's allow reloading if requested, but check if it's already loading.
+    // If a load is already in-flight, skip — the in-flight load will return the
+    // latest on-disk state by the time it resolves.
     if (get().loadingCollections[path]) return
 
     set((state) => ({

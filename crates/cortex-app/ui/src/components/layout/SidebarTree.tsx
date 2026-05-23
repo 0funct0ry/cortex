@@ -406,6 +406,7 @@ const AddRequestLink: React.FC<AddRequestLinkProps> = ({ collectionPath }) => {
           type: 'request',
           requestPath: newRequestPath,
           collectionId: collectionPath,
+          collectionPath: null,
           name: reqName,
           method: method,
         })
@@ -602,6 +603,7 @@ const SidebarTree: React.FC = () => {
                 type: 'request',
                 requestPath: request.path,
                 collectionId: collectionPath,
+                collectionPath: null,
                 name: request.name,
                 method: request.content?.method || 'GET',
               })
@@ -677,6 +679,17 @@ const SidebarTree: React.FC = () => {
             return null
           }
 
+          const handleOpenCollectionTab = () => {
+            openTab({
+              type: 'collection',
+              collectionPath: colRef.path,
+              collectionId: colRef.path,
+              requestPath: null,
+              name: colRef.name || colRef.path.split('/').pop() || 'Collection',
+              method: '',
+            })
+          }
+
           return (
             <React.Fragment key={colRef.path}>
               <TreeNode
@@ -688,6 +701,7 @@ const SidebarTree: React.FC = () => {
                 isLoading={isLoading}
                 error={error}
                 onToggle={handleToggle}
+                onOpenSettings={handleOpenCollectionTab}
               />
               {isExpanded && colData && (
                 <>

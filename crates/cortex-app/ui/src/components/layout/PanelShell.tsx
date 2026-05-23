@@ -6,6 +6,7 @@ import ResponsePane from './ResponsePane'
 import EnvironmentsTab from './EnvironmentsTab'
 import WorkspaceHome from './WorkspaceHome'
 import Composer from '../composer/Composer'
+import CollectionView from '../collection/CollectionView'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
 
@@ -79,6 +80,7 @@ const PanelShell: React.FC = () => {
           name: 'Environments',
           requestPath: null,
           collectionId: null,
+          collectionPath: null,
           method: '',
         })
       }
@@ -125,7 +127,12 @@ const PanelShell: React.FC = () => {
               <>
                 <RequestTabBar />
                 <div className="flex-1 overflow-hidden">
-                  {activeTab?.type === 'environments' ? (
+                  {activeTab?.type === 'collection' ? (
+                    <CollectionView
+                      collectionPath={activeTab.collectionPath!}
+                      tabId={activeTab.id}
+                    />
+                  ) : activeTab?.type === 'environments' ? (
                     <EnvironmentsTab />
                   ) : (
                     <PanelGroup direction="horizontal" onLayout={onEditorLayout}>

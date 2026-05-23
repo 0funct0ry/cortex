@@ -1,4 +1,4 @@
-use crate::request::{AuthRef, RequestFile};
+use crate::request::{AuthRef, RequestFile, Scripts};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeMap;
@@ -25,6 +25,12 @@ pub struct CollectionManifest {
     /// Collection-level variables
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variables: Option<Vec<crate::variables::Variable>>,
+    /// Collection-level pre/post-request scripts run for every request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scripts: Option<Scripts>,
+    /// Collection-level test scripts run after every response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tests: Option<String>,
 }
 
 impl CollectionManifest {
@@ -36,6 +42,8 @@ impl CollectionManifest {
             auth: None,
             headers: None,
             variables: None,
+            scripts: None,
+            tests: None,
         }
     }
 
@@ -321,6 +329,10 @@ impl Collection {
     }
 
     /// Renames an item on disk.
+    ///
+    /// For `.crx` request files the `name` field inside the YAML is also updated
+    /// to match the new filename stem, keeping the file self-consistent (the name
+    /// is used for history display and future export/import workflows).
     pub fn rename_item(path: &Path, new_name: &str) -> Result<PathBuf, CollectionError> {
         let parent = path
             .parent()
@@ -332,7 +344,22 @@ impl Collection {
             new_name.to_string()
         };
 
-        let new_path = parent.join(new_file_name);
+        let new_path = parent.join(&new_file_name);
+
+        // For request files: update the internal `name` field before renaming so
+        // the YAML content stays in sync with the filename stem.
+        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("crx") {
+            let stem = new_file_name.trim_end_matches(".crx");
+            if let Ok(content) = fs::read_to_string(path) {
+                if let Ok(mut rf) = serde_yaml::from_str::<RequestFile>(&content) {
+                    rf.name = stem.to_string();
+                    if let Ok(updated) = serde_yaml::to_string(&rf) {
+                        let _ = fs::write(path, updated);
+                    }
+                }
+            }
+        }
+
         fs::rename(path, &new_path)?;
         Ok(new_path)
     }
@@ -476,6 +503,8 @@ mod tests {
             auth: None,
             headers: None,
             variables: Some(variables),
+            scripts: None,
+            tests: None,
         };
 
         let yaml = manifest.to_yaml().unwrap();

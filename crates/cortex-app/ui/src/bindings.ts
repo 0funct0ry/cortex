@@ -215,6 +215,43 @@ async updateFolderHeaders(folderPath: string, headers: { [key in string]: string
     else return { status: "error", error: e  as any };
 }
 },
+async updateCollectionScripts(collectionPath: string, scripts: Scripts | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_collection_scripts", { collectionPath, scripts }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateCollectionTests(collectionPath: string, tests: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_collection_tests", { collectionPath, tests }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateCollectionDescription(collectionPath: string, description: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_collection_description", { collectionPath, description }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Atomically saves all collection view fields in a single read-modify-write operation.
+ * Replaces the old pattern of firing 6 concurrent commands (which caused YAML corruption
+ * from concurrent fs::write calls on the same file).
+ */
+async saveCollection(collectionPath: string, name: string, description: string | null, headers: { [key in string]: string } | null, variables: Variable[], auth: AuthRef | null, scripts: Scripts | null, tests: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_collection", { collectionPath, name, description, headers, variables, auth, scripts, tests }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async updateEnvironmentVariables(workspacePath: string, environmentName: string, variables: Variable[]) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_environment_variables", { workspacePath, environmentName, variables }) };
@@ -414,7 +451,15 @@ headers?: { [key in string]: string } | null;
 /**
  * Collection-level variables
  */
-variables?: Variable[] | null }
+variables?: Variable[] | null; 
+/**
+ * Collection-level pre/post-request scripts run for every request
+ */
+scripts?: Scripts | null; 
+/**
+ * Collection-level test scripts run after every response
+ */
+tests?: string | null }
 export type EnvironmentFile = { 
 /**
  * Schema version (e.g., "1")

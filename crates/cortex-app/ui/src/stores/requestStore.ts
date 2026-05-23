@@ -8,6 +8,7 @@ import {
 } from '../bindings'
 import { useWorkspaceStore } from './workspaceStore'
 import { useEnvironmentStore } from './environmentStore'
+import { useCollectionStore } from './collectionStore'
 
 export type ComposerTabId =
   | 'params'
@@ -454,6 +455,13 @@ export const useRequestStore = create<RequestState>((set, get) => ({
     if (result.status === 'error') {
       console.error('Failed to save request', result.error)
       throw new Error(result.error)
+    }
+
+    // Reload the parent collection so the sidebar reflects updated name/method
+    const { collections, loadCollection } = useCollectionStore.getState()
+    const parentColPath = Object.keys(collections).find((cp) => path.startsWith(cp))
+    if (parentColPath) {
+      loadCollection(parentColPath)
     }
   },
 

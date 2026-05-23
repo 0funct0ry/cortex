@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
-export type TabType = 'request' | 'environments'
+export type TabType = 'request' | 'environments' | 'collection'
 
 export interface Tab {
   id: string
   type: TabType
   requestPath: string | null // path to .crx file, null for scratch tabs
   collectionId: string | null
+  collectionPath: string | null // absolute disk path, singleton key for collection tabs
   method: string
   name: string
   isDirty: boolean
@@ -18,6 +19,8 @@ interface TabsContextType {
   activeTab: Tab | null
   openTab: (tab: Omit<Tab, 'id' | 'isDirty'>) => string
   closeTab: (id: string) => void
+  /** Close all tabs matching a predicate in one atomic state update. */
+  closeTabsWhere: (predicate: (tab: Tab) => boolean) => void
   activateTab: (id: string) => void
   setDirty: (id: string, isDirty: boolean) => void
   updateTab: (id: string, updates: Partial<Omit<Tab, 'id'>>) => void
@@ -37,7 +40,11 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const saved = localStorage.getItem(STORAGE_KEY_TABS)
     if (saved) {
       try {
-        return JSON.parse(saved)
+        // Migrate older persisted tabs that may not have collectionPath
+        return JSON.parse(saved).map((t: Tab) => ({
+          ...t,
+          collectionPath: t.collectionPath ?? null,
+        }))
       } catch (e) {
         console.error('Failed to load tabs from localStorage', e)
       }
@@ -71,6 +78,17 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Check for singleton tabs
       if (tabData.type === 'environments') {
         const existingTab = tabs.find((t) => t.type === 'environments')
+        if (existingTab) {
+          activateTab(existingTab.id)
+          return existingTab.id
+        }
+      }
+
+      // Collection tabs are singleton per collection path
+      if (tabData.type === 'collection' && tabData.collectionPath) {
+        const existingTab = tabs.find(
+          (t) => t.type === 'collection' && t.collectionPath === tabData.collectionPath
+        )
         if (existingTab) {
           activateTab(existingTab.id)
           return existingTab.id
@@ -118,6 +136,29 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         return newTabs
+      })
+    },
+    [activeTabId]
+  )
+
+  const closeTabsWhere = useCallback(
+    (predicate: (tab: Tab) => boolean) => {
+      setTabs((prev) => {
+        const remaining = prev.filter((t) => !predicate(t))
+        // If the active tab is being removed, activate the nearest remaining tab
+        const activeIsClosing = prev.some((t) => t.id === activeTabId && predicate(t))
+        if (activeIsClosing) {
+          if (remaining.length > 0) {
+            // Prefer the tab that was immediately before the first closed tab
+            const firstClosedIndex = prev.findIndex((t) => predicate(t))
+            const newActiveIndex = Math.max(0, firstClosedIndex - 1)
+            const newActive = remaining[Math.min(newActiveIndex, remaining.length - 1)]
+            setActiveTabId(newActive.id)
+          } else {
+            setActiveTabId(null)
+          }
+        }
+        return remaining
       })
     },
     [activeTabId]
@@ -220,6 +261,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           type: 'request',
           requestPath: null,
           collectionId: null,
+          collectionPath: null,
           name: 'Untitled',
           method: 'GET',
         })
@@ -238,6 +280,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeTab,
         openTab,
         closeTab,
+        closeTabsWhere,
         activateTab,
         setDirty,
         updateTab,

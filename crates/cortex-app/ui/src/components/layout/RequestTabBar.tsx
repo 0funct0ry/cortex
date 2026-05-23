@@ -40,6 +40,7 @@ const RequestTabBar: React.FC = () => {
       type: 'request',
       requestPath: null,
       collectionId: null,
+      collectionPath: null,
       name: 'Untitled',
       method: 'GET',
     })

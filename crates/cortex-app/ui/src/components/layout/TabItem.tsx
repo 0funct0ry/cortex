@@ -112,6 +112,8 @@ const TabItem: React.FC<TabItemProps> = ({
         {/* Icon / Method Label */}
         {tab.type === 'environments' ? (
           <Icons.Globe size={14} className="text-accent shrink-0" />
+        ) : tab.type === 'collection' ? (
+          <Icons.Settings size={14} className="text-accent shrink-0" />
         ) : (
           <span
             className={`text-[10px] font-bold uppercase shrink-0 ${getMethodColor(tab.method, active)}`}

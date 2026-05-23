@@ -92,6 +92,8 @@ fn test_collection_manifest_roundtrip() {
         }),
         headers: Some(headers),
         variables: Some(variables),
+        scripts: None,
+        tests: None,
     };
 
     let yaml = manifest.to_yaml().expect("Failed to serialize CollectionManifest");

@@ -600,6 +600,86 @@ pub async fn update_collection_headers(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn update_collection_scripts(
+    collection_path: String,
+    scripts: Option<cortex_core::request::Scripts>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.scripts = scripts;
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_collection_tests(
+    collection_path: String,
+    tests: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.tests = tests;
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_collection_description(
+    collection_path: String,
+    description: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.description = description;
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Atomically saves all collection view fields in a single read-modify-write operation.
+/// Replaces the old pattern of firing 6 concurrent commands (which caused YAML corruption
+/// from concurrent fs::write calls on the same file).
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+#[specta::specta]
+pub async fn save_collection(
+    collection_path: String,
+    name: String,
+    description: Option<String>,
+    headers: Option<std::collections::BTreeMap<String, String>>,
+    variables: Vec<cortex_core::variables::Variable>,
+    auth: Option<AuthRef>,
+    scripts: Option<cortex_core::request::Scripts>,
+    tests: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.name = name;
+        collection.manifest.description = description;
+        collection.manifest.headers = headers;
+        collection.manifest.variables = if variables.is_empty() { None } else { Some(variables) };
+        collection.manifest.auth = auth;
+        collection.manifest.scripts = scripts;
+        collection.manifest.tests = tests;
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn update_folder_headers(
     folder_path: String,
     headers: Option<std::collections::BTreeMap<String, String>>,

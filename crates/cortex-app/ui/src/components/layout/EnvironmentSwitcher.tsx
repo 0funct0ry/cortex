@@ -17,6 +17,7 @@ const EnvironmentSwitcher: React.FC = () => {
         name: 'Environments',
         requestPath: null,
         collectionId: null,
+        collectionPath: null,
         method: '',
       })
     }

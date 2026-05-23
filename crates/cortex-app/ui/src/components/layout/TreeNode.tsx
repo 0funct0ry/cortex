@@ -8,6 +8,7 @@ import InlineInput from '../ui/InlineInput'
 import { commands } from '../../bindings'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
 import { SettingsModal } from '../ui/SettingsModal'
 
@@ -24,6 +25,7 @@ interface TreeNodeProps {
   onToggle?: () => void
   onClick?: () => void
   onDoubleClick?: () => void
+  onOpenSettings?: () => void
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
@@ -39,6 +41,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onToggle,
   onClick,
   onDoubleClick,
+  onOpenSettings,
 }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -56,6 +59,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     setRenamingPath,
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
+  const { tabs, updateTab, closeTabsWhere } = useTabs()
 
   React.useEffect(() => {
     if (renamingPath === path) {
@@ -98,7 +102,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             await loadCollection(res.data)
           }
         } else {
-          if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
+          if (collectionPath) await loadCollection(collectionPath)
+          // Sync the tab title and path for any open tab pointing at this request
+          const matchingTab = tabs.find((t) => t.requestPath === path)
+          if (matchingTab) {
+            updateTab(matchingTab.id, { name: newName, requestPath: res.data })
+          }
         }
       } else {
         toast.error(`Rename failed: ${res.error}`)
@@ -112,7 +121,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     try {
       const res = await commands.deleteItem(path)
       if (res.status === 'ok') {
-        if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
+        if (collectionPath) await loadCollection(collectionPath)
+        // Close the tab for the deleted request (or any request inside a deleted folder)
+        closeTabsWhere((t) => t.requestPath !== null && t.requestPath.startsWith(path))
       }
     } catch (err) {
       toast.error(`Delete failed: ${String(err)}`)
@@ -129,6 +140,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         const deleteRes = await commands.deleteItem(path)
         if (deleteRes.status === 'ok') {
           await loadWorkspace(activeWorkspacePath)
+          // Close all request tabs and the collection-view tab for this collection
+          closeTabsWhere(
+            (t) =>
+              (t.type === 'request' && t.collectionId === path) ||
+              (t.type === 'collection' && t.collectionPath === path)
+          )
           toast.success(`Collection "${label}" deleted`)
         } else {
           toast.error(`Failed to delete collection directory: ${deleteRes.error}`)
@@ -145,34 +162,36 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     try {
       const res = await commands.duplicateRequest(path)
       if (res.status === 'ok') {
-        if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
+        if (collectionPath) await loadCollection(collectionPath)
       }
     } catch (err) {
       toast.error(`Duplicate failed: ${String(err)}`)
     }
-  }, [path, activeWorkspacePath, loadWorkspace])
+  }, [path, collectionPath, loadCollection])
 
   const handleCreateRequest = useCallback(async () => {
     try {
       const res = await commands.createRequest('New Request', path, null)
       if (res.status === 'ok') {
-        if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
+        await loadCollection(collectionPath || path)
+        useCollectionStore.getState().setRenamingPath(res.data)
       }
     } catch (err) {
       toast.error(`Create request failed: ${String(err)}`)
     }
-  }, [path, activeWorkspacePath, loadWorkspace])
+  }, [path, collectionPath, loadCollection])
 
   const handleCreateFolder = useCallback(async () => {
     try {
       const res = await commands.createFolder('New Folder', path)
       if (res.status === 'ok') {
-        if (activeWorkspacePath) await loadWorkspace(activeWorkspacePath)
+        await loadCollection(collectionPath || path)
+        useCollectionStore.getState().setRenamingPath(res.data)
       }
     } catch (err) {
       toast.error(`Create folder failed: ${String(err)}`)
     }
-  }, [path, activeWorkspacePath, loadWorkspace])
+  }, [path, collectionPath, loadCollection])
 
   const contextMenuItems = useMemo((): ContextMenuItem[] => {
     const common: ContextMenuItem[] = [{ label: 'Rename', onClick: () => setIsRenaming(true) }]
@@ -181,6 +200,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       return [
         { label: 'New Request', shortcut: 'Cmd+N', onClick: handleCreateRequest },
         { label: 'New Folder', onClick: handleCreateFolder },
+        { label: '', separator: true },
+        { label: 'Reload Collection', onClick: () => loadCollection(path) },
         { label: '', separator: true },
         ...common,
         { label: 'Settings', onClick: () => setIsSettingsOpen(true) },
@@ -192,9 +213,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           danger: true,
           onClick: () => {
             if (activeWorkspacePath)
-              commands
-                .removeCollectionFromWorkspace(activeWorkspacePath, path)
-                .then(() => loadWorkspace(activeWorkspacePath))
+              commands.removeCollectionFromWorkspace(activeWorkspacePath, path).then(() => {
+                loadWorkspace(activeWorkspacePath)
+                closeTabsWhere(
+                  (t) =>
+                    (t.type === 'request' && t.collectionId === path) ||
+                    (t.type === 'collection' && t.collectionPath === path)
+                )
+              })
           },
         },
         {
@@ -253,11 +279,13 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     type,
     path,
     activeWorkspacePath,
+    loadCollection,
+    loadWorkspace,
     handleCreateRequest,
     handleCreateFolder,
     handleDuplicate,
     onClick,
-    loadWorkspace,
+    closeTabsWhere,
   ])
 
   const highlightMatch = (text: string, query: string) => {
@@ -351,6 +379,19 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             </span>
           )}
         </div>
+
+        {isHovered && !isRenaming && type === 'collection' && (
+          <button
+            className="p-1 hover:bg-bg-highlight rounded text-text-muted hover:text-text-primary transition-opacity opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenSettings?.()
+            }}
+            title="Collection Settings"
+          >
+            <Icons.Settings size={14} />
+          </button>
+        )}
 
         {isHovered && !isRenaming && (
           <button
