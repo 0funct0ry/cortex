@@ -36,6 +36,8 @@ impl HttpExecutor {
         timeout_ms: Option<u32>,
         follow_redirects: bool,
         digest_auth: Option<(String, String)>,
+        proxy: Option<crate::collection::CollectionProxy>,
+        client_certificates: Option<Vec<crate::collection::CollectionClientCertificate>>,
     ) -> RequestHistoryEntry {
         let executed_at = RequestHistoryEntry::now_iso();
         let id = RequestHistoryEntry::random_id();
@@ -54,13 +56,30 @@ impl HttpExecutor {
         let mut digest_header_val: Option<String> = None;
         let mut digest_attempted = false;
 
+        let has_override = proxy.as_ref().is_some_and(|p| p.enabled)
+            || client_certificates.as_ref().is_some_and(|certs| certs.iter().any(|c| c.enabled));
+
         loop {
             let method_enum = match Method::from_bytes(current_method.as_bytes()) {
                 Ok(m) => m,
                 Err(_) => Method::GET,
             };
 
-            let mut req_builder = self.client.request(method_enum.clone(), &current_url);
+            let client = if has_override {
+                match build_client(
+                    "Cortex/0.1.0",
+                    proxy.as_ref(),
+                    client_certificates.as_deref(),
+                    &current_url,
+                ) {
+                    Ok(c) => c,
+                    Err(_) => self.client.clone(),
+                }
+            } else {
+                self.client.clone()
+            };
+
+            let mut req_builder = client.request(method_enum.clone(), &current_url);
 
             let is_multipart = if let Some(ref b) = current_body {
                 b.active_type.as_deref() == Some("form_data")
@@ -573,4 +592,112 @@ mod tests {
         assert!(res.contains("nc=00000001"));
         assert!(res.contains("cnonce=\"client_nonce_val\""));
     }
+}
+
+fn build_client(
+    user_agent: &str,
+    proxy_config: Option<&crate::collection::CollectionProxy>,
+    client_certs: Option<&[crate::collection::CollectionClientCertificate]>,
+    url_str: &str,
+) -> Result<Client, String> {
+    let mut builder =
+        Client::builder().user_agent(user_agent).redirect(reqwest::redirect::Policy::none());
+
+    let parsed_url = Url::parse(url_str).map_err(|e| e.to_string())?;
+    let hostname = parsed_url.host_str().unwrap_or("");
+
+    // 1. Proxy Configuration
+    if let Some(proxy) = proxy_config {
+        if proxy.enabled && !proxy.url.trim().is_empty() {
+            // Check bypass list
+            let bypass = proxy.bypass_list.as_deref().unwrap_or("");
+            let should_bypass =
+                bypass.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).any(|pattern| {
+                    if let Some(suffix) = pattern.strip_prefix("*.") {
+                        hostname.ends_with(suffix) || hostname == suffix
+                    } else {
+                        pattern == hostname
+                    }
+                });
+
+            if !should_bypass {
+                let mut reqwest_proxy =
+                    reqwest::Proxy::all(&proxy.url).map_err(|e| e.to_string())?;
+                if let (Some(u), Some(p)) = (&proxy.username, &proxy.password) {
+                    if !u.is_empty() || !p.is_empty() {
+                        reqwest_proxy = reqwest_proxy.basic_auth(u, p);
+                    }
+                }
+                builder = builder.proxy(reqwest_proxy);
+            }
+        }
+    }
+
+    // 2. Client Certificates Configuration
+    if let Some(certs) = client_certs {
+        for cert in certs {
+            if cert.enabled && !cert.cert_file.trim().is_empty() {
+                // Match hostname pattern
+                let pattern = &cert.hostname;
+                let is_match = if let Some(suffix) = pattern.strip_prefix("*.") {
+                    hostname.ends_with(suffix) || hostname == suffix
+                } else {
+                    pattern == hostname
+                };
+
+                if is_match {
+                    let cert_path = std::path::Path::new(&cert.cert_file);
+                    if cert_path.exists() {
+                        let cert_bytes = std::fs::read(cert_path)
+                            .map_err(|e| format!("Failed to read cert file: {}", e))?;
+
+                        let file_lower = cert.cert_file.to_lowercase();
+                        let is_pkcs12 =
+                            file_lower.ends_with(".p12") || file_lower.ends_with(".pfx");
+
+                        if is_pkcs12 {
+                            let passphrase = cert.passphrase.as_deref().unwrap_or("");
+                            let identity =
+                                reqwest::Identity::from_pkcs12_der(&cert_bytes, passphrase)
+                                    .map_err(|e| {
+                                        format!("Failed to parse PKCS#12 certificate: {}", e)
+                                    })?;
+                            builder = builder.identity(identity);
+                        } else {
+                            // PEM
+                            let identity = if let Some(key_file) = &cert.key_file {
+                                if !key_file.trim().is_empty() {
+                                    let key_path = std::path::Path::new(key_file);
+                                    if key_path.exists() {
+                                        let key_bytes = std::fs::read(key_path).map_err(|e| {
+                                            format!("Failed to read key file: {}", e)
+                                        })?;
+                                        reqwest::Identity::from_pkcs8_pem(&cert_bytes, &key_bytes)
+                                            .map_err(|e| {
+                                            format!("Failed to parse PEM certificate/key: {}", e)
+                                        })?
+                                    } else {
+                                        return Err(format!("Key file not found: {}", key_file));
+                                    }
+                                } else {
+                                    reqwest::Identity::from_pkcs8_pem(&cert_bytes, &cert_bytes)
+                                        .map_err(|e| {
+                                            format!("Failed to parse PEM certificate/key: {}", e)
+                                        })?
+                                }
+                            } else {
+                                reqwest::Identity::from_pkcs8_pem(&cert_bytes, &cert_bytes)
+                                    .map_err(|e| {
+                                        format!("Failed to parse PEM certificate/key: {}", e)
+                                    })?
+                            };
+                            builder = builder.identity(identity);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    builder.build().map_err(|e| e.to_string())
 }

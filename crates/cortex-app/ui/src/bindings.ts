@@ -244,9 +244,9 @@ async updateCollectionDescription(collectionPath: string, description: string | 
  * Replaces the old pattern of firing 6 concurrent commands (which caused YAML corruption
  * from concurrent fs::write calls on the same file).
  */
-async saveCollection(collectionPath: string, name: string, description: string | null, headers: { [key in string]: string } | null, variables: Variable[], auth: AuthRef | null, scripts: Scripts | null, tests: string | null) : Promise<Result<null, string>> {
+async saveCollection(collectionPath: string, payload: CollectionSavePayload) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("save_collection", { collectionPath, name, description, headers, variables, auth, scripts, tests }) };
+    return { status: "ok", data: await TAURI_INVOKE("save_collection", { collectionPath, payload }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -423,6 +423,8 @@ export type AuthRef = ({ [key in string]: string }) & { type: string }
  * Represents a loaded collection.
  */
 export type Collection = { path: string; manifest: CollectionManifest; items: CollectionItem[] }
+export type CollectionClientCertificate = { hostname: string; cert_file: string; key_file?: string | null; passphrase?: string | null; enabled: boolean }
+export type CollectionImportPath = { directory: string; path: string }
 export type CollectionItem = { type: "Request"; data: RequestFileWrapper } | { type: "Folder"; data: Folder }
 /**
  * Represents the structure of a `cortex.yaml` collection manifest file.
@@ -459,7 +461,29 @@ scripts?: Scripts | null;
 /**
  * Collection-level test scripts run after every response
  */
-tests?: string | null }
+tests?: string | null; 
+/**
+ * Collection-level proxy override
+ */
+proxy?: CollectionProxy | null; 
+/**
+ * Collection-level client certificates
+ */
+client_certificates?: CollectionClientCertificate[] | null; 
+/**
+ * Named header/parameter presets
+ */
+presets?: CollectionPreset[] | null; 
+/**
+ * Collection-level protobuf settings
+ */
+protobuf?: CollectionProtobuf | null }
+export type CollectionPreset = { name: string; fields: CollectionPresetField[] }
+export type CollectionPresetField = { key: string; value: string; enabled: boolean }
+export type CollectionProtoFile = { file: string; path: string }
+export type CollectionProtobuf = { proto_files?: CollectionProtoFile[] | null; import_paths?: CollectionImportPath[] | null }
+export type CollectionProxy = { enabled: boolean; url: string; bypass_list?: string | null; username?: string | null; password?: string | null }
+export type CollectionSavePayload = { name: string; description: string | null; headers: { [key in string]: string } | null; variables: Variable[]; auth: AuthRef | null; scripts: Scripts | null; tests: string | null; presets: CollectionPreset[] | null; proxy: CollectionProxy | null; client_certificates: CollectionClientCertificate[] | null; protobuf: CollectionProtobuf | null }
 export type EnvironmentFile = { 
 /**
  * Schema version (e.g., "1")

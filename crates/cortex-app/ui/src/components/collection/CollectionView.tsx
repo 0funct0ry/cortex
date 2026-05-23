@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react'
+import React, { useEffect, useRef, useCallback, useMemo } from 'react'
 import * as Icons from '../ui/Icons'
 import { useTabs } from '../../contexts/TabsContext'
 import { useCollectionStore } from '../../stores/collectionStore'
@@ -9,23 +9,17 @@ import CollectionVarsTab from './CollectionVarsTab'
 import CollectionAuthTab from './CollectionAuthTab'
 import CollectionScriptTab from './CollectionScriptTab'
 import CollectionTestsTab from './CollectionTestsTab'
+import CollectionPresetsTab from './CollectionPresetsTab'
+import CollectionProxyTab from './CollectionProxyTab'
+import CollectionClientCertificatesTab from './CollectionClientCertificatesTab'
+import CollectionSecretsTab from './CollectionSecretsTab'
+import CollectionProtobufTab from './CollectionProtobufTab'
 import type { Collection, Variable } from '../../bindings'
 
 interface CollectionViewProps {
   collectionPath: string
   tabId: string
 }
-
-type SubTab = CollectionDraft['activeSubTab']
-
-const SUB_TABS: { id: SubTab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'headers', label: 'Headers' },
-  { id: 'vars', label: 'Vars' },
-  { id: 'auth', label: 'Auth' },
-  { id: 'script', label: 'Script' },
-  { id: 'tests', label: 'Tests' },
-]
 
 const CollectionView: React.FC<CollectionViewProps> = ({ collectionPath, tabId }) => {
   const { activeTabId, setDirty } = useTabs()
@@ -107,6 +101,25 @@ const CollectionView: React.FC<CollectionViewProps> = ({ collectionPath, tabId }
     [collectionPath, tabId, updateDraft, setDirty, scheduleAutoSave]
   )
 
+  const subTabs = useMemo(() => {
+    const hasUnsavedPresets =
+      JSON.stringify(draft?.presets ?? []) !==
+      JSON.stringify(collections[collectionPath]?.manifest?.presets ?? [])
+    return [
+      { id: 'overview' as const, label: 'Overview' },
+      { id: 'headers' as const, label: 'Headers' },
+      { id: 'vars' as const, label: 'Vars' },
+      { id: 'auth' as const, label: 'Auth' },
+      { id: 'script' as const, label: 'Script' },
+      { id: 'tests' as const, label: 'Tests' },
+      { id: 'presets' as const, label: `Presets${hasUnsavedPresets ? ' *' : ''}` },
+      { id: 'proxy' as const, label: 'Proxy' },
+      { id: 'certificates' as const, label: 'Client Certificates' },
+      { id: 'secrets' as const, label: 'Secrets' },
+      { id: 'protobuf' as const, label: 'Protobuf' },
+    ]
+  }, [draft?.presets, collections, collectionPath])
+
   if (!draft) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -154,6 +167,34 @@ const CollectionView: React.FC<CollectionViewProps> = ({ collectionPath, tabId }
         return (
           <CollectionTestsTab tests={draft.tests} onChange={(tests) => handleUpdate({ tests })} />
         )
+      case 'presets':
+        return (
+          <CollectionPresetsTab
+            presets={draft.presets}
+            onChange={(presets) => handleUpdate({ presets })}
+          />
+        )
+      case 'proxy':
+        return (
+          <CollectionProxyTab proxy={draft.proxy} onChange={(proxy) => handleUpdate({ proxy })} />
+        )
+      case 'certificates':
+        return (
+          <CollectionClientCertificatesTab
+            certificates={draft.clientCertificates}
+            onChange={(clientCertificates) => handleUpdate({ clientCertificates })}
+          />
+        )
+      case 'secrets':
+        return <CollectionSecretsTab draft={draft} collectionPath={collectionPath} />
+      case 'protobuf':
+        return (
+          <CollectionProtobufTab
+            protobuf={draft.protobuf}
+            onChange={(protobuf) => handleUpdate({ protobuf })}
+            onSave={doSave}
+          />
+        )
     }
   }
 
@@ -175,12 +216,12 @@ const CollectionView: React.FC<CollectionViewProps> = ({ collectionPath, tabId }
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex items-center border-b border-border-subtle bg-bg-panel shrink-0 px-1">
-        {SUB_TABS.map((tab) => (
+      <div className="flex items-center border-b border-border-subtle bg-bg-panel shrink-0 px-1 overflow-x-auto custom-scrollbar">
+        {subTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => updateDraft(collectionPath, { activeSubTab: tab.id })}
-            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px shrink-0 whitespace-nowrap ${
               activeSubTab === tab.id
                 ? 'text-text-primary border-accent'
                 : 'text-text-muted border-transparent hover:text-text-secondary'

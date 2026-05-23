@@ -1,6 +1,15 @@
 import { create } from 'zustand'
 import { commands } from '../bindings'
-import type { Collection, Variable, HeaderEntry, Scripts } from '../bindings'
+import type {
+  Collection,
+  Variable,
+  HeaderEntry,
+  Scripts,
+  CollectionPreset,
+  CollectionProxy,
+  CollectionClientCertificate,
+  CollectionProtobuf,
+} from '../bindings'
 import { useCollectionStore } from './collectionStore'
 
 export interface CollectionDraft {
@@ -11,7 +20,22 @@ export interface CollectionDraft {
   auth: { type: string; config: Record<string, unknown> }
   scripts: { pre: string; post: string }
   tests: string
-  activeSubTab: 'overview' | 'headers' | 'vars' | 'auth' | 'script' | 'tests'
+  activeSubTab:
+    | 'overview'
+    | 'headers'
+    | 'vars'
+    | 'auth'
+    | 'script'
+    | 'tests'
+    | 'presets'
+    | 'proxy'
+    | 'certificates'
+    | 'secrets'
+    | 'protobuf'
+  presets: CollectionPreset[]
+  proxy: CollectionProxy
+  clientCertificates: CollectionClientCertificate[]
+  protobuf: CollectionProtobuf
 }
 
 interface CollectionViewState {
@@ -69,6 +93,16 @@ export const useCollectionViewStore = create<CollectionViewState>((set, get) => 
           },
           tests: manifest.tests ?? '',
           activeSubTab: 'overview',
+          presets: manifest.presets ?? [],
+          proxy: manifest.proxy ?? {
+            enabled: false,
+            url: '',
+            bypass_list: null,
+            username: null,
+            password: null,
+          },
+          clientCertificates: manifest.client_certificates ?? [],
+          protobuf: manifest.protobuf ?? { proto_files: [], import_paths: [] },
         },
       },
     }))
@@ -102,16 +136,19 @@ export const useCollectionViewStore = create<CollectionViewState>((set, get) => 
     // Single atomic read-modify-write: avoids concurrent fs::write races that
     // produced corrupt YAML (e.g. "ame:" instead of "name:") when six separate
     // update_collection_* commands all read the same file simultaneously.
-    await commands.saveCollection(
-      collectionPath,
-      draft.name,
-      draft.description || null,
-      headersMap,
-      draft.variables,
-      authRef as never,
-      scriptsPayload,
-      draft.tests || null
-    )
+    await commands.saveCollection(collectionPath, {
+      name: draft.name,
+      description: draft.description || null,
+      headers: headersMap,
+      variables: draft.variables,
+      auth: authRef as never,
+      scripts: scriptsPayload,
+      tests: draft.tests || null,
+      presets: draft.presets,
+      proxy: draft.proxy,
+      client_certificates: draft.clientCertificates,
+      protobuf: draft.protobuf,
+    })
 
     // Refresh the collection in the tree so sidebar reflects name/desc changes
     await useCollectionStore.getState().loadCollection(collectionPath)

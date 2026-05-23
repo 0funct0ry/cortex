@@ -31,6 +31,18 @@ pub struct CollectionManifest {
     /// Collection-level test scripts run after every response
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tests: Option<String>,
+    /// Collection-level proxy override
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<CollectionProxy>,
+    /// Collection-level client certificates
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_certificates: Option<Vec<CollectionClientCertificate>>,
+    /// Named header/parameter presets
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presets: Option<Vec<CollectionPreset>>,
+    /// Collection-level protobuf settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protobuf: Option<CollectionProtobuf>,
 }
 
 impl CollectionManifest {
@@ -44,6 +56,10 @@ impl CollectionManifest {
             variables: None,
             scripts: None,
             tests: None,
+            proxy: None,
+            client_certificates: None,
+            presets: None,
+            protobuf: None,
         }
     }
 
@@ -478,6 +494,62 @@ fn load_tree(
     Ok(items)
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct CollectionProxy {
+    pub enabled: bool,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bypass_list: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct CollectionClientCertificate {
+    pub hostname: String,
+    pub cert_file: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_file: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct CollectionPresetField {
+    pub key: String,
+    pub value: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct CollectionPreset {
+    pub name: String,
+    pub fields: Vec<CollectionPresetField>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct CollectionProtoFile {
+    pub file: String,
+    pub path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct CollectionImportPath {
+    pub directory: String,
+    pub path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct CollectionProtobuf {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proto_files: Option<Vec<CollectionProtoFile>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_paths: Option<Vec<CollectionImportPath>>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -505,6 +577,10 @@ mod tests {
             variables: Some(variables),
             scripts: None,
             tests: None,
+            proxy: None,
+            client_certificates: None,
+            presets: None,
+            protobuf: None,
         };
 
         let yaml = manifest.to_yaml().unwrap();

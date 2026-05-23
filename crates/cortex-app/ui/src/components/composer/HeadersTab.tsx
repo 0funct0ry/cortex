@@ -117,6 +117,42 @@ const HeadersTab: React.FC<HeadersTabProps> = ({ requestId }) => {
     return list
   }, [tab, collections, tabs, requestData, requestId])
 
+  const presets = useMemo(() => {
+    if (tab && tab.collectionId) {
+      const collection = collections[tab.collectionId]
+      return collection?.manifest?.presets || []
+    }
+    return []
+  }, [tab, collections])
+
+  const handleApplyPreset = (presetFields: { key: string; value: string; enabled: boolean }[]) => {
+    const currentHeaders = [...requestData.headers]
+    let cleanHeaders = currentHeaders
+    if (cleanHeaders.length === 1 && !cleanHeaders[0].key && !cleanHeaders[0].value) {
+      cleanHeaders = []
+    }
+    presetFields.forEach((field) => {
+      const idx = cleanHeaders.findIndex((h) => h.key.toLowerCase() === field.key.toLowerCase())
+      if (idx !== -1) {
+        cleanHeaders[idx] = {
+          ...cleanHeaders[idx],
+          value: field.value,
+          enabled: field.enabled,
+        }
+      } else {
+        cleanHeaders.push({
+          key: field.key,
+          value: field.value,
+          enabled: field.enabled,
+        })
+      }
+    })
+    if (cleanHeaders.length === 0) {
+      cleanHeaders = [{ key: '', value: '', enabled: true }]
+    }
+    updateRequest(requestId, { headers: cleanHeaders })
+  }
+
   return (
     <div className="h-full">
       <KeyValueEditor
@@ -127,6 +163,8 @@ const HeadersTab: React.FC<HeadersTabProps> = ({ requestId }) => {
         readOnlyTitle="Inherited & Auth-managed"
         readOnlyEntries={inheritedAndAuthHeaders}
         isHeaders={true}
+        presets={presets}
+        onApplyPreset={handleApplyPreset}
       />
     </div>
   )

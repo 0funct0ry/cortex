@@ -72,6 +72,44 @@ const ParamsTab: React.FC<ParamsTabProps> = ({ requestId }) => {
     return [...pathParams, ...authParams]
   }, [pathParams, authParams])
 
+  const tab = tabs.find((t) => t.id === requestId)
+
+  const presets = useMemo(() => {
+    if (tab && tab.collectionId) {
+      const collection = collections[tab.collectionId]
+      return collection?.manifest?.presets || []
+    }
+    return []
+  }, [tab, collections])
+
+  const handleApplyPreset = (presetFields: { key: string; value: string; enabled: boolean }[]) => {
+    const currentParams = [...requestData.params]
+    let cleanParams = currentParams
+    if (cleanParams.length === 1 && !cleanParams[0].key && !cleanParams[0].value) {
+      cleanParams = []
+    }
+    presetFields.forEach((field) => {
+      const idx = cleanParams.findIndex((p) => p.key === field.key)
+      if (idx !== -1) {
+        cleanParams[idx] = {
+          ...cleanParams[idx],
+          value: field.value,
+          enabled: field.enabled,
+        }
+      } else {
+        cleanParams.push({
+          key: field.key,
+          value: field.value,
+          enabled: field.enabled,
+        })
+      }
+    })
+    if (cleanParams.length === 0) {
+      cleanParams = [{ key: '', value: '', enabled: true }]
+    }
+    updateRequest(requestId, { params: cleanParams })
+  }
+
   return (
     <div className="h-full">
       <KeyValueEditor
@@ -82,6 +120,8 @@ const ParamsTab: React.FC<ParamsTabProps> = ({ requestId }) => {
         readOnlyEntries={combinedReadOnly}
         readOnlyTooltip="Path parameters are parsed from the URL. Auth parameters are configured in the Auth tab."
         caseSensitiveKeys={true}
+        presets={presets}
+        onApplyPreset={handleApplyPreset}
       />
     </div>
   )

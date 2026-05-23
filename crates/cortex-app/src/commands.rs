@@ -646,32 +646,45 @@ pub async fn update_collection_description(
     .map_err(|e| e.to_string())?
 }
 
+#[derive(serde::Deserialize, serde::Serialize, specta::Type)]
+pub struct CollectionSavePayload {
+    pub name: String,
+    pub description: Option<String>,
+    pub headers: Option<std::collections::BTreeMap<String, String>>,
+    pub variables: Vec<cortex_core::variables::Variable>,
+    pub auth: Option<AuthRef>,
+    pub scripts: Option<cortex_core::request::Scripts>,
+    pub tests: Option<String>,
+    pub presets: Option<Vec<cortex_core::collection::CollectionPreset>>,
+    pub proxy: Option<cortex_core::collection::CollectionProxy>,
+    pub client_certificates: Option<Vec<cortex_core::collection::CollectionClientCertificate>>,
+    pub protobuf: Option<cortex_core::collection::CollectionProtobuf>,
+}
+
 /// Atomically saves all collection view fields in a single read-modify-write operation.
 /// Replaces the old pattern of firing 6 concurrent commands (which caused YAML corruption
 /// from concurrent fs::write calls on the same file).
-#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 #[specta::specta]
 pub async fn save_collection(
     collection_path: String,
-    name: String,
-    description: Option<String>,
-    headers: Option<std::collections::BTreeMap<String, String>>,
-    variables: Vec<cortex_core::variables::Variable>,
-    auth: Option<AuthRef>,
-    scripts: Option<cortex_core::request::Scripts>,
-    tests: Option<String>,
+    payload: CollectionSavePayload,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut collection =
             Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
-        collection.manifest.name = name;
-        collection.manifest.description = description;
-        collection.manifest.headers = headers;
-        collection.manifest.variables = if variables.is_empty() { None } else { Some(variables) };
-        collection.manifest.auth = auth;
-        collection.manifest.scripts = scripts;
-        collection.manifest.tests = tests;
+        collection.manifest.name = payload.name;
+        collection.manifest.description = payload.description;
+        collection.manifest.headers = payload.headers;
+        collection.manifest.variables =
+            if payload.variables.is_empty() { None } else { Some(payload.variables) };
+        collection.manifest.auth = payload.auth;
+        collection.manifest.scripts = payload.scripts;
+        collection.manifest.tests = payload.tests;
+        collection.manifest.presets = payload.presets;
+        collection.manifest.proxy = payload.proxy;
+        collection.manifest.client_certificates = payload.client_certificates;
+        collection.manifest.protobuf = payload.protobuf;
         collection.save().map_err(|e| e.to_string())
     })
     .await
@@ -1269,7 +1282,7 @@ pub async fn send_request(
         ephemeral_store.0.lock().unwrap().values().cloned().collect();
 
     let method_for_signing = payload.method.clone();
-    let (url, body, rendered_headers, warnings, captured_variables, timeout_ms, follow_redirects, digest_auth) =
+    let (url, body, rendered_headers, warnings, captured_variables, timeout_ms, follow_redirects, digest_auth, proxy, client_certificates) =
         tauri::async_runtime::spawn_blocking(move || {
             let mut resolver = cortex_core::variables::VariableResolver::new();
             populate_resolver(
@@ -1703,6 +1716,15 @@ pub async fn send_request(
                 masked_captured.insert(k, v);
             }
 
+            let mut proxy = None;
+            let mut client_certificates = None;
+            if let Some(ref cp) = metadata.collection_path {
+                if let Ok(col) = cortex_core::collection::Collection::load_manifest(cp) {
+                    proxy = col.manifest.proxy;
+                    client_certificates = col.manifest.client_certificates;
+                }
+            }
+
             Ok::<
                 (
                     String,
@@ -1713,9 +1735,22 @@ pub async fn send_request(
                     Option<u32>,
                     bool,
                     Option<(String, String)>,
+                    Option<cortex_core::collection::CollectionProxy>,
+                    Option<Vec<cortex_core::collection::CollectionClientCertificate>>,
                 ),
                 String,
-            >((final_url, req_body, rendered_headers, all_warnings, masked_captured, Some(timeout_val), follow_redirects, digest_auth_tuple))
+            >((
+                final_url,
+                req_body,
+                rendered_headers,
+                all_warnings,
+                masked_captured,
+                Some(timeout_val),
+                follow_redirects,
+                digest_auth_tuple,
+                proxy,
+                client_certificates,
+            ))
         })
         .await
         .map_err(|e| e.to_string())??;
@@ -1733,6 +1768,8 @@ pub async fn send_request(
                 timeout_ms,
                 follow_redirects,
                 digest_auth,
+                proxy,
+                client_certificates,
             )
             .await;
 

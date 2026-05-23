@@ -22,7 +22,7 @@ walkdir = "2.4"
 notify = "6.1"
 chrono = "0.4"
 mime_guess = "2.0"
-reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
+reqwest = { version = "0.12", features = ["json", "stream", "multipart", "native-tls"] }
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]

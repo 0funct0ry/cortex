@@ -16,6 +16,8 @@ interface KeyValueEditorProps {
   readOnlyTooltip?: string
   isHeaders?: boolean
   caseSensitiveKeys?: boolean
+  presets?: { name: string; fields: { key: string; value: string; enabled: boolean }[] }[]
+  onApplyPreset?: (fields: { key: string; value: string; enabled: boolean }[]) => void
 }
 
 // Built-in HTTP Headers dictionary for autocompletion
@@ -157,7 +159,23 @@ const KeyValueEditor: React.FC<KeyValueEditorProps> = ({
   readOnlyTooltip,
   isHeaders = false,
   caseSensitiveKeys = false,
+  presets,
+  onApplyPreset,
 }) => {
+  const [presetsOpen, setPresetsOpen] = useState(false)
+  const presetsDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (presetsDropdownRef.current && !presetsDropdownRef.current.contains(e.target as Node)) {
+        setPresetsOpen(false)
+      }
+    }
+    if (presetsOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [presetsOpen])
   const { activeTab } = useTabs()
   const collectionId = activeTab?.collectionId || null
 
@@ -853,12 +871,43 @@ const KeyValueEditor: React.FC<KeyValueEditorProps> = ({
         <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
           {title} ({entries.filter((e) => e.key || e.value).length} rows)
         </span>
-        <button
-          onClick={toggleBulkEdit}
-          className="text-xs font-medium text-accent hover:text-accent-hover hover:underline transition-all"
-        >
-          Bulk Edit
-        </button>
+        <div className="flex items-center gap-3">
+          {presets && presets.length > 0 && (
+            <div className="relative" ref={presetsDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setPresetsOpen(!presetsOpen)}
+                className="text-xs font-medium text-accent hover:text-accent-hover hover:underline flex items-center gap-1 transition-all"
+              >
+                <Icons.Sliders size={11} />
+                Apply Preset
+              </button>
+              {presetsOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-48 bg-bg-overlay border border-border-subtle rounded shadow-lg py-1 z-30 font-sans">
+                  {presets.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        onApplyPreset?.(preset.fields)
+                        setPresetsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-highlight truncate"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={toggleBulkEdit}
+            className="text-xs font-medium text-accent hover:text-accent-hover hover:underline transition-all"
+          >
+            Bulk Edit
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto select-none">
