@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 
 export interface ContextMenuItem {
@@ -6,6 +6,7 @@ export interface ContextMenuItem {
   onClick?: () => void
   shortcut?: string
   danger?: boolean
+  disabled?: boolean
   separator?: boolean
   submenu?: ContextMenuItem[]
 }
@@ -20,6 +21,13 @@ interface ContextMenuProps {
 const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ x, y })
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+
+  // Indices of items that can receive keyboard focus (non-separator, non-disabled)
+  const navigableIndices = items.reduce<number[]>((acc, item, i) => {
+    if (!item.separator && !item.disabled) acc.push(i)
+    return acc
+  }, [])
 
   useEffect(() => {
     if (menuRef.current) {
@@ -39,32 +47,80 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
     }
   }, [x, y, items])
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setFocusedIndex((prev) => {
+          if (navigableIndices.length === 0) return null
+          if (prev === null) return navigableIndices[0]
+          const currentPos = navigableIndices.indexOf(prev)
+          return navigableIndices[(currentPos + 1) % navigableIndices.length]
+        })
+        return
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setFocusedIndex((prev) => {
+          if (navigableIndices.length === 0) return null
+          if (prev === null) return navigableIndices[navigableIndices.length - 1]
+          const currentPos = navigableIndices.indexOf(prev)
+          return navigableIndices[
+            (currentPos - 1 + navigableIndices.length) % navigableIndices.length
+          ]
+        })
+        return
+      }
+
+      if (e.key === 'Enter') {
+        if (focusedIndex !== null) {
+          const item = items[focusedIndex]
+          if (item && !item.disabled && !item.separator && item.onClick) {
+            item.onClick()
+            onClose()
+          }
+        }
+        return
+      }
+    },
+    [focusedIndex, items, navigableIndices, onClose]
+  )
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
-    }
 
     document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
+    document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
+      document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [onClose, handleKeyDown])
 
   const renderItem = (item: ContextMenuItem, index: number) => {
     if (item.separator) {
       return <div key={`sep-${index}`} className="h-px bg-border-subtle my-1" />
     }
 
-    return <ContextMenuItemRow key={item.label} item={item} onClose={onClose} />
+    return (
+      <ContextMenuItemRow
+        key={item.label + index}
+        item={item}
+        onClose={onClose}
+        focused={focusedIndex === index}
+        onFocus={() => setFocusedIndex(index)}
+      />
+    )
   }
 
   return createPortal(
@@ -79,20 +135,29 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
   )
 }
 
-const ContextMenuItemRow: React.FC<{ item: ContextMenuItem; onClose: () => void }> = ({
-  item,
-  onClose,
-}) => {
+const ContextMenuItemRow: React.FC<{
+  item: ContextMenuItem
+  onClose: () => void
+  focused: boolean
+  onFocus: () => void
+}> = ({ item, onClose, focused, onFocus }) => {
   const [showSubmenu, setShowSubmenu] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
+
+  const colorClass = item.disabled
+    ? 'text-text-muted cursor-not-allowed opacity-40'
+    : item.danger
+      ? 'text-error hover:bg-error/10 cursor-pointer'
+      : 'text-text-primary hover:bg-bg-highlight cursor-pointer'
+
+  const focusedClass = focused && !item.disabled ? 'bg-bg-highlight' : ''
 
   return (
     <div
       ref={itemRef}
-      className={`relative flex items-center justify-between px-3 h-[26px] text-sm cursor-pointer transition-colors ${
-        item.danger ? 'text-error hover:bg-error/10' : 'text-text-primary hover:bg-bg-highlight'
-      }`}
+      className={`relative flex items-center justify-between px-3 h-[26px] text-sm transition-colors ${colorClass} ${focusedClass}`}
       onClick={(e) => {
+        if (item.disabled) return
         if (item.submenu) {
           e.stopPropagation()
           return
@@ -100,7 +165,10 @@ const ContextMenuItemRow: React.FC<{ item: ContextMenuItem; onClose: () => void 
         item.onClick?.()
         onClose()
       }}
-      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseEnter={() => {
+        if (!item.disabled) onFocus()
+        if (item.submenu) setShowSubmenu(true)
+      }}
       onMouseLeave={() => setShowSubmenu(false)}
     >
       <span className="truncate flex-1">{item.label}</span>

@@ -140,6 +140,21 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Workspace Home (Overview & Environments)**: A dedicated home view displayed when no request tabs are open, featuring a workspace-level tab bar with **Overview** and **Environments** tabs, plus a "+" button to open a new request tab. The Overview tab renders a two-panel layout: a left panel showing a live stats row (collection count and environment count) and, when zero collections are registered, a full empty-state screen with an illustration, "No collections yet" message, and the three primary CTAs; a right **Documentation** panel (380 px) that lets developers write and persist free-form workspace notes as Markdown, backed by localStorage and toggling between read and edit modes inline.
 - **Workspace Overview & Open Collection**: Collection actions (Create, Open, Import) are surfaced both in the empty-state CTA buttons and via the sidebar. Opening a collection validates the folder contains a `cortex.yaml` manifest, prevents duplicates with sidebar focus and toast warnings, and records the collection in a per-workspace recent list.
 - **Inline Collection Creation**: Create collections directly from the sidebar header or empty workspace view with an inline input field. Supports auto-generated default names (`Untitled Collection - N`), live validation of empty or duplicate names with interactive tooltips, physical directory creation, automatically generated `.gitignore`, and workspace registration with portable relative paths.
+- **Collection Sidebar Context Menu**: Right-clicking (or clicking the `⋯` hover button) on a collection node in the sidebar opens a full 13-item context menu:
+    1. **New Request** — creates a new request as a direct child with immediate inline rename.
+    2. **New Folder** — inserts an inline-editable folder name field as the first child.
+    3. **New JS File** — creates a `script.js` file in the collection directory and opens the collection view on the Script tab.
+    4. **Run** — greyed out (Collection Runner coming in a future Epic).
+    5. **Clone** — full recursive copy of the collection into the same workspace directory, appending ` - Copy` to the name; appears in the sidebar immediately.
+    6. **Rename** — inline name editing; confirmed with Enter, cancelled with Escape; updates `cortex.yaml` and the on-disk directory name.
+    7. **Share** — placeholder (coming in a future release).
+    8. **Generate Docs** — placeholder (coming in a future release).
+    9. **Collapse** — collapses the collection node; disabled (greyed out) when already collapsed.
+    10. **Reveal in Finder / Reveal in Explorer** — opens the OS file manager at the collection directory; label adapts to the OS.
+    11. **Settings** — opens the collection view tab on the Overview tab.
+    12. **Open in Terminal** — opens the OS default terminal at the collection directory (Terminal.app on macOS, cmd on Windows, x-terminal-emulator/xterm on Linux).
+    13. **Remove** — shows a confirmation prompt ("The files on disk will not be deleted"); unlinks the collection from the workspace manifest without deleting any files.
+    The menu supports full keyboard navigation (ArrowUp/ArrowDown to move focus, Enter to activate, Escape to dismiss). Disabled items are visually greyed out and excluded from keyboard focus.
 - **Collection View**: A dedicated multi-tab view for managing collection-wide defaults, opened as a pinned tab by clicking the gear icon (⚙) next to a collection in the sidebar. Each collection gets its own singleton tab (one per collection path) identified by the gear icon prefix in the tab bar. The view contains eleven tabs:
     - **Overview**: Edit the collection name inline, view the on-disk path, count of linked environments and requests, stub links for Share Collection and Generate Docs, and a Markdown documentation area with a live Preview toggle (rendered via `marked`).
     - **Headers**: A key-value table of default headers applied to all requests in the collection, powered by the same `KeyValueEditor` used in the request composer. Supports add, edit, disable (checkbox per row), delete, and Bulk Edit mode.

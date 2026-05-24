@@ -404,6 +404,30 @@ async oauth2RefreshToken(payload: OAuth2RefreshPayload) : Promise<Result<{ [key 
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cloneCollection(workspacePath: string, collectionPath: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clone_collection", { workspacePath, collectionPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async openInTerminal(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_in_terminal", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createJsFile(collectionPath: string, filename: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_js_file", { collectionPath, filename }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

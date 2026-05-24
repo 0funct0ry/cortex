@@ -88,6 +88,9 @@ fn main() {
             commands::cancel_request,
             commands::oauth2_fetch_token,
             commands::oauth2_refresh_token,
+            commands::clone_collection,
+            commands::open_in_terminal,
+            commands::create_js_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -154,6 +157,9 @@ mod tests {
                 commands::cancel_request,
                 commands::oauth2_fetch_token,
                 commands::oauth2_refresh_token,
+                commands::clone_collection,
+                commands::open_in_terminal,
+                commands::create_js_file,
             ]);
 
         builder

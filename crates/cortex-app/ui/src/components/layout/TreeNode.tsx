@@ -28,6 +28,8 @@ interface TreeNodeProps {
   onOpenSettings?: () => void
 }
 
+const isMac = navigator.platform.toUpperCase().includes('MAC')
+
 const TreeNode: React.FC<TreeNodeProps> = ({
   label,
   depth,
@@ -47,6 +49,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [isRenaming, setIsRenaming] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const {
     searchQuery,
@@ -59,7 +62,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     setRenamingPath,
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
-  const { tabs, updateTab, closeTabsWhere } = useTabs()
+  const { tabs, updateTab, closeTabsWhere, openTab } = useTabs()
 
   React.useEffect(() => {
     if (renamingPath === path) {
@@ -130,34 +133,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }
 
-  const handleDeleteCollection = async () => {
-    if (!activeWorkspacePath) return
-    try {
-      // 1. Remove the collection reference from the workspace manifest
-      const removeRes = await commands.removeCollectionFromWorkspace(activeWorkspacePath, path)
-      if (removeRes.status === 'ok') {
-        // 2. Delete the physical directory (moves to trash)
-        const deleteRes = await commands.deleteItem(path)
-        if (deleteRes.status === 'ok') {
-          await loadWorkspace(activeWorkspacePath)
-          // Close all request tabs and the collection-view tab for this collection
-          closeTabsWhere(
-            (t) =>
-              (t.type === 'request' && t.collectionId === path) ||
-              (t.type === 'collection' && t.collectionPath === path)
-          )
-          toast.success(`Collection "${label}" deleted`)
-        } else {
-          toast.error(`Failed to delete collection directory: ${deleteRes.error}`)
-        }
-      } else {
-        toast.error(`Failed to remove collection from workspace: ${removeRes.error}`)
-      }
-    } catch (err) {
-      toast.error(`Delete collection failed: ${String(err)}`)
-    }
-  }
-
   const handleDuplicate = useCallback(async () => {
     try {
       const res = await commands.duplicateRequest(path)
@@ -193,6 +168,85 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }, [path, collectionPath, loadCollection])
 
+  const handleCreateJsFile = useCallback(async () => {
+    try {
+      const res = await commands.createJsFile(path, 'script.js')
+      if (res.status === 'ok') {
+        const filename = res.data.split('/').pop() ?? 'script.js'
+        openTab({
+          type: 'collection',
+          collectionPath: path,
+          collectionId: path,
+          name: label,
+          requestPath: null,
+          method: '',
+        })
+        toast.success(`Created ${filename} — open the Script tab to use it`)
+      } else {
+        toast.error(`Failed to create JS file: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Failed to create JS file: ${String(err)}`)
+    }
+  }, [path, label, openTab])
+
+  const handleClone = useCallback(async () => {
+    if (!activeWorkspacePath) return
+    try {
+      const res = await commands.cloneCollection(activeWorkspacePath, path)
+      if (res.status === 'ok') {
+        await loadWorkspace(activeWorkspacePath)
+        toast.success(`Collection cloned successfully`)
+      } else {
+        toast.error(`Clone failed: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Clone failed: ${String(err)}`)
+    }
+  }, [path, activeWorkspacePath, loadWorkspace])
+
+  const handleOpenInTerminal = useCallback(async () => {
+    try {
+      const res = await commands.openInTerminal(path)
+      if (res.status !== 'ok') {
+        toast.error(`Failed to open terminal: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Failed to open terminal: ${String(err)}`)
+    }
+  }, [path])
+
+  const handleOpenCollectionView = useCallback(() => {
+    openTab({
+      type: 'collection',
+      collectionPath: path,
+      collectionId: path,
+      name: label,
+      requestPath: null,
+      method: '',
+    })
+  }, [path, label, openTab])
+
+  const handleRemove = useCallback(async () => {
+    if (!activeWorkspacePath) return
+    try {
+      const res = await commands.removeCollectionFromWorkspace(activeWorkspacePath, path)
+      if (res.status === 'ok') {
+        await loadWorkspace(activeWorkspacePath)
+        closeTabsWhere(
+          (t) =>
+            (t.type === 'request' && t.collectionId === path) ||
+            (t.type === 'collection' && t.collectionPath === path)
+        )
+        toast.success(`"${label}" removed from workspace`)
+      } else {
+        toast.error(`Remove failed: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Remove failed: ${String(err)}`)
+    }
+  }, [path, label, activeWorkspacePath, loadWorkspace, closeTabsWhere])
+
   const contextMenuItems = useMemo((): ContextMenuItem[] => {
     const common: ContextMenuItem[] = [{ label: 'Rename', onClick: () => setIsRenaming(true) }]
 
@@ -200,34 +254,33 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       return [
         { label: 'New Request', shortcut: 'Cmd+N', onClick: handleCreateRequest },
         { label: 'New Folder', onClick: handleCreateFolder },
+        { label: 'New JS File', onClick: handleCreateJsFile },
         { label: '', separator: true },
-        { label: 'Reload Collection', onClick: () => loadCollection(path) },
+        { label: 'Run', disabled: true, onClick: () => {} },
         { label: '', separator: true },
+        { label: 'Clone', onClick: handleClone },
         ...common,
-        { label: 'Settings', onClick: () => setIsSettingsOpen(true) },
-        { label: '', separator: true },
-        { label: 'Open in File Explorer', onClick: () => commands.openInExplorer(path) },
+        { label: 'Share', onClick: () => toast.info('Share is coming in a future release') },
+        {
+          label: 'Generate Docs',
+          onClick: () => toast.info('Documentation generation is coming in a future release'),
+        },
         { label: '', separator: true },
         {
-          label: 'Close Collection',
-          danger: true,
+          label: 'Collapse',
+          disabled: !isExpanded,
           onClick: () => {
-            if (activeWorkspacePath)
-              commands.removeCollectionFromWorkspace(activeWorkspacePath, path).then(() => {
-                loadWorkspace(activeWorkspacePath)
-                closeTabsWhere(
-                  (t) =>
-                    (t.type === 'request' && t.collectionId === path) ||
-                    (t.type === 'collection' && t.collectionPath === path)
-                )
-              })
+            if (isExpanded) onToggle?.()
           },
         },
         {
-          label: 'Delete Collection',
-          danger: true,
-          onClick: () => setShowDeleteConfirm(true),
+          label: isMac ? 'Reveal in Finder' : 'Reveal in Explorer',
+          onClick: () => commands.openInExplorer(path),
         },
+        { label: 'Settings', onClick: handleOpenCollectionView },
+        { label: 'Open in Terminal', onClick: handleOpenInTerminal },
+        { label: '', separator: true },
+        { label: 'Remove', danger: true, onClick: () => setShowRemoveConfirm(true) },
       ]
     }
 
@@ -278,14 +331,16 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   }, [
     type,
     path,
-    activeWorkspacePath,
-    loadCollection,
-    loadWorkspace,
+    isExpanded,
     handleCreateRequest,
     handleCreateFolder,
+    handleCreateJsFile,
+    handleClone,
+    handleOpenCollectionView,
+    handleOpenInTerminal,
     handleDuplicate,
     onClick,
-    closeTabsWhere,
+    onToggle,
   ])
 
   const highlightMatch = (text: string, query: string) => {
@@ -427,14 +482,20 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       <Dialog
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={type === 'collection' ? handleDeleteCollection : handleDelete}
-        title={`Delete ${type === 'request' ? 'Request' : type === 'folder' ? 'Folder' : 'Collection'}?`}
-        description={
-          type === 'collection'
-            ? 'This will permanently delete the collection folder from your disk and remove it from the workspace. This action cannot be undone.'
-            : `This will permanently delete the ${type} file. This action cannot be undone.`
-        }
+        onConfirm={handleDelete}
+        title={`Delete ${type === 'request' ? 'Request' : 'Folder'}?`}
+        description={`This will permanently delete the ${type} file. This action cannot be undone.`}
         confirmLabel="Delete"
+        variant="danger"
+      />
+
+      <Dialog
+        isOpen={showRemoveConfirm}
+        onClose={() => setShowRemoveConfirm(false)}
+        onConfirm={handleRemove}
+        title={`Remove "${label}" from workspace?`}
+        description="The files on disk will not be deleted. You can re-add this collection later."
+        confirmLabel="Remove"
         variant="danger"
       />
 

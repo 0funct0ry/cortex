@@ -252,6 +252,145 @@ pub fn open_in_explorer(path: String) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn open_in_terminal(path: String) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-a")
+            .arg("Terminal")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "cmd", "/k"])
+            .arg(format!("cd /d \"{}\"", path.to_string_lossy()))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if std::process::Command::new("x-terminal-emulator")
+            .arg("--working-directory")
+            .arg(&path)
+            .spawn()
+            .is_err()
+        {
+            std::process::Command::new("xterm")
+                .current_dir(&path)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_js_file(collection_path: String, filename: String) -> Result<String, String> {
+    let dir = PathBuf::from(&collection_path);
+    if !dir.is_dir() {
+        return Err(format!("Collection path is not a directory: {collection_path}"));
+    }
+
+    // Sanitize: strip path separators, ensure .js extension
+    let stem = std::path::Path::new(&filename)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("script")
+        .to_string();
+    let base_name = format!("{stem}.js");
+
+    // Find a unique filename
+    let mut candidate = dir.join(&base_name);
+    let mut counter = 1u32;
+    while candidate.exists() {
+        candidate = dir.join(format!("{stem}_{counter}.js"));
+        counter += 1;
+    }
+
+    std::fs::write(&candidate, "// New script\n").map_err(|e| e.to_string())?;
+    Ok(candidate.to_string_lossy().to_string())
+}
+
+fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let dst_path = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_all(&entry.path(), &dst_path)?;
+        } else {
+            std::fs::copy(entry.path(), dst_path)?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clone_collection(
+    workspace_path: String,
+    collection_path: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let src = PathBuf::from(&collection_path);
+        if !src.is_dir() {
+            return Err(format!("Collection path is not a directory: {collection_path}"));
+        }
+
+        let parent = src.parent().ok_or("Collection has no parent directory")?;
+        let src_name =
+            src.file_name().and_then(|n| n.to_str()).ok_or("Invalid collection directory name")?;
+
+        // Find a unique destination name: "<name> - Copy", then "<name> - Copy 2", …
+        let base_clone_name = format!("{src_name} - Copy");
+        let mut dst_name = base_clone_name.clone();
+        let mut counter = 2u32;
+        loop {
+            let candidate = parent.join(&dst_name);
+            if !candidate.exists() {
+                break;
+            }
+            dst_name = format!("{base_clone_name} {counter}");
+            counter += 1;
+        }
+
+        let dst = parent.join(&dst_name);
+        copy_dir_all(&src, &dst).map_err(|e| e.to_string())?;
+
+        // Update the name field in the cloned cortex.yaml
+        let cortex_yaml = dst.join("cortex.yaml");
+        if cortex_yaml.exists() {
+            let content = std::fs::read_to_string(&cortex_yaml).map_err(|e| e.to_string())?;
+            // Use the manifest to update only the name field
+            if let Ok(mut manifest) =
+                cortex_core::collection::CollectionManifest::from_yaml(&content)
+            {
+                manifest.name = dst_name.clone();
+                let updated = manifest.to_yaml().map_err(|e| e.to_string())?;
+                std::fs::write(&cortex_yaml, updated).map_err(|e| e.to_string())?;
+            }
+        }
+
+        // Register the clone in the workspace manifest
+        let ws_yaml = PathBuf::from(&workspace_path);
+        let content = std::fs::read_to_string(&ws_yaml).map_err(|e| e.to_string())?;
+        let mut ws_manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+        ws_manifest.add_collection(dst.to_string_lossy().to_string());
+        ws_manifest.save(&ws_yaml).map_err(|e| e.to_string())?;
+
+        Ok(dst.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
 #[allow(dead_code)]
 pub fn set_active_environment(name: Option<String>) -> Result<(), String> {
     let mut settings = AppSettings::load();
