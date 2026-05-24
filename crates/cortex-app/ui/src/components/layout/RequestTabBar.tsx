@@ -2,9 +2,11 @@ import React, { useRef, useState, useEffect } from 'react'
 import { useTabs } from '../../contexts/TabsContext'
 import TabItem from './TabItem'
 import * as Icons from '../ui/Icons'
+import { useUIStore } from '../../stores/uiStore'
 
 const RequestTabBar: React.FC = () => {
-  const { tabs, activeTabId, openTab, reorderTabs } = useTabs()
+  const { tabs, activeTabId, reorderTabs } = useTabs()
+  const { openNewRequestDialog } = useUIStore()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [showLeftArrow, setShowLeftArrow] = useState(false)
   const [showRightArrow, setShowRightArrow] = useState(false)
@@ -36,14 +38,7 @@ const RequestTabBar: React.FC = () => {
   }
 
   const handleNewTab = () => {
-    openTab({
-      type: 'request',
-      requestPath: null,
-      collectionId: null,
-      collectionPath: null,
-      name: 'Untitled',
-      method: 'GET',
-    })
+    openNewRequestDialog()
   }
 
   const handleDragStart = (index: number) => {
@@ -115,7 +110,7 @@ const RequestTabBar: React.FC = () => {
           <button
             onClick={handleNewTab}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-            title="New Tab"
+            title="New Request (Cmd+B)"
           >
             <Icons.Plus size={18} />
           </button>

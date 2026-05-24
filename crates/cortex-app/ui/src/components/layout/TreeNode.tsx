@@ -11,6 +11,7 @@ import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
 import { SettingsModal } from '../ui/SettingsModal'
+import { useUIStore } from '../../stores/uiStore'
 
 interface TreeNodeProps {
   label: string
@@ -63,6 +64,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
   const { tabs, updateTab, closeTabsWhere, openTab } = useTabs()
+  const { openNewRequestDialog } = useUIStore()
 
   React.useEffect(() => {
     if (renamingPath === path) {
@@ -144,17 +146,13 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }, [path, collectionPath, loadCollection])
 
-  const handleCreateRequest = useCallback(async () => {
-    try {
-      const res = await commands.createRequest('New Request', path, null)
-      if (res.status === 'ok') {
-        await loadCollection(collectionPath || path)
-        useCollectionStore.getState().setRenamingPath(res.data)
-      }
-    } catch (err) {
-      toast.error(`Create request failed: ${String(err)}`)
+  const handleCreateRequest = useCallback(() => {
+    if (type === 'collection') {
+      openNewRequestDialog(path, null)
+    } else {
+      openNewRequestDialog(collectionPath || path, path)
     }
-  }, [path, collectionPath, loadCollection])
+  }, [type, path, collectionPath, openNewRequestDialog])
 
   const handleCreateFolder = useCallback(async () => {
     try {
@@ -252,7 +250,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
     if (type === 'collection') {
       return [
-        { label: 'New Request', shortcut: 'Cmd+N', onClick: handleCreateRequest },
+        { label: 'New Request', shortcut: 'Cmd+B', onClick: handleCreateRequest },
         { label: 'New Folder', onClick: handleCreateFolder },
         { label: 'New JS File', onClick: handleCreateJsFile },
         { label: '', separator: true },
@@ -286,7 +284,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
     if (type === 'folder') {
       return [
-        { label: 'New Request', shortcut: 'Cmd+N', onClick: handleCreateRequest },
+        { label: 'New Request', shortcut: 'Cmd+B', onClick: handleCreateRequest },
         { label: 'New Folder', onClick: handleCreateFolder },
         { label: '', separator: true },
         ...common,

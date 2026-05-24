@@ -7,6 +7,7 @@ import EnvironmentsTab from './EnvironmentsTab'
 import WorkspaceHome from './WorkspaceHome'
 import Composer from '../composer/Composer'
 import CollectionView from '../collection/CollectionView'
+import NewRequestDialog from '../ui/NewRequestDialog'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
 
@@ -30,7 +31,14 @@ const ResizeHandle: React.FC<{ orientation?: 'horizontal' | 'vertical'; hidden?:
 }
 
 const PanelShell: React.FC = () => {
-  const { sidebarCollapsed, toggleSidebar } = useUIStore()
+  const {
+    sidebarCollapsed,
+    toggleSidebar,
+    newRequestDialog,
+    dialogResetKey,
+    openNewRequestDialog,
+    closeNewRequestDialog,
+  } = useUIStore()
   const { tabs, activeTab, openTab } = useTabs()
 
   const [mainLayout, setMainLayout] = useState<number[]>(() => {
@@ -89,6 +97,19 @@ const PanelShell: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [openTab])
+
+  // Keyboard shortcut Cmd+B / Ctrl+B — New Request dialog
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        e.preventDefault()
+        openNewRequestDialog()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openNewRequestDialog])
 
   const onMainLayout = (sizes: number[]) => {
     setMainLayout(sizes)
@@ -169,6 +190,13 @@ const PanelShell: React.FC = () => {
           </div>
         </Panel>
       </PanelGroup>
+      <NewRequestDialog
+        key={dialogResetKey}
+        isOpen={newRequestDialog.isOpen}
+        onClose={closeNewRequestDialog}
+        initialCollectionPath={newRequestDialog.collectionPath}
+        initialFolderPath={newRequestDialog.folderPath}
+      />
     </main>
   )
 }

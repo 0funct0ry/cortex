@@ -140,8 +140,14 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Workspace Home (Overview & Environments)**: A dedicated home view displayed when no request tabs are open, featuring a workspace-level tab bar with **Overview** and **Environments** tabs, plus a "+" button to open a new request tab. The Overview tab renders a two-panel layout: a left panel showing a live stats row (collection count and environment count) and, when zero collections are registered, a full empty-state screen with an illustration, "No collections yet" message, and the three primary CTAs; a right **Documentation** panel (380 px) that lets developers write and persist free-form workspace notes as Markdown, backed by localStorage and toggling between read and edit modes inline.
 - **Workspace Overview & Open Collection**: Collection actions (Create, Open, Import) are surfaced both in the empty-state CTA buttons and via the sidebar. Opening a collection validates the folder contains a `cortex.yaml` manifest, prevents duplicates with sidebar focus and toast warnings, and records the collection in a per-workspace recent list.
 - **Inline Collection Creation**: Create collections directly from the sidebar header or empty workspace view with an inline input field. Supports auto-generated default names (`Untitled Collection - N`), live validation of empty or duplicate names with interactive tooltips, physical directory creation, automatically generated `.gitignore`, and workspace registration with portable relative paths.
+- **New Request Dialog**: A unified modal for creating requests of any protocol type, triggered from three entry points:
+    - **Keyboard shortcut**: `Cmd+B` / `Ctrl+B` from anywhere in the app.
+    - **Tab bar `+` button**: Opens the dialog with no pre-selected collection (choose via Options).
+    - **Sidebar context menus**: Right-clicking a collection or folder node opens the dialog scoped to that target.
+    - **"Add request" link**: The `+ Add request` link at the bottom of each expanded collection.
+    The dialog presents five **Type** radio options in a grid — **HTTP**, **gRPC**, **From cURL**, **GraphQL**, **WebSocket** — and adapts its fields accordingly: HTTP and GraphQL show a color-coded method dropdown (defaulting to GET) plus a URL field; gRPC and WebSocket show only a URL field; From cURL replaces both with a multi-line textarea and an HTTP/GraphQL parse-as selector. The **Request Name** field is auto-focused on open, Enter submits when valid, and Escape dismisses without creating anything. An **Options ▸** disclosure toggle reveals a **Save to folder** dropdown listing all sub-folders within the target collection (defaulting to collection root). The **Create** button is disabled until the name field is non-empty; clicking it writes the `.crx` file to disk, refreshes the sidebar tree, and opens the new request in a composer tab. The **From cURL** path additionally parses the pasted command for URL, method, headers (`-H`), body (`-d`), and Basic auth (`-u`), pre-populating the request content automatically.
 - **Collection Sidebar Context Menu**: Right-clicking (or clicking the `⋯` hover button) on a collection node in the sidebar opens a full 13-item context menu:
-    1. **New Request** — creates a new request as a direct child with immediate inline rename.
+    1. **New Request** — opens the New Request dialog pre-scoped to the collection or folder.
     2. **New Folder** — inserts an inline-editable folder name field as the first child.
     3. **New JS File** — creates a `script.js` file in the collection directory and opens the collection view on the Script tab.
     4. **Run** — greyed out (Collection Runner coming in a future Epic).
@@ -179,7 +185,7 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Theme System**: Premium themes (Dark, Light, Catppuccin, etc.) implemented via CSS variables.
 - **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
 - **Dynamic Tab Bar**: Managed request tabs with horizontal scrolling, dirty state indicators (•), manual reordering, and a comprehensive right-click context menu.
-- **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), and cycling (Cmd+Shift+[ / ]).
+- **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), cycling (Cmd+Shift+[ / ]), new request dialog (Cmd+B), environments (Cmd+E), and sidebar toggle (Cmd+\\).
 - **Theme Picker**: Quick-access popover in the status bar for switching between 13 premium themes with instant live preview on hover.
 - **Response Pane**: Professional right-side panel for inspecting API responses.
     - **Meta Bar**: Real-time display of status codes (color-coded), response time, and body size.

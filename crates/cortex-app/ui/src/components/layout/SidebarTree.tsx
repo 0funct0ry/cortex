@@ -183,7 +183,8 @@ const InlineCreateRow: React.FC = () => {
   )
 }
 
-// Helper functions for path operations and name uniqueness
+// ─── Path helpers (used by AddRequestLink) ───────────────────────────────────
+
 const getParentDirectory = (filePath: string) => {
   const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   if (lastSlash === -1) return ''
@@ -228,7 +229,6 @@ const getUniqueRequestName = (parentPath: string, items: CollectionItem[]): stri
 const getTargetDirectory = (collectionPath: string, selectedPath: string | null): string => {
   if (!selectedPath) return collectionPath
 
-  // Ensure selectedPath belongs to the current collection
   const isSubPath =
     selectedPath === collectionPath ||
     selectedPath.startsWith(collectionPath + '/') ||
@@ -242,6 +242,8 @@ const getTargetDirectory = (collectionPath: string, selectedPath: string | null)
   return selectedPath
 }
 
+// ─── Protocol dropdown ────────────────────────────────────────────────────────
+
 interface ProtocolDropdownProps {
   x: number
   y: number
@@ -253,39 +255,26 @@ const ProtocolDropdown: React.FC<ProtocolDropdownProps> = ({ x, y, onClose, onSe
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ x, y })
 
+  // Clip to viewport after first render so we know the dropdown's size
   useEffect(() => {
     if (dropdownRef.current) {
       const rect = dropdownRef.current.getBoundingClientRect()
-      let newX = x + 12 // Offset to align nicely with tree indentation and leave breathing room on left
+      let newX = x + 12
       let newY = y
-
-      // Clip to viewport
-      if (newX < 12) {
-        newX = 12
-      }
-      if (newX + rect.width > window.innerWidth) {
-        newX = window.innerWidth - rect.width - 8
-      }
-      if (y + rect.height > window.innerHeight) {
-        newY = window.innerHeight - rect.height - 8
-      }
-
+      if (newX < 12) newX = 12
+      if (newX + rect.width > window.innerWidth) newX = window.innerWidth - rect.width - 8
+      if (newY + rect.height > window.innerHeight) newY = window.innerHeight - rect.height - 8
       setPosition({ x: newX, y: newY })
     }
   }, [x, y])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        onClose()
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) onClose()
     }
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
+      if (e.key === 'Escape') onClose()
     }
-
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
     return () => {
@@ -312,7 +301,7 @@ const ProtocolDropdown: React.FC<ProtocolDropdownProps> = ({ x, y, onClose, onSe
     {
       label: 'gRPC',
       method: 'gRPC',
-      url: 'https://',
+      url: 'grpc://',
       icon: Icons.Code,
       colorClass: 'text-method-grpc bg-method-grpc/15',
     },
@@ -356,6 +345,8 @@ const ProtocolDropdown: React.FC<ProtocolDropdownProps> = ({ x, y, onClose, onSe
   )
 }
 
+// ─── Add Request link ─────────────────────────────────────────────────────────
+
 interface AddRequestLinkProps {
   collectionPath: string
 }
@@ -368,10 +359,7 @@ const AddRequestLink: React.FC<AddRequestLinkProps> = ({ collectionPath }) => {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     const rect = e.currentTarget.getBoundingClientRect()
-    setDropdownPosition({
-      x: rect.left,
-      y: rect.bottom,
-    })
+    setDropdownPosition({ x: rect.left, y: rect.bottom })
   }
 
   const handleSelectProtocol = async (method: string, url: string) => {
@@ -384,40 +372,48 @@ const AddRequestLink: React.FC<AddRequestLinkProps> = ({ collectionPath }) => {
 
     try {
       const res = await commands.createRequest(reqName, targetDir, method)
-      if (res.status === 'ok') {
-        const newRequestPath = res.data
-
-        // Pre-populate request tab
-        const defaultRequestContent: RequestFile = {
-          version: '1',
-          name: reqName,
-          method: method,
-          url: url,
-          headers: {},
-          params: {},
-          body: null,
-        }
-
-        // Load/Reload the collection to show the new item in tree
-        await loadCollection(collectionPath)
-
-        // Open the tab in composer
-        openTab({
-          type: 'request',
-          requestPath: newRequestPath,
-          collectionId: collectionPath,
-          collectionPath: null,
-          name: reqName,
-          method: method,
-        })
-
-        useRequestStore.getState().populateRequest(newRequestPath, defaultRequestContent)
-
-        // Set renaming state to true for the new node path
-        useCollectionStore.getState().setRenamingPath(newRequestPath)
-      } else {
+      if (res.status !== 'ok') {
         toast.error(`Failed to create request: ${res.error}`)
+        return
       }
+
+      const newRequestPath = res.data
+
+      const defaultContent: RequestFile = {
+        version: '1',
+        name: reqName,
+        method,
+        url,
+        headers: {},
+        params: {},
+        body: null,
+      }
+
+      await loadCollection(collectionPath)
+
+      // Capture the UUID returned by openTab — the Composer keys store state
+      // by this UUID, not by the file path.
+      const tabId = openTab({
+        type: 'request',
+        requestPath: newRequestPath,
+        collectionId: collectionPath,
+        collectionPath: null,
+        name: reqName,
+        method,
+      })
+
+      // Populate in-memory store under the correct UUID before React renders.
+      useRequestStore.getState().populateRequest(tabId, defaultContent)
+
+      // Highlight the new node in the sidebar immediately.
+      useCollectionStore.getState().setSelectedPath(newRequestPath)
+
+      // Persist url/method to disk (createRequest only writes name+method with
+      // a hardcoded default URL; saveRequest writes the full RequestFile).
+      await useRequestStore.getState().saveRequest(tabId, newRequestPath)
+
+      // Enter inline rename mode so the user can name the request.
+      useCollectionStore.getState().setRenamingPath(newRequestPath)
     } catch (e) {
       toast.error(`Error creating request: ${e instanceof Error ? e.message : String(e)}`)
     }

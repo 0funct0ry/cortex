@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import * as Icons from '../ui/Icons'
-import { useTabs } from '../../contexts/TabsContext'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useUIStore } from '../../stores/uiStore'
 import WorkspaceOverview from './WorkspaceOverview'
 import DocumentationPanel from './DocumentationPanel'
 import EnvironmentsTab from './EnvironmentsTab'
@@ -11,8 +11,8 @@ type HomeTab = 'overview' | 'environments'
 const STORAGE_KEY_HOME_TAB = 'cortex.home.activeTab'
 
 const WorkspaceHome: React.FC = () => {
-  const { openTab } = useTabs()
   const { activeWorkspacePath } = useWorkspaceStore()
+  const { openNewRequestDialog } = useUIStore()
 
   const [activeHomeTab, setActiveHomeTab] = useState<HomeTab>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_HOME_TAB)
@@ -33,14 +33,7 @@ const WorkspaceHome: React.FC = () => {
   }
 
   const handleNewTab = () => {
-    openTab({
-      type: 'request',
-      requestPath: null,
-      collectionId: null,
-      collectionPath: null,
-      name: 'Untitled',
-      method: 'GET',
-    })
+    openNewRequestDialog()
   }
 
   return (
@@ -85,7 +78,7 @@ const WorkspaceHome: React.FC = () => {
           <button
             onClick={handleNewTab}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-            title="New Tab (Cmd+N)"
+            title="New Request (Cmd+B)"
           >
             <Icons.Plus size={18} />
           </button>
