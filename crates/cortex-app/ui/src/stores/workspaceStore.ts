@@ -40,13 +40,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           activeWorkspacePath: path,
           isLoading: false,
         })
-        // Load environments into environment store
-        useEnvironmentStore.getState().loadEnvironments(result.data.environments)
+        // Load environments into environment store (pass env_files paths for re-parsing)
+        useEnvironmentStore
+          .getState()
+          .loadEnvironments(result.data.environments, result.data.env_files)
 
-        // Restore active environment if it exists in backend settings
-        if (result.data.active_environment) {
-          useEnvironmentStore.getState().setActiveEnvironment(result.data.active_environment)
-        }
+        // Also load the app-level global environment
+        useEnvironmentStore.getState().loadGlobalEnvironment()
 
         // Refresh recent list
         const recent = await commands.getRecentWorkspaces()

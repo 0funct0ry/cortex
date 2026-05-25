@@ -440,6 +440,46 @@ settings:
   timeout: 5000
 ```
 
+### Workspace-level Environment Management
+
+Cortex includes a dedicated **Environments** screen accessible from the workspace tab bar, allowing you to manage all environment configurations in one place.
+
+**Accessing the Environments screen:**
+1. Open a workspace and click the **Environments** tab in the top tab bar (always visible alongside **Overview**).
+2. The screen displays a two-column layout: a left sidebar listing all environments and a right panel for editing variables.
+
+**Key features:**
+
+| Feature | Description |
+|---|---|
+| **Create / Delete** | Click `+` to name a new environment; click the Trash icon in the editor to delete (with confirmation). |
+| **Inline rename** | Click the ✏ pencil icon next to the environment name in the editor header; press Enter to confirm or Escape to cancel. The YAML file is renamed atomically on disk. |
+| **Variable editor** | Name/Value/Secret columns. Tab from the last value field to append a new row. |
+| **Secret masking** | Check the **Secret** checkbox to encrypt a variable at rest. The value is displayed as `••••••••`; click the 👁 eye button for temporary in-session reveal without changing the secret flag. |
+| **Save / Reset** | **Save** persists changes to `environments/<name>.yaml` immediately. **Reset** reverts unsaved changes. A dot (●) in the sidebar and a highlight on the Save button indicate unsaved edits. |
+| **Active environment** | Hover a row and click the ✓ to activate it for request execution. The active selection is persisted per workspace and restored on next launch. |
+| **Global environment** | A fixed **Global** entry at the top of the sidebar holds app-level variables available in every workspace (stored in `~/Library/Application Support/cortex/global-environment.yaml`). |
+| **Import / Export** | Use the ↓/↑ icons in the sidebar header to import an environment from a YAML file or export the selected environment to disk. |
+| **.env file support** | The `.ENV FILES` section at the bottom of the sidebar lets you attach `.env` files. Their variables appear as **read-only** rows in the editor and are available for `{{variable}}` interpolation. A ⚠ badge appears if any key conflicts with the currently selected environment. |
+| **Search** | The search box in the sidebar filters environments by name in real time. |
+
+**Persistence details:**
+- Each environment is stored as `<workspace-dir>/environments/<name>.yaml`.
+- Secret values are AES-256 encrypted before being written to disk (prefix: `enc:AES256:`).
+- `.env` file references are stored in the `env_files` field of `cortex-workspace.yaml`.
+- The active environment is persisted per-workspace in browser localStorage and restored automatically on next launch.
+
+Example `cortex-workspace.yaml` with environment file references:
+
+```yaml
+version: "1"
+name: "My Project Workspace"
+collections:
+  - ./local-collection
+env_files:
+  - /home/user/projects/.env.local
+```
+
 ### Workspace Manifest (`cortex-workspace.yaml`)
 
 A workspace allows you to group multiple collections, potentially from different repositories or directories, into a single project view.

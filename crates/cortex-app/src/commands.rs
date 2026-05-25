@@ -26,6 +26,7 @@ pub struct WorkspaceResponse {
     pub collections: Vec<WorkspaceCollectionResult>,
     pub variables: Option<Vec<cortex_core::variables::Variable>>,
     pub environments: Vec<cortex_core::environment::EnvironmentFile>,
+    pub env_files: Vec<String>,
     pub active_environment: Option<String>,
 }
 
@@ -458,6 +459,7 @@ fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
         collections,
         variables: workspace.manifest.variables,
         environments: workspace.environments,
+        env_files: workspace.manifest.env_files.unwrap_or_default(),
         active_environment: settings.active_environment,
     })
 }
@@ -480,6 +482,7 @@ pub fn load_workspace_manifest(path: String) -> Result<WorkspaceResponse, String
         collections,
         variables: workspace.manifest.variables,
         environments: workspace.environments,
+        env_files: workspace.manifest.env_files.unwrap_or_default(),
         active_environment: settings.active_environment,
     })
 }
@@ -630,11 +633,15 @@ pub async fn save_file(
     title: String,
     filter_name: String,
     filter_ext: String,
+    default_name: Option<String>,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
     let mut builder = app.dialog().file().set_title(&title);
     if filter_ext != "*" && !filter_ext.is_empty() {
         builder = builder.add_filter(filter_name, &[&filter_ext]);
+    }
+    if let Some(name) = default_name {
+        builder = builder.set_file_name(name);
     }
     let file = builder.blocking_save_file();
     Ok(file.map(|p| p.to_string()))
@@ -888,6 +895,27 @@ pub async fn update_environment_variables(
     .map_err(|e| e.to_string())?
 }
 
+/// Reads and decrypts an environment YAML file from an arbitrary path.
+/// Used by the Import feature to load variables from a file outside the workspace.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_environment_file(
+    path: String,
+) -> Result<cortex_core::environment::EnvironmentFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let file_path = std::path::PathBuf::from(&path);
+        let content =
+            std::fs::read_to_string(&file_path).map_err(|e| format!("Failed to read file: {e}"))?;
+        let mut env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
+            .map_err(|e| format!("Failed to parse YAML: {e}"))?;
+        let key = cortex_core::crypto::get_app_key();
+        env.decrypt_secrets(&key).map_err(|e| e.to_string())?;
+        Ok(env)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_environment(
@@ -904,6 +932,209 @@ pub async fn delete_environment(
         }
 
         Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Atomically renames an environment: reads the old YAML, updates the name, writes the new
+/// file, then deletes the old one.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_environment(
+    workspace_path: String,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let ws_path = std::path::PathBuf::from(&workspace_path);
+        let env_dir = ws_path.parent().unwrap_or(std::path::Path::new(".")).join("environments");
+
+        let old_path = env_dir.join(format!("{}.yaml", old_name));
+        let new_path = env_dir.join(format!("{}.yaml", new_name));
+
+        if !old_path.exists() {
+            return Err(format!("Environment '{}' not found", old_name));
+        }
+        if new_path.exists() {
+            return Err(format!("Environment '{}' already exists", new_name));
+        }
+
+        let content = std::fs::read_to_string(&old_path).map_err(|e| e.to_string())?;
+        let mut env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
+            .map_err(|e| e.to_string())?;
+
+        // Decrypt before re-encrypting under the new name
+        let key = cortex_core::crypto::get_app_key();
+        env.decrypt_secrets(&key).map_err(|e| e.to_string())?;
+        env.name = new_name;
+        env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
+
+        let yaml = env.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(&new_path, yaml).map_err(|e| e.to_string())?;
+        std::fs::remove_file(&old_path).map_err(|e| e.to_string())?;
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Adds a .env file path reference to the workspace manifest.
+#[tauri::command]
+#[specta::specta]
+pub async fn add_workspace_env_file(
+    workspace_path: String,
+    file_path: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
+        let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+
+        let files = manifest.env_files.get_or_insert_with(Vec::new);
+        if !files.contains(&file_path) {
+            files.push(file_path);
+        }
+
+        manifest.save(&workspace_path).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Removes a .env file path reference from the workspace manifest.
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_workspace_env_file(
+    workspace_path: String,
+    file_path: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let content = std::fs::read_to_string(&workspace_path).map_err(|e| e.to_string())?;
+        let mut manifest = WorkspaceManifest::from_yaml(&content).map_err(|e| e.to_string())?;
+
+        if let Some(files) = &mut manifest.env_files {
+            files.retain(|f| f != &file_path);
+        }
+
+        manifest.save(&workspace_path).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Parses a .env file (KEY=VALUE lines) and returns the entries as Variables.
+#[tauri::command]
+#[specta::specta]
+pub async fn parse_env_file(file_path: String) -> Result<Vec<Variable>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let content = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+        let variables = content
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    return None;
+                }
+                let (key, value) = line.split_once('=')?;
+                let key = key.trim().to_string();
+                let mut value = value.trim().to_string();
+                // Strip surrounding quotes
+                if (value.starts_with('"') && value.ends_with('"'))
+                    || (value.starts_with('\'') && value.ends_with('\''))
+                {
+                    value = value[1..value.len() - 1].to_string();
+                }
+                Some(Variable {
+                    name: key,
+                    value: serde_json::Value::String(value),
+                    secret: false,
+                    enabled: true,
+                    prompt: false,
+                    description: None,
+                })
+            })
+            .collect();
+        Ok(variables)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Reads the full text content of a file at the given path.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_text_file(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        std::fs::read_to_string(&path).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Writes text content to a file at the given path (creates or overwrites).
+#[tauri::command]
+#[specta::specta]
+pub async fn write_text_file(path: String, content: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&path, content).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn global_environment_path() -> std::path::PathBuf {
+    if let Some(mut path) = dirs::config_dir() {
+        path.push("cortex");
+        path.push("global-environment.yaml");
+        path
+    } else {
+        std::path::PathBuf::from(".cortex-global-environment.yaml")
+    }
+}
+
+/// Loads the app-level global environment from the user config directory.
+#[tauri::command]
+#[specta::specta]
+pub async fn load_global_environment() -> Result<cortex_core::environment::EnvironmentFile, String>
+{
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = global_environment_path();
+        if !path.exists() {
+            return Ok(cortex_core::environment::EnvironmentFile::new("Global".to_string()));
+        }
+        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let mut env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
+            .map_err(|e| e.to_string())?;
+        let key = cortex_core::crypto::get_app_key();
+        env.decrypt_secrets(&key).map_err(|e| e.to_string())?;
+        Ok(env)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Saves variables to the app-level global environment file.
+#[tauri::command]
+#[specta::specta]
+pub async fn save_global_environment(variables: Vec<Variable>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = global_environment_path();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut env = cortex_core::environment::EnvironmentFile {
+            version: "1".to_string(),
+            name: "Global".to_string(),
+            variables,
+        };
+        let key = cortex_core::crypto::get_app_key();
+        env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
+        let yaml = env.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(&path, yaml).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?

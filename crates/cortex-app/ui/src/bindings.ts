@@ -151,9 +151,9 @@ async pickDirectory(title: string) : Promise<Result<string | null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async saveFile(title: string, filterName: string, filterExt: string) : Promise<Result<string | null, string>> {
+async saveFile(title: string, filterName: string, filterExt: string, defaultName: string | null) : Promise<Result<string | null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("save_file", { title, filterName, filterExt }) };
+    return { status: "ok", data: await TAURI_INVOKE("save_file", { title, filterName, filterExt, defaultName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -260,9 +260,110 @@ async updateEnvironmentVariables(workspacePath: string, environmentName: string,
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Reads and decrypts an environment YAML file from an arbitrary path.
+ * Used by the Import feature to load variables from a file outside the workspace.
+ */
+async readEnvironmentFile(path: string) : Promise<Result<EnvironmentFile, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("read_environment_file", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deleteEnvironment(workspacePath: string, environmentName: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_environment", { workspacePath, environmentName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Atomically renames an environment: reads the old YAML, updates the name, writes the new
+ * file, then deletes the old one.
+ */
+async renameEnvironment(workspacePath: string, oldName: string, newName: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_environment", { workspacePath, oldName, newName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Adds a .env file path reference to the workspace manifest.
+ */
+async addWorkspaceEnvFile(workspacePath: string, filePath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_workspace_env_file", { workspacePath, filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Removes a .env file path reference from the workspace manifest.
+ */
+async removeWorkspaceEnvFile(workspacePath: string, filePath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_workspace_env_file", { workspacePath, filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Parses a .env file (KEY=VALUE lines) and returns the entries as Variables.
+ */
+async parseEnvFile(filePath: string) : Promise<Result<Variable[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("parse_env_file", { filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Loads the app-level global environment from the user config directory.
+ */
+async loadGlobalEnvironment() : Promise<Result<EnvironmentFile, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_global_environment") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Saves variables to the app-level global environment file.
+ */
+async saveGlobalEnvironment(variables: Variable[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_global_environment", { variables }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Reads the full text content of a file at the given path.
+ */
+async readTextFile(path: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("read_text_file", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Writes text content to a file at the given path (creates or overwrites).
+ */
+async writeTextFile(path: string, content: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_text_file", { path, content }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -631,7 +732,7 @@ prompt?: boolean;
 description?: string | null }
 export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
-export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; active_environment: string | null }
+export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; env_files: string[]; active_environment: string | null }
 
 /** tauri-specta globals **/
 

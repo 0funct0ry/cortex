@@ -20,6 +20,9 @@ pub struct WorkspaceManifest {
     /// Environments for the workspace
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environments: Option<Vec<crate::environment::EnvironmentFile>>,
+    /// Paths to .env files referenced by this workspace
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env_files: Option<Vec<String>>,
 }
 
 impl WorkspaceManifest {
@@ -30,6 +33,7 @@ impl WorkspaceManifest {
             collections: Vec::new(),
             variables: None,
             environments: None,
+            env_files: None,
         }
     }
 
@@ -254,6 +258,7 @@ mod tests {
             collections: vec!["./col1".to_string(), "/absolute/path/to/col2".to_string()],
             variables: None,
             environments: None,
+            env_files: None,
         };
 
         let yaml = manifest.to_yaml().unwrap();

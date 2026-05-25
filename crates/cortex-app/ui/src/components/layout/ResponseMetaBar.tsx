@@ -51,7 +51,7 @@ const ResponseMetaBar: React.FC<ResponseMetaBarProps> = ({ response, inFlight })
   const handleSave = async () => {
     if (!response) return
     try {
-      const result = await commands.saveFile('Save Response Body', 'All Files', '*')
+      const result = await commands.saveFile('Save Response Body', 'All Files', '*', null)
       if (result.status === 'ok' && result.data) {
         // TODO: Backend should handle writing the file
         console.log('Save to:', result.data)

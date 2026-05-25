@@ -182,6 +182,7 @@ fn test_workspace_manifest_roundtrip() {
         ],
         variables: Some(variables),
         environments: None,
+        env_files: None,
     };
 
     let yaml = manifest.to_yaml().expect("Failed to serialize WorkspaceManifest");
