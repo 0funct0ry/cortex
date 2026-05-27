@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { xml } from '@codemirror/lang-xml'
+import { html } from '@codemirror/lang-html'
 import { javascript } from '@codemirror/lang-javascript'
 import { EditorView } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
@@ -12,7 +13,7 @@ import type { Diagnostic } from '@codemirror/lint'
 interface CodeEditorProps {
   value: string
   onChange: (value: string) => void
-  language?: 'json' | 'xml' | 'javascript' | 'text'
+  language?: 'json' | 'xml' | 'html' | 'javascript' | 'text'
   readOnly?: boolean
   autoFocus?: boolean
   wordWrap?: boolean
@@ -58,6 +59,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         })
       )
       exts.push(lintGutter())
+    }
+    if (language === 'html') {
+      exts.push(html())
     }
     if (language === 'xml') {
       exts.push(xml())

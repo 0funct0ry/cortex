@@ -190,6 +190,8 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Response Pane**: Professional right-side panel for inspecting API responses.
     - **Meta Bar**: Real-time display of status codes (color-coded), response time, and body size.
     - **Multi-View Tabs**: Switch between **Pretty** (syntax-highlighted, foldable), **Raw** (plain text), **Preview** (sandboxed HTML/Image), and **Headers** (sorted, searchable) views.
+    - **Pretty Mode Formatting**: Automatically indents and syntax-highlights JSON, HTML, and XML responses. Content-type is detected from the `Content-Type` header first; if absent or generic, the body is inspected. The detected format is shown as a badge in the toolbar. A dropdown lets you manually override the detected format at any time. Raw mode always shows the exact unmodified bytes.
+    - **Binary Response Handling**: Responses with binary or non-displayable content (images, PDFs, audio, etc.) show an info panel with the content type, body size, and a **Save to file** button that opens a native OS save dialog.
     - **Intelligent Handling**: Automatic language detection, display limits for large payloads (> 5MB), and automatic tab switching to **Headers** for HEAD requests.
     - **Persistent State**: Per-request response tracking with quick actions for copying and saving.
 
