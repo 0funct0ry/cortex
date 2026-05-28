@@ -38,6 +38,8 @@ const PanelShell: React.FC = () => {
     dialogResetKey,
     openNewRequestDialog,
     closeNewRequestDialog,
+    layout,
+    toggleLayout,
   } = useUIStore()
   const { tabs, activeTab, openTab } = useTabs()
 
@@ -111,6 +113,23 @@ const PanelShell: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [openNewRequestDialog])
 
+  // Keyboard shortcut Cmd+Alt+L / Ctrl+Alt+L — Toggle Layout
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.altKey &&
+        (e.code === 'KeyL' || e.key.toLowerCase() === 'l' || e.key === '¬')
+      ) {
+        e.preventDefault()
+        toggleLayout()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [toggleLayout])
+
   const onMainLayout = (sizes: number[]) => {
     setMainLayout(sizes)
     localStorage.setItem(STORAGE_KEY_MAIN, JSON.stringify(sizes))
@@ -156,7 +175,7 @@ const PanelShell: React.FC = () => {
                   ) : activeTab?.type === 'environments' ? (
                     <EnvironmentsTab />
                   ) : (
-                    <PanelGroup direction="horizontal" onLayout={onEditorLayout}>
+                    <PanelGroup key={layout} direction={layout} onLayout={onEditorLayout}>
                       {/* COMPOSER */}
                       <Panel
                         id="composer"
@@ -168,7 +187,9 @@ const PanelShell: React.FC = () => {
                         <Composer />
                       </Panel>
 
-                      <ResizeHandle />
+                      <ResizeHandle
+                        orientation={layout === 'horizontal' ? 'vertical' : 'horizontal'}
+                      />
 
                       <Panel
                         id="response"

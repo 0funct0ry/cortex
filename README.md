@@ -185,9 +185,10 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Theme System**: Premium themes (Dark, Light, Catppuccin, etc.) implemented via CSS variables.
 - **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
 - **Dynamic Tab Bar**: Managed request tabs with horizontal scrolling, dirty state indicators (•), manual reordering, and a comprehensive right-click context menu.
-- **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), cycling (Cmd+Shift+[ / ]), new request dialog (Cmd+B), environments (Cmd+E), and sidebar toggle (Cmd+\\).
+- **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), cycling (Cmd+Shift+[ / ]), new request dialog (Cmd+B), environments (Cmd+E), sidebar toggle (Cmd+\\\\), and layout toggle (Cmd+Alt+L / Ctrl+Alt+L).
 - **Theme Picker**: Quick-access popover in the status bar for switching between 13 premium themes with instant live preview on hover.
-- **Response Pane**: Professional right-side panel for inspecting API responses.
+- **Response Pane**: Professional panel for inspecting API responses, supporting side-by-side (horizontal) and stacked (vertical) layouts.
+    - **Vertical/Horizontal Layout**: Toggle between a side-by-side split and stacked top-to-bottom layout dynamically using the layout button in the main application toolbar (next to the environment selector) or via the keyboard shortcut `Cmd+Alt+L` / `Ctrl+Alt+L`. The chosen layout is persisted across app restarts.
     - **Meta Bar**: Real-time display of status codes (color-coded), response time, and body size.
     - **Multi-View Tabs**: Switch between **Pretty** (syntax-highlighted, foldable), **Raw** (plain text), **Preview** (sandboxed HTML/SVG rendering), **Headers** (sorted, searchable), and **Visualize** (custom HTML/JS visualization) views. The **Visualize** tab appears only when the request has a post-response script defined.
     - **Pretty Mode Formatting**: Automatically indents and syntax-highlights JSON, HTML, and XML responses. Content-type is detected from the `Content-Type` header first; if absent or generic, the body is inspected. The detected format is shown as a badge in the toolbar. A dropdown lets you manually override the detected format at any time. Raw mode always shows the exact unmodified bytes.

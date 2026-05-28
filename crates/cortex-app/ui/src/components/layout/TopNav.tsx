@@ -5,7 +5,10 @@ import WorkspacePicker from './WorkspacePicker'
 import EnvironmentSwitcher from './EnvironmentSwitcher'
 
 const TopNav: React.FC = () => {
-  const { sidebarCollapsed, toggleSidebar } = useUIStore()
+  const { sidebarCollapsed, toggleSidebar, layout, toggleLayout } = useUIStore()
+  const isMac =
+    typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const layoutShortcutHint = isMac ? '⌥⌘L' : 'Ctrl+Alt+L'
 
   return (
     <nav className="h-8 bg-bg-panel border-b border-border-subtle flex items-center px-2 gap-0 shrink-0">
@@ -45,6 +48,20 @@ const TopNav: React.FC = () => {
           className="p-1.5 rounded hover:bg-bg-muted text-text-secondary hover:text-text-primary transition-colors"
         >
           <Icons.Play size={14} />
+        </button>
+
+        <div className="w-[1px] h-4 bg-border-subtle mx-0.5" />
+
+        <button
+          onClick={toggleLayout}
+          title={
+            layout === 'horizontal'
+              ? `Switch to Vertical Layout (${layoutShortcutHint})`
+              : `Switch to Horizontal Layout (${layoutShortcutHint})`
+          }
+          className="p-1.5 rounded hover:bg-bg-muted text-text-secondary hover:text-text-primary transition-colors"
+        >
+          {layout === 'horizontal' ? <Icons.Rows size={14} /> : <Icons.Columns size={14} />}
         </button>
 
         <div className="w-[1px] h-4 bg-border-subtle mx-0.5" />

@@ -69,11 +69,11 @@ The Request Composer is the core area for configuring API calls. It features:
   - **Content Area**:
     - **RequestTabBar (36px)**: Scoped request tabs.
     - **UrlBar (40px)**: Method selector and URL input.
-    - **Editor Panels**: Side-by-side resizable Composer and Response areas.
+    - **Editor Panels**: Resizable Composer and Response areas, supporting both side-by-side (horizontal) and stacked (vertical) layouts. Persisted via the layout selector and toggleable with `Cmd+Alt+L` / `Ctrl+Alt+L`.
 
 - **StatusBar (22px)**: App metadata, search shortcut, and theme indicator.
 
-Panel sizes are persisted to `localStorage` under keys `cortex.layout.main` and `cortex.layout.editor`.
+Panel sizes and layout preferences are persisted to `localStorage` under keys `cortex.layout.main`, `cortex.layout.editor`, and `cortex.layout.direction`.
 
 ## Development
 

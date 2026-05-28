@@ -628,3 +628,37 @@ export const Plug: React.FC<IconProps> = ({ size = 14, ...props }) => (
     <path d="M18 8H6a2 2 0 0 0-2 2v3a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4v-3a2 2 0 0 0-2-2z" />
   </svg>
 )
+
+export const Columns: React.FC<IconProps> = ({ size = 14, ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="12" y1="3" x2="12" y2="21" />
+  </svg>
+)
+
+export const Rows: React.FC<IconProps> = ({ size = 14, ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+  </svg>
+)
