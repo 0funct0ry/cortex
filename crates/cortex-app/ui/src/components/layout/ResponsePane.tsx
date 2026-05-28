@@ -9,6 +9,7 @@ import ResponsePrettyTab from './ResponsePrettyTab'
 import ResponseRawTab from './ResponseRawTab'
 import ResponsePreviewTab from './ResponsePreviewTab'
 import ResponseHeadersTab from './ResponseHeadersTab'
+import ResponseVisualizeTab from './ResponseVisualizeTab'
 
 const ResponsePane: React.FC = () => {
   const { activeTabId } = useTabs()
@@ -96,6 +97,8 @@ const ResponsePane: React.FC = () => {
             Timeline view is not yet implemented
           </div>
         )
+      case 'visualize':
+        return <ResponseVisualizeTab requestId={activeTabId} />
       default:
         return null
     }

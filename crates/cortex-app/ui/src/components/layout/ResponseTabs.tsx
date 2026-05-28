@@ -1,6 +1,7 @@
 import React from 'react'
 import { useResponseStore } from '../../stores/responseStore'
 import type { ResponseTabId } from '../../stores/responseStore'
+import { useRequestStore } from '../../stores/requestStore'
 
 interface ResponseTabsProps {
   requestId: string
@@ -9,6 +10,8 @@ interface ResponseTabsProps {
 const ResponseTabs: React.FC<ResponseTabsProps> = ({ requestId }) => {
   const { getActiveTab, setActiveTab } = useResponseStore()
   const activeTab = getActiveTab(requestId)
+  const requestData = useRequestStore((s) => s.getRequestState(requestId))
+  const hasPostScript = requestData.scripts.post.trim() !== ''
 
   const tabs: { id: ResponseTabId; label: string }[] = [
     { id: 'pretty', label: 'Pretty' },
@@ -16,6 +19,7 @@ const ResponseTabs: React.FC<ResponseTabsProps> = ({ requestId }) => {
     { id: 'preview', label: 'Preview' },
     { id: 'headers', label: 'Headers' },
     { id: 'timeline', label: 'Timeline' },
+    ...(hasPostScript ? ([{ id: 'visualize', label: 'Visualize' }] as const) : []),
   ]
 
   return (

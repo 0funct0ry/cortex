@@ -7,7 +7,8 @@ import Tooltip from '../ui/Tooltip'
 import { useTabs } from '../../contexts/TabsContext'
 import { useRequestStore } from '../../stores/requestStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
-import { useResponseStore } from '../../stores/responseStore'
+import { useResponseStore, type ResponsePayload } from '../../stores/responseStore'
+import { runPostResponseScript } from '../../utils/scriptRunner'
 import { commands } from '../../bindings'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { toast } from '../../stores/toastStore'
@@ -18,7 +19,7 @@ const UrlBar: React.FC = () => {
   const { tabs, activeTab, activeTabId, updateTab } = useTabs()
   const { activeWorkspacePath } = useWorkspaceStore()
   const { updateRequest, setInFlight } = useRequestStore()
-  const { setResponse } = useResponseStore()
+  const { setResponse, setVisualization, clearVisualization } = useResponseStore()
   const tabState = useRequestStore((s) =>
     activeTabId ? s.requestStates[activeTabId] || s.getRequestState(activeTabId) : null
   )
@@ -55,6 +56,7 @@ const UrlBar: React.FC = () => {
       const { activeEnvironmentName } = useEnvironmentStore.getState()
       const requestId = crypto.randomUUID()
       setInFlight(activeTabId, true, requestId)
+      clearVisualization(activeTabId)
 
       // Normalize body type: frontend uses kebab-case, backend executor expects snake_case
       const normalizeBodyType = (t: string) =>
@@ -128,10 +130,17 @@ const UrlBar: React.FC = () => {
 
       const result = await commands.sendRequest(payload, metadata)
 
+      const runVisualization = (payload: ResponsePayload) => {
+        const postScript = tabState.scripts.post.trim()
+        if (postScript) {
+          setVisualization(activeTabId, runPostResponseScript(postScript, payload))
+        }
+      }
+
       if (result.status === 'ok') {
         const data = result.data
 
-        setResponse(activeTabId, {
+        const responsePayload: ResponsePayload = {
           requestId: activeTabId,
           status: data.status_code || 0,
           statusText: data.status_text || (data.error ? 'Error' : 'Unknown'),
@@ -141,13 +150,15 @@ const UrlBar: React.FC = () => {
           bodySize: data.response_body ? new Blob([data.response_body]).size : 0,
           error: data.error || undefined,
           redirectChain: data.redirect_chain || undefined,
-        })
+        }
+        setResponse(activeTabId, responsePayload)
+        runVisualization(responsePayload)
 
         if (tabState.method.toUpperCase() === 'HEAD') {
           useResponseStore.getState().setActiveTab(activeTabId, 'headers')
         }
       } else {
-        setResponse(activeTabId, {
+        const errorPayload: ResponsePayload = {
           requestId: activeTabId,
           status: 0,
           statusText: 'Error',
@@ -156,14 +167,25 @@ const UrlBar: React.FC = () => {
           durationMs: 0,
           bodySize: 0,
           error: result.error,
-        })
+        }
+        setResponse(activeTabId, errorPayload)
+        runVisualization(errorPayload)
       }
     } catch (err) {
       toast.error(`IPC Error: ${String(err)}`)
     } finally {
       setInFlight(activeTabId, false, null)
     }
-  }, [activeTabId, activeTab, tabState, setInFlight, activeWorkspacePath, setResponse])
+  }, [
+    activeTabId,
+    activeTab,
+    tabState,
+    setInFlight,
+    activeWorkspacePath,
+    setResponse,
+    setVisualization,
+    clearVisualization,
+  ])
 
   const handleCancel = useCallback(() => {
     if (!activeTabId || !tabState?.requestId) return

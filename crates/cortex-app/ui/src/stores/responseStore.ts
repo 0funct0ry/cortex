@@ -1,7 +1,12 @@
 import { create } from 'zustand'
 import type { RedirectHop } from '../bindings'
 
-export type ResponseTabId = 'pretty' | 'raw' | 'preview' | 'headers' | 'timeline'
+export type ResponseTabId = 'pretty' | 'raw' | 'preview' | 'headers' | 'timeline' | 'visualize'
+
+export interface VisualizationResult {
+  html: string | null
+  error: string | null
+}
 
 export interface ResponsePayload {
   requestId: string
@@ -32,17 +37,23 @@ interface ResponseState {
   responses: Record<string, ResponsePayload>
   // requestId (tabId) -> active tab
   activeTabs: Record<string, ResponseTabId>
+  // requestId (tabId) -> visualization result
+  visualizations: Record<string, VisualizationResult>
 
   setResponse: (requestId: string, payload: ResponsePayload) => void
   clearResponse: (requestId: string) => void
   setActiveTab: (requestId: string, tabId: ResponseTabId) => void
   getResponse: (requestId: string) => ResponsePayload | null
   getActiveTab: (requestId: string) => ResponseTabId
+  setVisualization: (requestId: string, result: VisualizationResult) => void
+  clearVisualization: (requestId: string) => void
+  getVisualization: (requestId: string) => VisualizationResult | null
 }
 
 export const useResponseStore = create<ResponseState>((set, get) => ({
   responses: {},
   activeTabs: loadActiveTabs(),
+  visualizations: {},
 
   setResponse: (requestId, payload) =>
     set((state) => ({
@@ -69,4 +80,21 @@ export const useResponseStore = create<ResponseState>((set, get) => ({
   getResponse: (requestId) => get().responses[requestId] || null,
 
   getActiveTab: (requestId) => get().activeTabs[requestId] || 'pretty',
+
+  setVisualization: (requestId, result) =>
+    set((state) => ({
+      visualizations: {
+        ...state.visualizations,
+        [requestId]: result,
+      },
+    })),
+
+  clearVisualization: (requestId) =>
+    set((state) => {
+      const newVisualizations = { ...state.visualizations }
+      delete newVisualizations[requestId]
+      return { visualizations: newVisualizations }
+    }),
+
+  getVisualization: (requestId) => get().visualizations[requestId] ?? null,
 }))
