@@ -10,11 +10,13 @@ import ResponseRawTab from './ResponseRawTab'
 import ResponsePreviewTab from './ResponsePreviewTab'
 import ResponseHeadersTab from './ResponseHeadersTab'
 import ResponseVisualizeTab from './ResponseVisualizeTab'
+import ResponseMultipartView from './ResponseMultipartView'
 
 const ResponsePane: React.FC = () => {
   const { activeTabId } = useTabs()
   const { getRequestState } = useRequestStore()
   const { getResponse, getActiveTab } = useResponseStore()
+  const multipartEnabled = useResponseStore((s) => s.multipartEnabled[activeTabId || ''] ?? false)
 
   if (!activeTabId) return null
 
@@ -80,6 +82,15 @@ const ResponsePane: React.FC = () => {
           </div>
         </div>
       )
+    }
+
+    const contentType = response.headers['content-type'] || response.headers['Content-Type'] || ''
+    const isMultipart =
+      contentType.toLowerCase().includes('multipart/mixed') ||
+      contentType.toLowerCase().includes('multipart/form-data')
+
+    if (isMultipart && multipartEnabled && ['pretty', 'raw', 'preview'].includes(activeTab)) {
+      return <ResponseMultipartView response={response} globalActiveTab={activeTab} />
     }
 
     switch (activeTab) {

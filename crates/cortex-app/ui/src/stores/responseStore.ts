@@ -39,6 +39,8 @@ interface ResponseState {
   activeTabs: Record<string, ResponseTabId>
   // requestId (tabId) -> visualization result
   visualizations: Record<string, VisualizationResult>
+  // requestId (tabId) -> whether multipart rendering is enabled
+  multipartEnabled: Record<string, boolean>
 
   setResponse: (requestId: string, payload: ResponsePayload) => void
   clearResponse: (requestId: string) => void
@@ -48,12 +50,14 @@ interface ResponseState {
   setVisualization: (requestId: string, result: VisualizationResult) => void
   clearVisualization: (requestId: string) => void
   getVisualization: (requestId: string) => VisualizationResult | null
+  setMultipartEnabled: (requestId: string, enabled: boolean) => void
 }
 
 export const useResponseStore = create<ResponseState>((set, get) => ({
   responses: {},
   activeTabs: loadActiveTabs(),
   visualizations: {},
+  multipartEnabled: {},
 
   setResponse: (requestId, payload) =>
     set((state) => ({
@@ -97,4 +101,12 @@ export const useResponseStore = create<ResponseState>((set, get) => ({
     }),
 
   getVisualization: (requestId) => get().visualizations[requestId] ?? null,
+
+  setMultipartEnabled: (requestId, enabled) =>
+    set((state) => ({
+      multipartEnabled: {
+        ...state.multipartEnabled,
+        [requestId]: enabled,
+      },
+    })),
 }))

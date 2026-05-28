@@ -1,8 +1,10 @@
 import React from 'react'
 import * as Icons from '../ui/Icons'
 import Tooltip from '../ui/Tooltip'
+import { useResponseStore } from '../../stores/responseStore'
 import type { ResponsePayload } from '../../stores/responseStore'
 import { commands } from '../../bindings'
+import { parseMultipart } from '../../utils/multipart'
 
 interface ResponseMetaBarProps {
   response: ResponsePayload | null
@@ -10,9 +12,27 @@ interface ResponseMetaBarProps {
   requestId: string
 }
 
-const ResponseMetaBar: React.FC<ResponseMetaBarProps> = ({ response, inFlight }) => {
+const ResponseMetaBar: React.FC<ResponseMetaBarProps> = ({ response, inFlight, requestId }) => {
   const [showRedirects, setShowRedirects] = React.useState(false)
   const popoverRef = React.useRef<HTMLDivElement>(null)
+
+  const contentType = response?.headers['content-type'] || response?.headers['Content-Type'] || ''
+  const isMultipart =
+    contentType.toLowerCase().includes('multipart/mixed') ||
+    contentType.toLowerCase().includes('multipart/form-data')
+
+  const partCount = React.useMemo(() => {
+    if (!isMultipart || !response) return 0
+    try {
+      const parsed = parseMultipart(response.body, contentType)
+      return parsed.length
+    } catch {
+      return 0
+    }
+  }, [isMultipart, response, contentType])
+
+  const multipartEnabled = useResponseStore((s) => s.multipartEnabled[requestId] ?? false)
+  const setMultipartEnabled = useResponseStore((s) => s.setMultipartEnabled)
 
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -155,27 +175,47 @@ const ResponseMetaBar: React.FC<ResponseMetaBarProps> = ({ response, inFlight })
                 {formatSize(response.bodySize)}
               </span>
             </div>
+            {partCount > 0 && (
+              <div className="flex flex-col">
+                <span className="text-[11px] font-mono leading-tight text-text-muted bg-bg-muted px-1.5 py-0.5 rounded border border-border-subtle/50">
+                  {partCount} {partCount === 1 ? 'part' : 'parts'}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex-1" />
 
-          <div className="flex items-center gap-1">
-            <Tooltip content="Copy raw response" position="left">
-              <button
-                onClick={handleCopy}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-              >
-                <Icons.Copy size={14} />
-              </button>
-            </Tooltip>
-            <Tooltip content="Save response body" position="left">
-              <button
-                onClick={handleSave}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-              >
-                <Icons.Download size={14} />
-              </button>
-            </Tooltip>
+          <div className="flex items-center gap-2">
+            {isMultipart && (
+              <label className="flex items-center gap-1.5 text-[11px] text-text-secondary select-none cursor-pointer hover:text-text-primary mr-2">
+                <input
+                  type="checkbox"
+                  checked={multipartEnabled}
+                  onChange={(e) => setMultipartEnabled(requestId, e.target.checked)}
+                  className="rounded border-border-subtle bg-bg-surface text-accent focus:ring-accent w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Parse Multipart</span>
+              </label>
+            )}
+            <div className="flex items-center gap-1">
+              <Tooltip content="Copy raw response" position="left">
+                <button
+                  onClick={handleCopy}
+                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
+                >
+                  <Icons.Copy size={14} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Save response body" position="left">
+                <button
+                  onClick={handleSave}
+                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
+                >
+                  <Icons.Download size={14} />
+                </button>
+              </Tooltip>
+            </div>
           </div>
         </>
       ) : (
