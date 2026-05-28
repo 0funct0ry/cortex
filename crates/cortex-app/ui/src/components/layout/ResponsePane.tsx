@@ -108,7 +108,7 @@ const ResponsePane: React.FC = () => {
         inFlight={requestData.inFlight}
         requestId={activeTabId}
       />
-      {response && !requestData.inFlight && <ResponseTabs requestId={activeTabId} />}
+      {!requestData.inFlight && <ResponseTabs requestId={activeTabId} />}
       <div className="flex-1 overflow-hidden relative flex flex-col bg-bg-surface">
         {renderContent()}
       </div>

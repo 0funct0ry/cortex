@@ -189,11 +189,12 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Theme Picker**: Quick-access popover in the status bar for switching between 13 premium themes with instant live preview on hover.
 - **Response Pane**: Professional right-side panel for inspecting API responses.
     - **Meta Bar**: Real-time display of status codes (color-coded), response time, and body size.
-    - **Multi-View Tabs**: Switch between **Pretty** (syntax-highlighted, foldable), **Raw** (plain text), **Preview** (sandboxed HTML/Image), and **Headers** (sorted, searchable) views.
+    - **Multi-View Tabs**: Switch between **Pretty** (syntax-highlighted, foldable), **Raw** (plain text), **Preview** (sandboxed HTML/SVG rendering), and **Headers** (sorted, searchable) views.
     - **Pretty Mode Formatting**: Automatically indents and syntax-highlights JSON, HTML, and XML responses. Content-type is detected from the `Content-Type` header first; if absent or generic, the body is inspected. The detected format is shown as a badge in the toolbar. A dropdown lets you manually override the detected format at any time. Raw mode always shows the exact unmodified bytes.
+    - **Preview Mode**: Renders `text/html` responses in a fully sandboxed iframe (`sandbox=""` — scripts, same-origin access, forms, and popups are all blocked). Renders `image/svg+xml` responses as an inline graphic via a blob-URL `<img>` element (SVG scripts cannot execute in this context). SVG is also detected from the response body when the `Content-Type` header is absent. For non-previewable types (JSON, plain text, binary, etc.) the pane shows the exact content-type received and directs the user to Pretty or Raw.
     - **Binary Response Handling**: Responses with binary or non-displayable content (images, PDFs, audio, etc.) show an info panel with the content type, body size, and a **Save to file** button that opens a native OS save dialog.
     - **Intelligent Handling**: Automatic language detection, display limits for large payloads (> 5MB), and automatic tab switching to **Headers** for HEAD requests.
-    - **Persistent State**: Per-request response tracking with quick actions for copying and saving.
+    - **Persistent State**: Per-request response tracking with quick actions for copying and saving. The selected response view tab (Pretty / Raw / Preview / Headers) is persisted per request in `localStorage` and restored when the app restarts.
 
 ## File Formats
 

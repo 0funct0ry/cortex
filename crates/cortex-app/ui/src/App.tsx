@@ -22,6 +22,9 @@ function App() {
     const unlisten = listen<ResponsePayload>('response', (event) => {
       console.log('Received response:', event.payload)
       setResponse(event.payload.requestId, event.payload)
+    }).catch((err) => {
+      console.warn('Response event listener could not be registered:', err)
+      return () => {}
     })
 
     return () => {

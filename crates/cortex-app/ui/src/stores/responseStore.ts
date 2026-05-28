@@ -15,6 +15,18 @@ export interface ResponsePayload {
   redirectChain?: RedirectHop[]
 }
 
+const ACTIVE_TABS_STORAGE_KEY = 'cortex.response.activeTabs'
+
+function loadActiveTabs(): Record<string, ResponseTabId> {
+  try {
+    const saved = localStorage.getItem(ACTIVE_TABS_STORAGE_KEY)
+    if (saved) return JSON.parse(saved)
+  } catch {
+    // ignore parse errors
+  }
+  return {}
+}
+
 interface ResponseState {
   // requestId (tabId) -> payload
   responses: Record<string, ResponsePayload>
@@ -30,7 +42,7 @@ interface ResponseState {
 
 export const useResponseStore = create<ResponseState>((set, get) => ({
   responses: {},
-  activeTabs: {},
+  activeTabs: loadActiveTabs(),
 
   setResponse: (requestId, payload) =>
     set((state) => ({
@@ -48,12 +60,11 @@ export const useResponseStore = create<ResponseState>((set, get) => ({
     }),
 
   setActiveTab: (requestId, tabId) =>
-    set((state) => ({
-      activeTabs: {
-        ...state.activeTabs,
-        [requestId]: tabId,
-      },
-    })),
+    set((state) => {
+      const newActiveTabs = { ...state.activeTabs, [requestId]: tabId }
+      localStorage.setItem(ACTIVE_TABS_STORAGE_KEY, JSON.stringify(newActiveTabs))
+      return { activeTabs: newActiveTabs }
+    }),
 
   getResponse: (requestId) => get().responses[requestId] || null,
 
