@@ -8,6 +8,8 @@ import WorkspaceHome from './WorkspaceHome'
 import Composer from '../composer/Composer'
 import CollectionView from '../collection/CollectionView'
 import NewRequestDialog from '../ui/NewRequestDialog'
+import NewTransientRequestDialog from '../ui/NewTransientRequestDialog'
+import SaveToCollectionDialog from '../ui/SaveToCollectionDialog'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
 
@@ -38,6 +40,14 @@ const PanelShell: React.FC = () => {
     dialogResetKey,
     openNewRequestDialog,
     closeNewRequestDialog,
+    isNewTransientDialogOpen,
+    newTransientDialogResetKey,
+    openNewTransientDialog,
+    closeNewTransientDialog,
+    isSaveToCollectionDialogOpen,
+    saveToCollectionTabId,
+    saveToCollectionResetKey,
+    closeSaveToCollectionDialog,
     layout,
     toggleLayout,
   } = useUIStore()
@@ -100,10 +110,10 @@ const PanelShell: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [openTab])
 
-  // Keyboard shortcut Cmd+B / Ctrl+B — New Request dialog
+  // Keyboard shortcut Cmd+Shift+N / Ctrl+Shift+N — New Request (saved to collection)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault()
         openNewRequestDialog()
       }
@@ -112,6 +122,19 @@ const PanelShell: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [openNewRequestDialog])
+
+  // Keyboard shortcut Cmd+B / Ctrl+B — New Transient Request dialog
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'b') {
+        e.preventDefault()
+        openNewTransientDialog()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openNewTransientDialog])
 
   // Keyboard shortcut Cmd+Alt+L / Ctrl+Alt+L — Toggle Layout
   useEffect(() => {
@@ -217,6 +240,17 @@ const PanelShell: React.FC = () => {
         onClose={closeNewRequestDialog}
         initialCollectionPath={newRequestDialog.collectionPath}
         initialFolderPath={newRequestDialog.folderPath}
+      />
+      <NewTransientRequestDialog
+        key={newTransientDialogResetKey}
+        isOpen={isNewTransientDialogOpen}
+        onClose={closeNewTransientDialog}
+      />
+      <SaveToCollectionDialog
+        key={saveToCollectionResetKey}
+        isOpen={isSaveToCollectionDialogOpen}
+        onClose={closeSaveToCollectionDialog}
+        tabId={saveToCollectionTabId}
       />
     </main>
   )

@@ -28,6 +28,7 @@ interface TabsContextType {
   duplicateTab: (id: string) => void
   closeOtherTabs: (id: string) => void
   closeTabsToTheRight: (id: string) => void
+  promoteTab: (id: string, requestPath: string, name: string) => void
 }
 
 const TabsContext = createContext<TabsContextType | undefined>(undefined)
@@ -218,6 +219,12 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveTabId(id)
   }, [])
 
+  const promoteTab = useCallback((id: string, requestPath: string, name: string) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, requestPath, name, isDirty: false } : t))
+    )
+  }, [])
+
   const activeTab = tabs.find((t) => t.id === activeTabId) || null
 
   // Keyboard shortcuts
@@ -254,8 +261,8 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setActiveTabId(tabs[prevIndex].id)
         }
       }
-      // Cmd+N to open new scratch tab
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+      // Cmd+N to open new quick (scratch) tab — must not have Shift (that's Cmd+Shift+N → New Request)
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'n') {
         e.preventDefault()
         openTab({
           type: 'request',
@@ -288,6 +295,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         duplicateTab,
         closeOtherTabs,
         closeTabsToTheRight,
+        promoteTab,
       }}
     >
       {children}

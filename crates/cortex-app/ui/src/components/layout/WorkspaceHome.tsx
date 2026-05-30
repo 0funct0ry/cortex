@@ -12,7 +12,7 @@ const STORAGE_KEY_HOME_TAB = 'cortex.home.activeTab'
 
 const WorkspaceHome: React.FC = () => {
   const { activeWorkspacePath } = useWorkspaceStore()
-  const { openNewRequestDialog } = useUIStore()
+  const { openNewTransientDialog } = useUIStore()
 
   const [activeHomeTab, setActiveHomeTab] = useState<HomeTab>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_HOME_TAB)
@@ -33,7 +33,7 @@ const WorkspaceHome: React.FC = () => {
   }
 
   const handleNewTab = () => {
-    openNewRequestDialog()
+    openNewTransientDialog()
   }
 
   return (
@@ -78,7 +78,7 @@ const WorkspaceHome: React.FC = () => {
           <button
             onClick={handleNewTab}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-            title="New Request (Cmd+B)"
+            title="New Transient Request (Cmd+B)"
           >
             <Icons.Plus size={18} />
           </button>

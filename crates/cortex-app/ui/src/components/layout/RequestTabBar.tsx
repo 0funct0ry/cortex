@@ -6,7 +6,7 @@ import { useUIStore } from '../../stores/uiStore'
 
 const RequestTabBar: React.FC = () => {
   const { tabs, activeTabId, reorderTabs } = useTabs()
-  const { openNewRequestDialog } = useUIStore()
+  const { openNewTransientDialog } = useUIStore()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [showLeftArrow, setShowLeftArrow] = useState(false)
   const [showRightArrow, setShowRightArrow] = useState(false)
@@ -38,7 +38,7 @@ const RequestTabBar: React.FC = () => {
   }
 
   const handleNewTab = () => {
-    openNewRequestDialog()
+    openNewTransientDialog()
   }
 
   const handleDragStart = (index: number) => {
@@ -110,7 +110,7 @@ const RequestTabBar: React.FC = () => {
           <button
             onClick={handleNewTab}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-            title="New Request (Cmd+B)"
+            title="New Transient Request (Cmd+B)"
           >
             <Icons.Plus size={18} />
           </button>

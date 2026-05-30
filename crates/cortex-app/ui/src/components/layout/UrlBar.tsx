@@ -13,10 +13,12 @@ import { commands } from '../../bindings'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { toast } from '../../stores/toastStore'
 import { useCollectionStore } from '../../stores/collectionStore'
+import { useUIStore } from '../../stores/uiStore'
 import { getEffectiveAuth } from '../composer/AuthTab'
 
 const UrlBar: React.FC = () => {
   const { tabs, activeTab, activeTabId, updateTab } = useTabs()
+  const { openSaveToCollectionDialog } = useUIStore()
   const { activeWorkspacePath } = useWorkspaceStore()
   const { updateRequest, setInFlight } = useRequestStore()
   const { setResponse, setVisualization, clearVisualization } = useResponseStore()
@@ -230,6 +232,16 @@ const UrlBar: React.FC = () => {
       />
 
       <div className="flex items-center gap-1">
+        {activeTab?.type === 'request' && !activeTab.requestPath && (
+          <Tooltip content="Save to collection">
+            <button
+              onClick={() => activeTabId && openSaveToCollectionDialog(activeTabId)}
+              className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
+            >
+              <Icons.Folder size={14} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content="Generate code snippet">
           <button
             onClick={() => {}} // Story 03a.14

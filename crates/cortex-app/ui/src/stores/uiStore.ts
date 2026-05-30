@@ -14,6 +14,15 @@ interface UIState {
   dialogResetKey: number
   openNewRequestDialog: (collectionPath?: string | null, folderPath?: string | null) => void
   closeNewRequestDialog: () => void
+  isNewTransientDialogOpen: boolean
+  newTransientDialogResetKey: number
+  openNewTransientDialog: () => void
+  closeNewTransientDialog: () => void
+  isSaveToCollectionDialogOpen: boolean
+  saveToCollectionTabId: string | null
+  saveToCollectionResetKey: number
+  openSaveToCollectionDialog: (tabId: string) => void
+  closeSaveToCollectionDialog: () => void
   layout: 'horizontal' | 'vertical'
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
@@ -51,6 +60,25 @@ export const useUIStore = create<UIState>((set) => {
       })),
     closeNewRequestDialog: () =>
       set({ newRequestDialog: { isOpen: false, collectionPath: null, folderPath: null } }),
+    isNewTransientDialogOpen: false,
+    newTransientDialogResetKey: 0,
+    openNewTransientDialog: () =>
+      set((state) => ({
+        isNewTransientDialogOpen: true,
+        newTransientDialogResetKey: state.newTransientDialogResetKey + 1,
+      })),
+    closeNewTransientDialog: () => set({ isNewTransientDialogOpen: false }),
+    isSaveToCollectionDialogOpen: false,
+    saveToCollectionTabId: null,
+    saveToCollectionResetKey: 0,
+    openSaveToCollectionDialog: (tabId: string) =>
+      set((state) => ({
+        isSaveToCollectionDialogOpen: true,
+        saveToCollectionTabId: tabId,
+        saveToCollectionResetKey: state.saveToCollectionResetKey + 1,
+      })),
+    closeSaveToCollectionDialog: () =>
+      set({ isSaveToCollectionDialogOpen: false, saveToCollectionTabId: null }),
     layout: initialLayout,
     toggleLayout: () =>
       set((state) => {

@@ -7,6 +7,74 @@ import { commands } from '../../bindings'
 import { toast } from '../../stores/toastStore'
 import ImportModal from '../ui/ImportModal'
 
+// ─── Keyboard shortcut helpers ────────────────────────────────────────────────
+
+const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
+
+/** Render a single key token as a keycap chip */
+const Key: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <kbd className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded bg-bg-surface border border-border-subtle border-b-border-default text-[10px] font-mono font-medium text-text-secondary leading-none shadow-[0_1px_0] shadow-border-default select-none">
+    {children}
+  </kbd>
+)
+
+/** Render a keyboard shortcut as space-separated key chips */
+const Shortcut: React.FC<{ keys: string[] }> = ({ keys }) => (
+  <div className="flex items-center gap-0.5">
+    {keys.map((k, i) => (
+      <React.Fragment key={i}>
+        {i > 0 && <span className="text-[9px] text-text-muted mx-0.5">+</span>}
+        <Key>{k}</Key>
+      </React.Fragment>
+    ))}
+  </div>
+)
+
+const cmd = isMac ? '⌘' : 'Ctrl'
+const shift = isMac ? '⇧' : 'Shift'
+const alt = isMac ? '⌥' : 'Alt'
+const enter = isMac ? '↵' : 'Enter'
+
+interface ShortcutRow {
+  label: string
+  description?: string
+  keys: string[]
+}
+
+interface ShortcutGroup {
+  title: string
+  rows: ShortcutRow[]
+}
+
+const SHORTCUT_GROUPS: ShortcutGroup[] = [
+  {
+    title: 'Create Requests',
+    rows: [
+      { label: 'New Request', description: 'Save to a collection', keys: [cmd, shift, 'N'] },
+      {
+        label: 'New Transient Request',
+        description: 'Pick protocol, never saved',
+        keys: [cmd, 'B'],
+      },
+      {
+        label: 'New Quick Request',
+        description: 'Instant HTTP GET, never saved',
+        keys: [cmd, 'N'],
+      },
+      { label: 'Send Request', keys: [cmd, enter] },
+    ],
+  },
+  {
+    title: 'Navigate',
+    rows: [
+      { label: 'Edit Environments', keys: [cmd, 'E'] },
+      { label: 'Toggle Sidebar', keys: [cmd, '\\'] },
+      { label: 'Toggle Layout', keys: [cmd, alt, 'L'] },
+      { label: 'Switch Tabs', keys: [cmd, '1–9'] },
+    ],
+  },
+]
+
 const WorkspaceOverview: React.FC = () => {
   const { activeWorkspace, activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
   const { setCreatingInline, loadCollection, setExpanded } = useCollectionStore()
@@ -122,6 +190,47 @@ const WorkspaceOverview: React.FC = () => {
           >
             <Icons.X size={12} />
           </button>
+        </div>
+      )}
+
+      {/* Keyboard shortcuts — shown when at least one collection is open */}
+      {collectionCount > 0 && (
+        <div className="px-6 pb-6 shrink-0">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-[10px] font-semibold tracking-widest uppercase text-text-muted">
+              Keyboard Shortcuts
+            </span>
+            <div className="flex-1 h-px bg-border-subtle" />
+          </div>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-0">
+            {SHORTCUT_GROUPS.map((group) => (
+              <div key={group.title}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted/60 mb-2">
+                  {group.title}
+                </p>
+                <div className="space-y-0.5">
+                  {group.rows.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-center justify-between gap-4 px-2.5 py-1.5 rounded-md group hover:bg-bg-muted transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-[12px] font-medium text-text-secondary group-hover:text-text-primary transition-colors truncate block">
+                          {row.label}
+                        </span>
+                        {row.description && (
+                          <span className="text-[10px] text-text-muted leading-none">
+                            {row.description}
+                          </span>
+                        )}
+                      </div>
+                      <Shortcut keys={row.keys} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

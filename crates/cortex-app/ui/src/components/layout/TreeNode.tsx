@@ -64,7 +64,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
   const { tabs, updateTab, closeTabsWhere, openTab } = useTabs()
-  const { openNewRequestDialog } = useUIStore()
+  const { openNewRequestDialog, openNewTransientDialog } = useUIStore()
 
   React.useEffect(() => {
     if (renamingPath === path) {
@@ -250,7 +250,21 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
     if (type === 'collection') {
       return [
-        { label: 'New Request', shortcut: 'Cmd+B', onClick: handleCreateRequest },
+        { label: 'New Request', shortcut: 'Cmd+⇧N', onClick: handleCreateRequest },
+        { label: 'New Transient Request', shortcut: 'Cmd+B', onClick: openNewTransientDialog },
+        {
+          label: 'New Quick Request',
+          shortcut: 'Cmd+N',
+          onClick: () =>
+            openTab({
+              type: 'request',
+              requestPath: null,
+              collectionId: null,
+              collectionPath: null,
+              name: 'Untitled',
+              method: 'GET',
+            }),
+        },
         { label: 'New Folder', onClick: handleCreateFolder },
         { label: 'New JS File', onClick: handleCreateJsFile },
         { label: '', separator: true },
@@ -284,7 +298,21 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
     if (type === 'folder') {
       return [
-        { label: 'New Request', shortcut: 'Cmd+B', onClick: handleCreateRequest },
+        { label: 'New Request', shortcut: 'Cmd+⇧N', onClick: handleCreateRequest },
+        { label: 'New Transient Request', shortcut: 'Cmd+B', onClick: openNewTransientDialog },
+        {
+          label: 'New Quick Request',
+          shortcut: 'Cmd+N',
+          onClick: () =>
+            openTab({
+              type: 'request',
+              requestPath: null,
+              collectionId: null,
+              collectionPath: null,
+              name: 'Untitled',
+              method: 'GET',
+            }),
+        },
         { label: 'New Folder', onClick: handleCreateFolder },
         { label: '', separator: true },
         ...common,
@@ -337,8 +365,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     handleOpenCollectionView,
     handleOpenInTerminal,
     handleDuplicate,
+    openNewTransientDialog,
     onClick,
     onToggle,
+    openTab,
   ])
 
   const highlightMatch = (text: string, query: string) => {

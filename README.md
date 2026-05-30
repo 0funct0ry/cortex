@@ -185,7 +185,17 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 - **Theme System**: Premium themes (Dark, Light, Catppuccin, etc.) implemented via CSS variables.
 - **Core Layout**: Flexible tab management, sidebar tree navigation, and dedicated composer/response areas.
 - **Dynamic Tab Bar**: Managed request tabs with horizontal scrolling, dirty state indicators (•), manual reordering, and a comprehensive right-click context menu.
-- **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), cycling (Cmd+Shift+[ / ]), new request dialog (Cmd+B), environments (Cmd+E), sidebar toggle (Cmd+\\\\), and layout toggle (Cmd+Alt+L / Ctrl+Alt+L).
+- **Keyboard-First Design**: Native shortcuts for tab switching (Cmd+1-9), closing (Cmd+W), cycling (Cmd+Shift+[ / ]), new transient request dialog (Cmd+B), quick scratch tab (Cmd+N), environments (Cmd+E), sidebar toggle (Cmd+\\\\), and layout toggle (Cmd+Alt+L / Ctrl+Alt+L).
+- **Transient Request Mode**: Create ephemeral, one-off requests that never touch disk — ideal for quick API exploration without cluttering saved collections.
+    - **Cmd+B** opens a protocol-picker dialog (HTTP, GraphQL, gRPC, WebSocket, SSE) and creates a transient tab pre-configured for the chosen protocol.
+    - **Cmd+N** instantly opens a transient HTTP GET tab without any dialog (fast path).
+    - Transient tabs are visually distinct from saved tabs — their label is *italicised* and slightly muted.
+    - Transient requests support the full feature set: variable interpolation, auth, pre/post scripts, and tests.
+    - All transient requests are recorded in session history.
+    - Transient tabs are not restored on app restart — they exist only for the current session.
+    - A **"Save to Collection"** button (folder icon) appears in the URL bar for transient tabs. Clicking it opens a dialog to choose a name and target collection/folder, then converts the tab into a persisted `.crx` file.
+    - Right-clicking a transient tab also exposes **"Save to Collection…"** in the context menu.
+    - Collections and folders in the sidebar include a **"New Transient Request"** menu item alongside the existing "New Request" option.
 - **Theme Picker**: Quick-access popover in the status bar for switching between 13 premium themes with instant live preview on hover.
 - **Response Pane**: Professional panel for inspecting API responses, supporting side-by-side (horizontal) and stacked (vertical) layouts.
     - **Vertical/Horizontal Layout**: Toggle between a side-by-side split and stacked top-to-bottom layout dynamically using the layout button in the main application toolbar (next to the environment selector) or via the keyboard shortcut `Cmd+Alt+L` / `Ctrl+Alt+L`. The chosen layout is persisted across app restarts.

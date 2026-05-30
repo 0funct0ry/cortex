@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { type Tab, useTabs } from '../../contexts/TabsContext'
 import * as Icons from '../ui/Icons'
+import { useUIStore } from '../../stores/uiStore'
 
 interface TabItemProps {
   tab: Tab
@@ -26,6 +27,7 @@ const TabItem: React.FC<TabItemProps> = ({
   onDragEnd,
 }) => {
   const { activateTab, closeTab, duplicateTab, closeOtherTabs, closeTabsToTheRight } = useTabs()
+  const { openSaveToCollectionDialog } = useUIStore()
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
@@ -122,8 +124,16 @@ const TabItem: React.FC<TabItemProps> = ({
           </span>
         )}
 
-        {/* Name */}
-        <span className="text-[12px] truncate flex-1 font-medium">{tab.name}</span>
+        {/* Name — italic + muted for transient (unsaved) tabs */}
+        <span
+          className={`text-[12px] truncate flex-1 font-medium ${
+            tab.type === 'request' && !tab.requestPath
+              ? `italic ${active ? 'text-text-secondary' : 'text-text-muted'}`
+              : ''
+          }`}
+        >
+          {tab.name}
+        </span>
 
         {/* Close Button / Dirty Indicator */}
         <div className="flex items-center justify-center w-4 h-4 shrink-0 relative">
@@ -188,6 +198,17 @@ const TabItem: React.FC<TabItemProps> = ({
           {tab.type === 'request' && (
             <>
               <div className="my-1 border-t border-border-subtle" />
+              {!tab.requestPath && (
+                <button
+                  className="w-full flex items-center px-3 h-7 text-[12px] text-text-primary hover:bg-bg-highlight transition-colors"
+                  onClick={() => {
+                    openSaveToCollectionDialog(tab.id)
+                    setShowMenu(false)
+                  }}
+                >
+                  Save to Collection…
+                </button>
+              )}
               <button
                 className="w-full flex items-center px-3 h-7 text-[12px] text-text-primary hover:bg-bg-highlight transition-colors"
                 onClick={() => {
