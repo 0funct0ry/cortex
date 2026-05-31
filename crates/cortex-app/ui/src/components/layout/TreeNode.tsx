@@ -5,12 +5,12 @@ import ContextMenu from '../ui/ContextMenu'
 import type { ContextMenuItem } from '../ui/ContextMenu'
 import Dialog from '../ui/Dialog'
 import InlineInput from '../ui/InlineInput'
+import InfoPanel from '../ui/InfoPanel'
 import { commands } from '../../bindings'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
-import { SettingsModal } from '../ui/SettingsModal'
 import { useUIStore } from '../../stores/uiStore'
 
 interface TreeNodeProps {
@@ -51,7 +51,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [isRenaming, setIsRenaming] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [showInfoPanel, setShowInfoPanel] = useState(false)
+  const [folderItemCount, setFolderItemCount] = useState<number | null>(null)
   const {
     searchQuery,
     collections,
@@ -61,6 +62,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     setSelectedPath,
     renamingPath,
     setRenamingPath,
+    setClipboard,
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
   const { tabs, updateTab, closeTabsWhere, openTab } = useTabs()
@@ -98,17 +100,13 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       const res = await commands.renameItem(path, newName)
       if (res.status === 'ok') {
         if (type === 'collection') {
-          // Evict stale collection data keyed by old path
           clearCollection(path)
-          // Reload workspace so activeWorkspace.collections reflects new path
           if (activeWorkspacePath) {
             await loadWorkspace(activeWorkspacePath)
-            // Eagerly load the renamed collection under its new path
             await loadCollection(res.data)
           }
         } else {
           if (collectionPath) await loadCollection(collectionPath)
-          // Sync the tab title and path for any open tab pointing at this request
           const matchingTab = tabs.find((t) => t.requestPath === path)
           if (matchingTab) {
             updateTab(matchingTab.id, { name: newName, requestPath: res.data })
@@ -127,7 +125,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       const res = await commands.deleteItem(path)
       if (res.status === 'ok') {
         if (collectionPath) await loadCollection(collectionPath)
-        // Close the tab for the deleted request (or any request inside a deleted folder)
         closeTabsWhere((t) => t.requestPath !== null && t.requestPath.startsWith(path))
       }
     } catch (err) {
@@ -143,6 +140,20 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       }
     } catch (err) {
       toast.error(`Duplicate failed: ${String(err)}`)
+    }
+  }, [path, collectionPath, loadCollection])
+
+  const handleCloneFolder = useCallback(async () => {
+    try {
+      const res = await commands.cloneFolder(path)
+      if (res.status === 'ok') {
+        if (collectionPath) await loadCollection(collectionPath)
+        toast.success(`Folder cloned successfully`)
+      } else {
+        toast.error(`Clone failed: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Clone failed: ${String(err)}`)
     }
   }, [path, collectionPath, loadCollection])
 
@@ -175,6 +186,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           type: 'collection',
           collectionPath: path,
           collectionId: path,
+          folderPath: null,
           name: label,
           requestPath: null,
           method: '',
@@ -219,6 +231,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       type: 'collection',
       collectionPath: path,
       collectionId: path,
+      folderPath: null,
       name: label,
       requestPath: null,
       method: '',
@@ -245,39 +258,71 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }, [path, label, activeWorkspacePath, loadWorkspace, closeTabsWhere])
 
+  const handleCopy = useCallback(() => {
+    if (type === 'folder' || type === 'request') {
+      setClipboard(path, type)
+      toast.success(`"${label}" copied to clipboard`)
+    }
+  }, [path, label, type, setClipboard])
+
+  const handleShowDeleteConfirm = useCallback(async () => {
+    if (type === 'folder') {
+      const res = await commands.getItemInfo(path)
+      if (res.status === 'ok') {
+        setFolderItemCount(res.data.item_count ?? 0)
+      } else {
+        setFolderItemCount(null)
+      }
+    }
+    setShowDeleteConfirm(true)
+  }, [type, path])
+
+  const deleteDescription = useMemo(() => {
+    if (type === 'folder') {
+      const countText =
+        folderItemCount !== null
+          ? ` It contains ${folderItemCount} request${folderItemCount !== 1 ? 's' : ''}.`
+          : ''
+      return `This will permanently delete the folder "${label}".${countText} This action cannot be undone.`
+    }
+    return `This will permanently delete the request "${label}". This action cannot be undone.`
+  }, [type, label, folderItemCount])
+
   const contextMenuItems = useMemo((): ContextMenuItem[] => {
-    const common: ContextMenuItem[] = [{ label: 'Rename', onClick: () => setIsRenaming(true) }]
+    const creationGroup: ContextMenuItem[] = [
+      { label: 'New Request', shortcut: 'Cmd+⇧N', onClick: handleCreateRequest },
+      { label: 'New Transient Request', shortcut: 'Cmd+B', onClick: openNewTransientDialog },
+      {
+        label: 'New Quick Request',
+        shortcut: 'Cmd+N',
+        onClick: () =>
+          openTab({
+            type: 'request',
+            requestPath: null,
+            collectionId: null,
+            collectionPath: null,
+            folderPath: null,
+            name: 'Untitled',
+            method: 'GET',
+          }),
+      },
+      { label: 'New Folder', onClick: handleCreateFolder },
+      { label: 'New JS File', onClick: handleCreateJsFile },
+    ]
 
     if (type === 'collection') {
       return [
-        { label: 'New Request', shortcut: 'Cmd+⇧N', onClick: handleCreateRequest },
-        { label: 'New Transient Request', shortcut: 'Cmd+B', onClick: openNewTransientDialog },
-        {
-          label: 'New Quick Request',
-          shortcut: 'Cmd+N',
-          onClick: () =>
-            openTab({
-              type: 'request',
-              requestPath: null,
-              collectionId: null,
-              collectionPath: null,
-              name: 'Untitled',
-              method: 'GET',
-            }),
-        },
-        { label: 'New Folder', onClick: handleCreateFolder },
-        { label: 'New JS File', onClick: handleCreateJsFile },
+        ...creationGroup,
         { label: '', separator: true },
         { label: 'Run', disabled: true, onClick: () => {} },
         { label: '', separator: true },
         { label: 'Clone', onClick: handleClone },
-        ...common,
+        { label: 'Rename', onClick: () => setIsRenaming(true) },
         { label: 'Share', onClick: () => toast.info('Share is coming in a future release') },
         {
           label: 'Generate Docs',
           onClick: () => toast.info('Documentation generation is coming in a future release'),
         },
-        { label: '', separator: true },
         {
           label: 'Collapse',
           disabled: !isExpanded,
@@ -298,61 +343,57 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
     if (type === 'folder') {
       return [
-        { label: 'New Request', shortcut: 'Cmd+⇧N', onClick: handleCreateRequest },
-        { label: 'New Transient Request', shortcut: 'Cmd+B', onClick: openNewTransientDialog },
+        ...creationGroup,
+        { label: '', separator: true },
+        { label: 'Run', disabled: true, onClick: () => {} },
+        { label: '', separator: true },
+        { label: 'Clone', onClick: handleCloneFolder },
+        { label: 'Copy', onClick: handleCopy },
+        { label: 'Rename', onClick: () => setIsRenaming(true) },
         {
-          label: 'New Quick Request',
-          shortcut: 'Cmd+N',
+          label: isMac ? 'Reveal in Finder' : 'Reveal in Explorer',
+          onClick: () => commands.openInExplorer(path),
+        },
+        { label: 'Info', onClick: () => setShowInfoPanel(true) },
+        {
+          label: 'Settings',
           onClick: () =>
             openTab({
-              type: 'request',
+              type: 'folder',
+              folderPath: path,
+              collectionPath: collectionPath,
+              collectionId: collectionPath,
               requestPath: null,
-              collectionId: null,
-              collectionPath: null,
-              name: 'Untitled',
-              method: 'GET',
+              name: label,
+              method: '',
             }),
         },
-        { label: 'New Folder', onClick: handleCreateFolder },
+        { label: 'Open in Terminal', onClick: handleOpenInTerminal },
         { label: '', separator: true },
-        ...common,
-        { label: 'Duplicate', onClick: handleDuplicate },
-        { label: 'Settings', onClick: () => setIsSettingsOpen(true) },
-        { label: '', separator: true },
-        { label: 'Delete Folder', danger: true, onClick: () => setShowDeleteConfirm(true) },
+        { label: 'Delete', danger: true, onClick: handleShowDeleteConfirm },
       ]
     }
 
     // Request
     return [
-      { label: 'Open in New Tab', onClick: onClick },
-      { label: 'Duplicate Request', onClick: handleDuplicate },
-      { label: '', separator: true },
-      ...common,
-      { label: '', separator: true },
+      { label: 'Clone', onClick: handleDuplicate },
+      { label: 'Copy', onClick: handleCopy },
+      { label: 'Rename', onClick: () => setIsRenaming(true) },
       {
-        label: 'Copy URL',
-        onClick: () => {
-          // Just a stub for now, would need actual URL resolution
-          navigator.clipboard.writeText('https://example.com')
-        },
+        label: 'Generate Code',
+        onClick: () => toast.info('Code generation is coming in a future release'),
       },
       {
-        label: 'Copy as cURL',
-        onClick: () => {
-          navigator.clipboard.writeText('curl https://example.com')
-        },
+        label: 'Create Example',
+        onClick: () => toast.info('Example creation is coming in a future release'),
       },
-      { label: '', separator: true },
       {
-        label: 'Move to',
-        shortcut: '›',
-        submenu: [
-          { label: 'Root', onClick: () => {} }, // Would need actual folder list
-        ],
+        label: isMac ? 'Reveal in Finder' : 'Reveal in Explorer',
+        onClick: () => commands.openInExplorer(path),
       },
+      { label: 'Info', onClick: () => setShowInfoPanel(true) },
       { label: '', separator: true },
-      { label: 'Delete Request', danger: true, onClick: () => setShowDeleteConfirm(true) },
+      { label: 'Delete', danger: true, onClick: handleShowDeleteConfirm },
     ]
   }, [
     type,
@@ -362,13 +403,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     handleCreateFolder,
     handleCreateJsFile,
     handleClone,
+    handleCloneFolder,
     handleOpenCollectionView,
     handleOpenInTerminal,
     handleDuplicate,
+    handleCopy,
+    handleShowDeleteConfirm,
     openNewTransientDialog,
-    onClick,
     onToggle,
     openTab,
+    label,
+    collectionPath,
   ])
 
   const highlightMatch = (text: string, query: string) => {
@@ -412,7 +457,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       <div
         data-path={path}
         tabIndex={0}
-        className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors outline-none focus:bg-bg-highlight ${
+        className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors outline-none select-none focus:bg-bg-highlight ${
           isActive || selectedPath === path ? 'bg-bg-highlight' : isHovered ? 'bg-bg-muted' : ''
         }`}
         style={{ paddingLeft: `${indentation}px`, paddingRight: '12px' }}
@@ -427,6 +472,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           }
         }}
         onDoubleClick={onDoubleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'F2') {
+            e.preventDefault()
+            setIsRenaming(true)
+          }
+        }}
       >
         {(type === 'collection' || type === 'folder') && (
           <div
@@ -512,7 +563,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDelete}
         title={`Delete ${type === 'request' ? 'Request' : 'Folder'}?`}
-        description={`This will permanently delete the ${type} file. This action cannot be undone.`}
+        description={deleteDescription}
         confirmLabel="Delete"
         variant="danger"
       />
@@ -527,16 +578,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         variant="danger"
       />
 
-      {isSettingsOpen && (
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          type={type as 'collection' | 'folder'}
-          path={path}
-          name={label}
-          collectionPath={collectionPath}
-        />
-      )}
+      <InfoPanel
+        isOpen={showInfoPanel}
+        onClose={() => setShowInfoPanel(false)}
+        path={path}
+        type={type as 'folder' | 'request'}
+      />
     </div>
   )
 }

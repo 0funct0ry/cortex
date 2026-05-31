@@ -116,6 +116,8 @@ const TabItem: React.FC<TabItemProps> = ({
           <Icons.Globe size={14} className="text-accent shrink-0" />
         ) : tab.type === 'collection' ? (
           <Icons.Settings size={14} className="text-accent shrink-0" />
+        ) : tab.type === 'folder' ? (
+          <Icons.Folder size={14} className="text-accent shrink-0" />
         ) : (
           <span
             className={`text-[10px] font-bold uppercase shrink-0 ${getMethodColor(tab.method, active)}`}

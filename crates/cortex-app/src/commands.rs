@@ -317,6 +317,119 @@ pub fn create_js_file(collection_path: String, filename: String) -> Result<Strin
     Ok(candidate.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn clone_folder(path: String) -> Result<String, String> {
+    Collection::clone_folder(&PathBuf::from(path))
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct ItemInfo {
+    pub path: String,
+    pub size_bytes: u32,
+    pub created: Option<String>,
+    pub modified: Option<String>,
+    pub item_count: Option<u32>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_item_info(path: String) -> Result<ItemInfo, String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Err(format!("Path does not exist: {path}"));
+    }
+
+    let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
+
+    let size_bytes = if p.is_file() { meta.len() as u32 } else { dir_size(&p).unwrap_or(0) as u32 };
+
+    let created = meta.created().ok().map(|t| {
+        let secs = t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        format_unix_timestamp(secs)
+    });
+
+    let modified = meta.modified().ok().map(|t| {
+        let secs = t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        format_unix_timestamp(secs)
+    });
+
+    let item_count = if p.is_dir() { Some(count_crx_files(&p)) } else { None };
+
+    Ok(ItemInfo { path, size_bytes, created, modified, item_count })
+}
+
+fn dir_size(path: &std::path::Path) -> std::io::Result<u64> {
+    let mut total: u64 = 0;
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let m = entry.metadata()?;
+        if m.is_dir() {
+            total += dir_size(&entry.path()).unwrap_or(0);
+        } else {
+            total += m.len();
+        }
+    }
+    Ok(total)
+}
+
+fn count_crx_files(path: &std::path::Path) -> u32 {
+    let mut count = 0u32;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                count += count_crx_files(&p);
+            } else if p.extension().is_some_and(|e| e == "crx") {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+fn format_unix_timestamp(secs: u64) -> String {
+    // Simple ISO-8601-like format without external crate: YYYY-MM-DD HH:MM:SS UTC
+    let s = secs;
+    let mut days = s / 86400;
+    let time = s % 86400;
+    let hh = time / 3600;
+    let mm = (time % 3600) / 60;
+    let ss = time % 60;
+
+    // Gregorian calendar calculation from epoch (1970-01-01)
+    let mut year = 1970u64;
+    loop {
+        let days_in_year = if is_leap(year) { 366 } else { 365 };
+        if days < days_in_year {
+            break;
+        }
+        days -= days_in_year;
+        year += 1;
+    }
+    let month_days: [u64; 12] = if is_leap(year) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u64;
+    for &d in &month_days {
+        if days < d {
+            break;
+        }
+        days -= d;
+        month += 1;
+    }
+    let day = days + 1;
+    format!("{year:04}-{month:02}-{day:02} {hh:02}:{mm:02}:{ss:02} UTC")
+}
+
+fn is_leap(year: u64) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
 fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {

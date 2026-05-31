@@ -419,6 +419,40 @@ impl Collection {
         Ok(new_path)
     }
 
+    /// Clones a folder by recursively copying it to a sibling with a "copy" suffix.
+    pub fn clone_folder(path: &Path) -> Result<PathBuf, CollectionError> {
+        if !path.exists() || !path.is_dir() {
+            return Err(CollectionError::NotFound(path.to_path_buf()));
+        }
+
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+
+        let mut i = 1;
+        let mut new_path = parent.join(format!("{} copy", name));
+        while new_path.exists() {
+            new_path = parent.join(format!("{} copy {}", name, i));
+            i += 1;
+        }
+
+        Self::copy_dir_recursive(path, &new_path)?;
+        Ok(new_path)
+    }
+
+    fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), CollectionError> {
+        fs::create_dir_all(dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let dst_path = dst.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                Self::copy_dir_recursive(&entry.path(), &dst_path)?;
+            } else {
+                fs::copy(entry.path(), &dst_path)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Creates a new folder.
     pub fn create_folder(name: &str, parent_path: &Path) -> Result<PathBuf, CollectionError> {
         let path = parent_path.join(name);

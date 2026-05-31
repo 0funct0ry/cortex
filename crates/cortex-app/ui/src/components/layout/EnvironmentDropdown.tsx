@@ -41,6 +41,7 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
       requestPath: null,
       collectionId: null,
       collectionPath: null,
+      folderPath: null,
       method: '',
     })
   }

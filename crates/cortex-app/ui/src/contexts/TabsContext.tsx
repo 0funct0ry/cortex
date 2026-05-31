@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
-export type TabType = 'request' | 'environments' | 'collection'
+export type TabType = 'request' | 'environments' | 'collection' | 'folder'
 
 export interface Tab {
   id: string
@@ -8,6 +8,7 @@ export interface Tab {
   requestPath: string | null // path to .crx file, null for scratch tabs
   collectionId: string | null
   collectionPath: string | null // absolute disk path, singleton key for collection tabs
+  folderPath: string | null // absolute disk path, singleton key for folder settings tabs
   method: string
   name: string
   isDirty: boolean
@@ -45,6 +46,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return JSON.parse(saved).map((t: Tab) => ({
           ...t,
           collectionPath: t.collectionPath ?? null,
+          folderPath: t.folderPath ?? null,
         }))
       } catch (e) {
         console.error('Failed to load tabs from localStorage', e)
@@ -89,6 +91,17 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (tabData.type === 'collection' && tabData.collectionPath) {
         const existingTab = tabs.find(
           (t) => t.type === 'collection' && t.collectionPath === tabData.collectionPath
+        )
+        if (existingTab) {
+          activateTab(existingTab.id)
+          return existingTab.id
+        }
+      }
+
+      // Folder settings tabs are singleton per folder path
+      if (tabData.type === 'folder' && tabData.folderPath) {
+        const existingTab = tabs.find(
+          (t) => t.type === 'folder' && t.folderPath === tabData.folderPath
         )
         if (existingTab) {
           activateTab(existingTab.id)
@@ -269,6 +282,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           requestPath: null,
           collectionId: null,
           collectionPath: null,
+          folderPath: null,
           name: 'Untitled',
           method: 'GET',
         })

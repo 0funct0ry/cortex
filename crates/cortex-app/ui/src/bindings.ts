@@ -529,6 +529,22 @@ async createJsFile(collectionPath: string, filename: string) : Promise<Result<st
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cloneFolder(path: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clone_folder", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getItemInfo(path: string) : Promise<Result<ItemInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_item_info", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -631,6 +647,7 @@ export type FormEntry = { key: string; value: string; is_file: boolean; file_pat
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean; is_valueless?: boolean | null }
 export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[] }
+export type ItemInfo = { path: string; size_bytes: number; created: string | null; modified: string | null; item_count: number | null }
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
 export type OAuth2FetchPayload = { grantType: string; tokenEndpoint: string | null; authEndpoint: string | null; clientId: string | null; clientSecret: string | null; scope: string | null; username: string | null; password: string | null; additionalParams: string | null; redirectUriMode: string | null; customRedirectUri: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null }
 export type OAuth2RefreshPayload = { refreshToken: string; tokenEndpoint: string; clientId: string; clientSecret: string | null; additionalParams: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null }

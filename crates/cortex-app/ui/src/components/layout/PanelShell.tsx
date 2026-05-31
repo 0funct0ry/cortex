@@ -7,6 +7,7 @@ import EnvironmentsTab from './EnvironmentsTab'
 import WorkspaceHome from './WorkspaceHome'
 import Composer from '../composer/Composer'
 import CollectionView from '../collection/CollectionView'
+import FolderView from '../collection/FolderView'
 import NewRequestDialog from '../ui/NewRequestDialog'
 import NewTransientRequestDialog from '../ui/NewTransientRequestDialog'
 import SaveToCollectionDialog from '../ui/SaveToCollectionDialog'
@@ -101,6 +102,7 @@ const PanelShell: React.FC = () => {
           requestPath: null,
           collectionId: null,
           collectionPath: null,
+          folderPath: null,
           method: '',
         })
       }
@@ -194,6 +196,12 @@ const PanelShell: React.FC = () => {
                     <CollectionView
                       collectionPath={activeTab.collectionPath!}
                       tabId={activeTab.id}
+                    />
+                  ) : activeTab?.type === 'folder' ? (
+                    <FolderView
+                      folderPath={activeTab.folderPath!}
+                      collectionPath={activeTab.collectionPath!}
+                      folderName={activeTab.name}
                     />
                   ) : activeTab?.type === 'environments' ? (
                     <EnvironmentsTab />

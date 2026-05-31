@@ -422,6 +422,7 @@ const NewRequestDialog: React.FC<NewRequestDialogProps> = ({
         requestPath: newRequestPath,
         collectionId: selectedCollectionPath,
         collectionPath: null,
+        folderPath: null,
         name,
         method: effectiveMethod,
       })

@@ -100,6 +100,8 @@ fn main() {
             commands::clone_collection,
             commands::open_in_terminal,
             commands::create_js_file,
+            commands::clone_folder,
+            commands::get_item_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -178,6 +180,8 @@ mod tests {
                 commands::clone_collection,
                 commands::open_in_terminal,
                 commands::create_js_file,
+                commands::clone_folder,
+                commands::get_item_info,
             ]);
 
         builder

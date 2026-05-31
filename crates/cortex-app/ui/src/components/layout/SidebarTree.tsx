@@ -398,6 +398,7 @@ const AddRequestLink: React.FC<AddRequestLinkProps> = ({ collectionPath }) => {
         requestPath: newRequestPath,
         collectionId: collectionPath,
         collectionPath: null,
+        folderPath: null,
         name: reqName,
         method,
       })
@@ -600,6 +601,7 @@ const SidebarTree: React.FC = () => {
                 requestPath: request.path,
                 collectionId: collectionPath,
                 collectionPath: null,
+                folderPath: null,
                 name: request.name,
                 method: request.content?.method || 'GET',
               })
@@ -681,6 +683,7 @@ const SidebarTree: React.FC = () => {
               collectionPath: colRef.path,
               collectionId: colRef.path,
               requestPath: null,
+              folderPath: null,
               name: colRef.name || colRef.path.split('/').pop() || 'Collection',
               method: '',
             })

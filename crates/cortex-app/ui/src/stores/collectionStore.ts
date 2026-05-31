@@ -11,6 +11,8 @@ interface CollectionState {
   isCreatingInline: boolean
   selectedPath: string | null
   renamingPath: string | null
+  clipboardPath: string | null
+  clipboardType: 'folder' | 'request' | null
 
   loadCollection: (path: string) => Promise<void>
   clearCollection: (path: string) => void
@@ -20,6 +22,8 @@ interface CollectionState {
   setCreatingInline: (val: boolean) => void
   setSelectedPath: (path: string | null) => void
   setRenamingPath: (path: string | null) => void
+  setClipboard: (path: string, type: 'folder' | 'request') => void
+  clearClipboard: () => void
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -31,6 +35,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   isCreatingInline: false,
   selectedPath: null,
   renamingPath: null,
+  clipboardPath: null,
+  clipboardType: null,
 
   setCreatingInline: (val: boolean) => {
     set({ isCreatingInline: val })
@@ -109,5 +115,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setSearchQuery: (query: string) => {
     set({ searchQuery: query })
+  },
+
+  setClipboard: (path: string, type: 'folder' | 'request') => {
+    set({ clipboardPath: path, clipboardType: type })
+  },
+
+  clearClipboard: () => {
+    set({ clipboardPath: null, clipboardType: null })
   },
 }))

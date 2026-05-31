@@ -146,21 +146,48 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     - **Sidebar context menus**: Right-clicking a collection or folder node opens the dialog scoped to that target.
     - **"Add request" link**: The `+ Add request` link at the bottom of each expanded collection.
     The dialog presents five **Type** radio options in a grid — **HTTP**, **gRPC**, **From cURL**, **GraphQL**, **WebSocket** — and adapts its fields accordingly: HTTP and GraphQL show a color-coded method dropdown (defaulting to GET) plus a URL field; gRPC and WebSocket show only a URL field; From cURL replaces both with a multi-line textarea and an HTTP/GraphQL parse-as selector. The **Request Name** field is auto-focused on open, Enter submits when valid, and Escape dismisses without creating anything. An **Options ▸** disclosure toggle reveals a **Save to folder** dropdown listing all sub-folders within the target collection (defaulting to collection root). The **Create** button is disabled until the name field is non-empty; clicking it writes the `.crx` file to disk, refreshes the sidebar tree, and opens the new request in a composer tab. The **From cURL** path additionally parses the pasted command for URL, method, headers (`-H`), body (`-d`), and Basic auth (`-u`), pre-populating the request content automatically.
-- **Collection Sidebar Context Menu**: Right-clicking (or clicking the `⋯` hover button) on a collection node in the sidebar opens a full 13-item context menu:
-    1. **New Request** — opens the New Request dialog pre-scoped to the collection or folder.
-    2. **New Folder** — inserts an inline-editable folder name field as the first child.
-    3. **New JS File** — creates a `script.js` file in the collection directory and opens the collection view on the Script tab.
-    4. **Run** — greyed out (Collection Runner coming in a future Epic).
-    5. **Clone** — full recursive copy of the collection into the same workspace directory, appending ` - Copy` to the name; appears in the sidebar immediately.
-    6. **Rename** — inline name editing; confirmed with Enter, cancelled with Escape; updates `cortex.yaml` and the on-disk directory name.
-    7. **Share** — placeholder (coming in a future release).
-    8. **Generate Docs** — placeholder (coming in a future release).
-    9. **Collapse** — collapses the collection node; disabled (greyed out) when already collapsed.
-    10. **Reveal in Finder / Reveal in Explorer** — opens the OS file manager at the collection directory; label adapts to the OS.
-    11. **Settings** — opens the collection view tab on the Overview tab.
-    12. **Open in Terminal** — opens the OS default terminal at the collection directory (Terminal.app on macOS, cmd on Windows, x-terminal-emulator/xterm on Linux).
-    13. **Remove** — shows a confirmation prompt ("The files on disk will not be deleted"); unlinks the collection from the workspace manifest without deleting any files.
-    The menu supports full keyboard navigation (ArrowUp/ArrowDown to move focus, Enter to activate, Escape to dismiss). Disabled items are visually greyed out and excluded from keyboard focus.
+- **Collection, Folder & Request Context Menus** *(Story 06.01)*: Right-clicking (or clicking the `⋯` hover button) on any sidebar node opens a type-specific context menu with items grouped by creation, action, and danger zones, separated by visual dividers.
+
+    **Collection node** (14 items + separators):
+    1. **New Request** — opens the New Request dialog pre-scoped to the collection.
+    2. **New Transient Request** (Cmd+B) — opens the transient/ephemeral request dialog.
+    3. **New Quick Request** (Cmd+N) — opens an untitled request tab immediately.
+    4. **New Folder** — inserts an inline-editable folder name field as the first child.
+    5. **New JS File** — creates a `script.js` file in the collection directory and opens the collection view on the Script tab.
+    6. **Run** — greyed out (Collection Runner coming in Story 06.10).
+    7. **Clone** — full recursive copy of the collection into the same workspace directory with a `copy` suffix; appears in the sidebar immediately.
+    8. **Rename** — inline name editing; confirmed with Enter, cancelled with Escape.
+    9. **Share** — placeholder (coming in Story 06.11).
+    10. **Generate Docs** — placeholder (coming in Story 06.12).
+    11. **Collapse** — collapses the entire collection tree including nested folders; disabled when already collapsed.
+    12. **Reveal in Finder / Reveal in Explorer** — opens the OS file manager at the collection directory.
+    13. **Settings** — opens the collection view tab.
+    14. **Open in Terminal** — opens the OS terminal cd'd to the collection directory.
+    15. **Remove** — prompts for confirmation; unlinks the collection from the workspace without deleting files from disk.
+
+    **Folder node** (14 items + separators):
+    1–5. Same creation group as collection (New Request, New Transient Request, New Quick Request, New Folder, New JS File).
+    6. **Run** — greyed out (coming in Story 06.10).
+    7. **Clone** — deep recursive copy of the folder to a sibling with a `copy` suffix.
+    8. **Copy** — copies the folder path to the internal clipboard for a subsequent paste operation.
+    9. **Rename** — inline name editing.
+    10. **Reveal in Finder / Reveal in Explorer** — opens the OS file manager at the folder path.
+    11. **Info** — opens a read-only metadata panel showing path, size, created/modified timestamps, and request count.
+    12. **Settings** — opens the folder settings panel.
+    13. **Open in Terminal** — opens the OS terminal cd'd to the folder directory.
+    14. **Delete** (red) — prompts for confirmation showing folder name and contained request count; permanently removes the folder from disk.
+
+    **Request node** (8 items + separator):
+    1. **Clone** — duplicates the `.crx` file with a `copy` suffix.
+    2. **Copy** — copies the request path to the internal clipboard.
+    3. **Rename** — inline name editing.
+    4. **Generate Code** — placeholder (coming in Story 06.13).
+    5. **Create Example** — placeholder (coming in Story 06.14).
+    6. **Reveal in Finder / Reveal in Explorer** — opens the OS file manager at the request file.
+    7. **Info** — opens a read-only metadata panel showing path, size, and timestamps.
+    8. **Delete** (red) — prompts for confirmation showing request name; permanently removes the file from disk.
+
+    **General behaviour**: The menu closes on Escape or click-outside. Full keyboard navigation (ArrowUp/ArrowDown, Enter, Escape). F2 while a sidebar node has keyboard focus activates inline rename. Disabled items are visually greyed out and skipped during keyboard navigation.
 - **Collection View**: A dedicated multi-tab view for managing collection-wide defaults, opened as a pinned tab by clicking the gear icon (⚙) next to a collection in the sidebar. Each collection gets its own singleton tab (one per collection path) identified by the gear icon prefix in the tab bar. The view contains eleven tabs:
     - **Overview**: Edit the collection name inline, view the on-disk path, count of linked environments and requests, stub links for Share Collection and Generate Docs, and a Markdown documentation area with a live Preview toggle (rendered via `marked`).
     - **Headers**: A key-value table of default headers applied to all requests in the collection, powered by the same `KeyValueEditor` used in the request composer. Supports add, edit, disable (checkbox per row), delete, and Bulk Edit mode.

@@ -174,6 +174,7 @@ const NewTransientRequestDialog: React.FC<NewTransientRequestDialogProps> = ({
       requestPath: null,
       collectionId: null,
       collectionPath: null,
+      folderPath: null,
       name: 'Untitled',
       method: effectiveMethod,
     })
