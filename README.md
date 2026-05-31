@@ -204,6 +204,14 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 
     Collection root nodes cannot be dragged (they are workspace-level entries managed separately). Only requests and folders are draggable.
 
+- **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
+
+    **Deep nesting**: The sidebar renders any number of nesting levels without horizontal overflow. Labels that exceed the available width are clipped with an ellipsis (`…`), and the sidebar can be resized down to approximately 200 px without visual truncation.
+
+    **Deletion with item count**: Deleting a non-empty folder triggers a confirmation dialog that reports the total number of requests and subfolders contained within (recursively). Examples: *"It contains 3 requests and 1 folder."*, *"It contains 2 folders."*, *"It is empty."* The deletion sends the folder to the system trash rather than permanently erasing it.
+
+    **Rename on disk**: Double-clicking a folder name (or pressing **F2** while the node has keyboard focus) activates an inline rename editor. Confirming the new name renames the directory on disk immediately and updates the sidebar display without a full reload.
+
 - **Collection View**: A dedicated multi-tab view for managing collection-wide defaults, opened as a pinned tab by clicking the gear icon (⚙) next to a collection in the sidebar. Each collection gets its own singleton tab (one per collection path) identified by the gear icon prefix in the tab bar. The view contains eleven tabs:
     - **Overview**: Edit the collection name inline, view the on-disk path, count of linked environments and requests, stub links for Share Collection and Generate Docs, and a Markdown documentation area with a live Preview toggle (rendered via `marked`).
     - **Headers**: A key-value table of default headers applied to all requests in the collection, powered by the same `KeyValueEditor` used in the request composer. Supports add, edit, disable (checkbox per row), delete, and Bulk Edit mode.

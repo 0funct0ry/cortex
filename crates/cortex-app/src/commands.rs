@@ -332,6 +332,7 @@ pub struct ItemInfo {
     pub created: Option<String>,
     pub modified: Option<String>,
     pub item_count: Option<u32>,
+    pub folder_count: Option<u32>,
 }
 
 #[tauri::command]
@@ -356,9 +357,14 @@ pub fn get_item_info(path: String) -> Result<ItemInfo, String> {
         format_unix_timestamp(secs)
     });
 
-    let item_count = if p.is_dir() { Some(count_crx_files(&p)) } else { None };
+    let (item_count, folder_count) = if p.is_dir() {
+        let (requests, folders) = count_folder_items(&p);
+        (Some(requests), Some(folders))
+    } else {
+        (None, None)
+    };
 
-    Ok(ItemInfo { path, size_bytes, created, modified, item_count })
+    Ok(ItemInfo { path, size_bytes, created, modified, item_count, folder_count })
 }
 
 fn dir_size(path: &std::path::Path) -> std::io::Result<u64> {
@@ -375,19 +381,23 @@ fn dir_size(path: &std::path::Path) -> std::io::Result<u64> {
     Ok(total)
 }
 
-fn count_crx_files(path: &std::path::Path) -> u32 {
-    let mut count = 0u32;
+fn count_folder_items(path: &std::path::Path) -> (u32, u32) {
+    let mut requests = 0u32;
+    let mut folders = 0u32;
     if let Ok(entries) = std::fs::read_dir(path) {
         for entry in entries.flatten() {
             let p = entry.path();
             if p.is_dir() {
-                count += count_crx_files(&p);
+                folders += 1;
+                let (r, f) = count_folder_items(&p);
+                requests += r;
+                folders += f;
             } else if p.extension().is_some_and(|e| e == "crx") {
-                count += 1;
+                requests += 1;
             }
         }
     }
-    count
+    (requests, folders)
 }
 
 fn format_unix_timestamp(secs: u64) -> String {

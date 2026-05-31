@@ -68,6 +68,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [showInfoPanel, setShowInfoPanel] = useState(false)
   const [folderItemCount, setFolderItemCount] = useState<number | null>(null)
+  const [folderFolderCount, setFolderFolderCount] = useState<number | null>(null)
   const {
     searchQuery,
     collections,
@@ -285,8 +286,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       const res = await commands.getItemInfo(path)
       if (res.status === 'ok') {
         setFolderItemCount(res.data.item_count ?? 0)
+        setFolderFolderCount(res.data.folder_count ?? 0)
       } else {
         setFolderItemCount(null)
+        setFolderFolderCount(null)
       }
     }
     setShowDeleteConfirm(true)
@@ -294,14 +297,21 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
   const deleteDescription = useMemo(() => {
     if (type === 'folder') {
+      const parts: string[] = []
+      if (folderItemCount)
+        parts.push(`${folderItemCount} request${folderItemCount !== 1 ? 's' : ''}`)
+      if (folderFolderCount)
+        parts.push(`${folderFolderCount} folder${folderFolderCount !== 1 ? 's' : ''}`)
       const countText =
-        folderItemCount !== null
-          ? ` It contains ${folderItemCount} request${folderItemCount !== 1 ? 's' : ''}.`
+        folderItemCount !== null && folderFolderCount !== null
+          ? parts.length > 0
+            ? ` It contains ${parts.join(' and ')}.`
+            : ' It is empty.'
           : ''
       return `This will permanently delete the folder "${label}".${countText} This action cannot be undone.`
     }
     return `This will permanently delete the request "${label}". This action cannot be undone.`
-  }, [type, label, folderItemCount])
+  }, [type, label, folderItemCount, folderFolderCount])
 
   const contextMenuItems = useMemo((): ContextMenuItem[] => {
     const creationGroup: ContextMenuItem[] = [
