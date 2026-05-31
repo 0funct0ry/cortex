@@ -840,7 +840,7 @@ pub async fn update_folder_auth(folder_path: String, auth: Option<AuthRef>) -> R
             cortex_core::collection::FolderManifest::from_yaml(&content)
                 .map_err(|e| e.to_string())?
         } else {
-            cortex_core::collection::FolderManifest { headers: None, auth: None }
+            cortex_core::collection::FolderManifest { headers: None, auth: None, scripts: None }
         };
         fm.auth = auth;
         let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
@@ -974,9 +974,34 @@ pub async fn update_folder_headers(
             cortex_core::collection::FolderManifest::from_yaml(&content)
                 .map_err(|e| e.to_string())?
         } else {
-            cortex_core::collection::FolderManifest { headers: None, auth: None }
+            cortex_core::collection::FolderManifest { headers: None, auth: None, scripts: None }
         };
         fm.headers = headers;
+        let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(&fy, yaml).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_folder_scripts(
+    folder_path: String,
+    scripts: Option<cortex_core::request::Scripts>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder_path_buf = PathBuf::from(folder_path);
+        let fy = folder_path_buf.join("folder.yaml");
+        let mut fm = if fy.exists() {
+            let content = std::fs::read_to_string(&fy).map_err(|e| e.to_string())?;
+            cortex_core::collection::FolderManifest::from_yaml(&content)
+                .map_err(|e| e.to_string())?
+        } else {
+            cortex_core::collection::FolderManifest { headers: None, auth: None, scripts: None }
+        };
+        fm.scripts = scripts;
         let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
         std::fs::write(&fy, yaml).map_err(|e| e.to_string())?;
         Ok(())
@@ -1464,6 +1489,42 @@ pub async fn preview_template(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Collects pre/post scripts from folder ancestors (top-down: grandparent → parent).
+/// Scripts run in addition to collection and request-level scripts once JS execution is wired.
+fn gather_folder_scripts(
+    request_path: &Option<String>,
+    collection_path: &Option<String>,
+) -> Vec<cortex_core::request::Scripts> {
+    let mut result = Vec::new();
+    if let (Some(req_path), Some(col_path)) = (request_path, collection_path) {
+        let req_path_buf = PathBuf::from(req_path);
+        let col_path_buf = PathBuf::from(col_path);
+        let mut ancestors = Vec::new();
+        let mut curr = req_path_buf.parent();
+        while let Some(p) = curr {
+            if p == col_path_buf || !p.starts_with(&col_path_buf) {
+                break;
+            }
+            ancestors.push(p.to_path_buf());
+            curr = p.parent();
+        }
+        ancestors.reverse(); // top-down: grandparent first
+        for folder_path in ancestors {
+            let fy = folder_path.join("folder.yaml");
+            if fy.exists() {
+                if let Ok(content) = std::fs::read_to_string(&fy) {
+                    if let Ok(fm) = cortex_core::collection::FolderManifest::from_yaml(&content) {
+                        if let Some(scripts) = fm.scripts {
+                            result.push(scripts);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result
 }
 
 fn gather_and_render_headers(
@@ -1974,6 +2035,9 @@ pub async fn send_request(
                 true,
             );
             captured.extend(headers_captured);
+
+            // Collect folder-level scripts (top-down ancestry). Execution is wired in a future story.
+            let _folder_scripts = gather_folder_scripts(&metadata.request_path, &metadata.collection_path);
 
             // Resolve effective auth
             let effective_auth = resolve_effective_auth(

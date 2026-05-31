@@ -115,7 +115,7 @@ impl CollectionManifest {
 #[serde(tag = "type", content = "data")]
 pub enum CollectionItem {
     Request(Box<RequestFileWrapper>),
-    Folder(Folder),
+    Folder(Box<Folder>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -135,6 +135,8 @@ pub struct FolderManifest {
     pub headers: Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth: Option<AuthRef>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scripts: Option<Scripts>,
 }
 
 impl FolderManifest {
@@ -492,13 +494,13 @@ fn load_tree(
             } else {
                 None
             };
-            items.push(CollectionItem::Folder(Folder {
+            items.push(CollectionItem::Folder(Box::new(Folder {
                 name,
                 path,
                 relative_path,
                 manifest,
                 items: children,
-            }));
+            })));
         } else if path.extension().is_some_and(|ext| ext == "crx") {
             let (content, error) = match fs::read_to_string(&path) {
                 Ok(s) => match RequestFile::from_yaml(&s) {
@@ -689,7 +691,7 @@ description: \"Description\"
     fn test_folder_manifest_roundtrip() {
         let mut headers = BTreeMap::new();
         headers.insert("X-Folder-Level".to_string(), "true".to_string());
-        let manifest = FolderManifest { headers: Some(headers), auth: None };
+        let manifest = FolderManifest { headers: Some(headers), auth: None, scripts: None };
         let yaml = manifest.to_yaml().unwrap();
         let decoded = FolderManifest::from_yaml(&yaml).unwrap();
         assert_eq!(manifest, decoded);

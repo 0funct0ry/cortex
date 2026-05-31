@@ -215,6 +215,14 @@ async updateFolderHeaders(folderPath: string, headers: { [key in string]: string
     else return { status: "error", error: e  as any };
 }
 },
+async updateFolderScripts(folderPath: string, scripts: Scripts | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_folder_scripts", { folderPath, scripts }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async updateCollectionScripts(collectionPath: string, scripts: Scripts | null) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_collection_scripts", { collectionPath, scripts }) };
@@ -642,7 +650,7 @@ export type Folder = { name: string; path: string; relative_path: string; manife
 /**
  * Represents the optional `folder.yaml` configuration inside a folder directory.
  */
-export type FolderManifest = { headers?: { [key in string]: string } | null; auth?: AuthRef | null }
+export type FolderManifest = { headers?: { [key in string]: string } | null; auth?: AuthRef | null; scripts?: Scripts | null }
 export type FormEntry = { key: string; value: string; is_file: boolean; file_path: string; enabled: boolean }
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean; is_valueless?: boolean | null }

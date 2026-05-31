@@ -4,6 +4,7 @@ import type { AuthRef, CollectionItem, Folder } from '../../bindings'
 import { VariableInput } from '../composer/VariableInput'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { toast } from '../../stores/toastStore'
+import CodeEditor from '../ui/CodeEditor'
 
 interface FolderViewProps {
   folderPath: string
@@ -19,7 +20,7 @@ interface HeaderRow {
 const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, folderName }) => {
   const { collections, loadCollection } = useCollectionStore()
 
-  const [activeTab, setActiveTab] = useState<'auth' | 'headers'>('auth')
+  const [activeTab, setActiveTab] = useState<'auth' | 'headers' | 'scripts'>('auth')
   const [authType, setAuthType] = useState<'none' | 'api_key' | 'bearer_token'>('none')
   const [pendingAuthType, setPendingAuthType] = useState<
     'none' | 'api_key' | 'bearer_token' | null
@@ -32,6 +33,9 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
   const [isBearerMasked, setIsBearerMasked] = useState(true)
   const [headers, setHeaders] = useState<HeaderRow[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [preScript, setPreScript] = useState<string>('')
+  const [postScript, setPostScript] = useState<string>('')
+  const [activeScriptSubTab, setActiveScriptSubTab] = useState<'pre' | 'post'>('pre')
 
   const col = collections[collectionPath]
 
@@ -53,6 +57,9 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
   // Initial state synchronization
   const [lastLoadedAuth, setLastLoadedAuth] = useState<AuthRef | null>(null)
   const [lastLoadedHeaders, setLastLoadedHeaders] = useState<Record<string, string> | null>(null)
+  const [lastLoadedScripts, setLastLoadedScripts] = useState<
+    { pre?: string | null; post?: string | null } | null | undefined
+  >(undefined)
 
   if (loadedAuth !== lastLoadedAuth) {
     setLastLoadedAuth(loadedAuth)
@@ -75,6 +82,13 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
     setHeaders(
       loadedHeaders ? Object.entries(loadedHeaders).map(([k, v]) => ({ key: k, value: v })) : []
     )
+  }
+
+  const loadedScripts = folder?.manifest?.scripts ?? null
+  if (loadedScripts !== lastLoadedScripts) {
+    setLastLoadedScripts(loadedScripts)
+    setPreScript(loadedScripts?.pre ?? '')
+    setPostScript(loadedScripts?.post ?? '')
   }
 
   // Load existing manifest when the collection data is available
@@ -129,11 +143,15 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
         if (h.key.trim()) headersRecord[h.key.trim()] = h.value
       }
 
+      const scriptsPayload =
+        preScript.trim() || postScript.trim() ? { pre: preScript, post: postScript } : null
+
       await commands.updateFolderAuth(folderPath, authRef)
       await commands.updateFolderHeaders(
         folderPath,
         Object.keys(headersRecord).length > 0 ? headersRecord : null
       )
+      await commands.updateFolderScripts(folderPath, scriptsPayload)
       await loadCollection(collectionPath)
       toast.success('Folder settings saved')
     } catch (err) {
@@ -171,6 +189,12 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
           className={`${TAB_BTN} ${activeTab === 'headers' ? TAB_ACTIVE : TAB_INACTIVE}`}
         >
           Custom Headers
+        </button>
+        <button
+          onClick={() => setActiveTab('scripts')}
+          className={`${TAB_BTN} ${activeTab === 'scripts' ? TAB_ACTIVE : TAB_INACTIVE}`}
+        >
+          Scripts
         </button>
       </div>
 
@@ -386,6 +410,43 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
                 ))}
               </div>
             )}
+          </div>
+        )}
+        {activeTab === 'scripts' && (
+          <div className="flex flex-col h-full -m-6">
+            {/* Script sub-tab bar */}
+            <div className="flex items-center gap-0 border-b border-border-subtle px-4 shrink-0">
+              {(['pre', 'post'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveScriptSubTab(tab)}
+                  className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
+                    activeScriptSubTab === tab
+                      ? 'text-text-primary border-accent'
+                      : 'text-text-muted border-transparent hover:text-text-secondary'
+                  }`}
+                >
+                  {tab === 'pre' ? 'Pre-request' : 'Post-response'}
+                </button>
+              ))}
+            </div>
+
+            {/* Editor */}
+            <div className="flex-1 overflow-hidden">
+              {activeScriptSubTab === 'pre' ? (
+                <CodeEditor value={preScript} onChange={setPreScript} language="javascript" />
+              ) : (
+                <CodeEditor value={postScript} onChange={setPostScript} language="javascript" />
+              )}
+            </div>
+
+            {/* Footer note */}
+            <div className="shrink-0 px-4 py-2 border-t border-border-subtle bg-bg-panel/40">
+              <p className="text-xs text-text-muted">
+                Scripts here run for every request in this folder, in addition to collection and
+                request-level scripts.
+              </p>
+            </div>
           </div>
         )}
       </div>

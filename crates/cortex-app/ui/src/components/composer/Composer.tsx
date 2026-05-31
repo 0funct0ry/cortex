@@ -106,6 +106,12 @@ const Composer: React.FC = () => {
       case 'script':
         return (
           <div className="flex flex-col h-full overflow-hidden">
+            <div className="shrink-0 px-4 py-1.5 border-b border-border-subtle bg-bg-panel/40">
+              <p className="text-xs text-text-muted">
+                Collection and folder scripts also run around this request. Configure them in the
+                folder or collection settings.
+              </p>
+            </div>
             <div className="h-8 border-b border-border-subtle bg-bg-panel/50 px-4 flex items-center shrink-0">
               <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
                 Pre-request Script
