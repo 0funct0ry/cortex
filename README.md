@@ -188,6 +188,22 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     8. **Delete** (red) — prompts for confirmation showing request name; permanently removes the file from disk.
 
     **General behaviour**: The menu closes on Escape or click-outside. Full keyboard navigation (ArrowUp/ArrowDown, Enter, Escape). F2 while a sidebar node has keyboard focus activates inline rename. Disabled items are visually greyed out and skipped during keyboard navigation.
+- **Drag-and-Drop Reorganisation** *(Story 06.02)*: Any request or folder in the sidebar can be dragged and dropped to restructure collections without using context menus or dialogs.
+
+    **Within a collection**: Drag a request or folder to reposition it. Because items are sorted alphabetically, dragging within the same parent directory is visually reflected in alphabetical order.
+
+    **Across collections / folders**: Drag a request or folder from one collection (or folder) and drop it into another. Both the source and destination collections reload automatically after a successful move; the underlying `.crx` file or directory is moved on disk immediately.
+
+    **Visual feedback**: A two-pixel accent-coloured insertion line appears above or below the hover target when dropping before or after an item. Hovering over the **middle 50%** of a folder or collection highlights it with an accent ring, indicating the item will become a child of that folder. Request nodes show only the insertion line (they cannot be drop containers).
+
+    **Hover-to-expand**: Holding a dragged item over a collapsed folder for approximately 600 ms automatically expands it, allowing you to drop into nested folders without pre-expanding them.
+
+    **Invalid targets**: Dropping a folder onto itself, onto one of its own descendants, or back onto its current parent is a no-op. The OS cursor changes to a no-drop indicator when hovering over an invalid target; no file operation is performed and the item returns to its original visual position.
+
+    **Undo**: Pressing **Cmd+Z** (macOS) or **Ctrl+Z** (Windows/Linux) immediately after a drag-and-drop move reverts the operation — the file is moved back to its original parent directory and the tree reloads. Up to 10 consecutive DnD moves can be queued and undone in reverse order.
+
+    Collection root nodes cannot be dragged (they are workspace-level entries managed separately). Only requests and folders are draggable.
+
 - **Collection View**: A dedicated multi-tab view for managing collection-wide defaults, opened as a pinned tab by clicking the gear icon (⚙) next to a collection in the sidebar. Each collection gets its own singleton tab (one per collection path) identified by the gear icon prefix in the tab bar. The view contains eleven tabs:
     - **Overview**: Edit the collection name inline, view the on-disk path, count of linked environments and requests, stub links for Share Collection and Generate Docs, and a Markdown documentation area with a live Preview toggle (rendered via `marked`).
     - **Headers**: A key-value table of default headers applied to all requests in the collection, powered by the same `KeyValueEditor` used in the request composer. Supports add, edit, disable (checkbox per row), delete, and Bulk Edit mode.

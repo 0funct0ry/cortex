@@ -7,16 +7,17 @@ import Dialog from '../ui/Dialog'
 import InlineInput from '../ui/InlineInput'
 import InfoPanel from '../ui/InfoPanel'
 import { commands } from '../../bindings'
-import { useCollectionStore } from '../../stores/collectionStore'
+import { useCollectionStore, type DropIndicator } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
+import { type TreeNodeType } from '../../utils/dndUtils'
 
 interface TreeNodeProps {
   label: string
   depth: number
-  type: 'collection' | 'folder' | 'request'
+  type: TreeNodeType
   path: string
   method?: string
   isExpanded?: boolean
@@ -27,6 +28,16 @@ interface TreeNodeProps {
   onClick?: () => void
   onDoubleClick?: () => void
   onOpenSettings?: () => void
+  // DnD props
+  parentPath?: string
+  dropIndicator?: DropIndicator | null
+  isDragSource?: boolean
+  onNodeMouseDown?: (
+    e: React.MouseEvent,
+    path: string,
+    type: 'folder' | 'request',
+    parentPath: string
+  ) => void
 }
 
 const isMac = navigator.platform.toUpperCase().includes('MAC')
@@ -45,6 +56,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onClick,
   onDoubleClick,
   onOpenSettings,
+  parentPath,
+  dropIndicator,
+  isDragSource,
+  onNodeMouseDown,
 }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -443,8 +458,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
     switch (type) {
       case 'collection':
+        return <Icons.Workspace size={14} className="text-text-muted" />
       case 'folder':
-        return <Icons.Folder size={type === 'collection' ? 14 : 12} className="text-text-muted" />
+        return <Icons.Folder size={12} className="text-text-muted" />
       case 'request':
         return method ? <MethodBadge method={method} /> : null
       default:
@@ -452,17 +468,30 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }
 
+  const isDropTarget = dropIndicator?.targetPath === path
+  const dropPosition = isDropTarget ? dropIndicator!.position : null
+
   return (
     <div className="flex flex-col" onContextMenu={handleContextMenu}>
       <div
         data-path={path}
+        data-nodetype={type}
         tabIndex={0}
         className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors outline-none select-none focus:bg-bg-highlight ${
           isActive || selectedPath === path ? 'bg-bg-highlight' : isHovered ? 'bg-bg-muted' : ''
+        } ${isDragSource ? 'opacity-40' : ''} ${
+          dropPosition === 'inside' ? 'ring-1 ring-inset ring-accent bg-accent/10' : ''
+        } ${dropPosition === 'before' ? 'border-t-2 border-accent' : ''} ${
+          dropPosition === 'after' ? 'border-b-2 border-accent' : ''
         }`}
         style={{ paddingLeft: `${indentation}px`, paddingRight: '12px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onMouseDown={(e) => {
+          if (onNodeMouseDown && type !== 'collection') {
+            onNodeMouseDown(e, path, type as 'folder' | 'request', parentPath ?? '')
+          }
+        }}
         onClick={() => {
           setSelectedPath(path)
           if (type === 'request') {

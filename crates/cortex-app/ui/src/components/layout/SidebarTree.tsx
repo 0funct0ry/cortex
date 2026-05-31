@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react'
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
 import TreeNode from './TreeNode'
+import { computeDropPositionFromCoords, findDragTarget } from '../../utils/dndUtils'
 import * as Icons from '../ui/Icons'
 import Tooltip from '../ui/Tooltip'
 import { useRequestStore } from '../../stores/requestStore'
@@ -460,12 +461,242 @@ const SidebarTree: React.FC = () => {
     expansionState,
     loadCollection,
     toggleExpansion,
+    setExpanded,
     searchQuery,
     isCreatingInline,
     setCreatingInline,
+    dropIndicator,
+    setDropIndicator,
+    clearDropIndicator,
+    pushDndUndo,
+    popDndUndo,
   } = useCollectionStore()
 
   const { openTab, activeTab } = useTabs()
+
+  // ─── Drag-and-drop (mouse-event based — HTML5 dragover is suppressed in WKWebView) ──
+
+  const dragState = useRef<{
+    sourcePath: string
+    sourceType: 'folder' | 'request'
+    sourceParentPath: string
+    sourceCollectionPath: string
+    startX: number
+    startY: number
+    isDragging: boolean
+  } | null>(null)
+
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverTargetPath = useRef<string | null>(null)
+
+  // Ghost label shown while dragging
+  const [dragGhost, setDragGhost] = useState<{ x: number; y: number; label: string } | null>(null)
+  // Path being dragged — used to dim the source node
+  const [draggingPath, setDraggingPath] = useState<string | null>(null)
+
+  const resolveCollectionPath = useCallback(
+    (path: string): string => {
+      for (const colPath of Object.keys(collections)) {
+        if (path === colPath || path.startsWith(colPath + '/') || path.startsWith(colPath + '\\')) {
+          return colPath
+        }
+      }
+      return ''
+    },
+    [collections]
+  )
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current)
+      hoverTimer.current = null
+    }
+    hoverTargetPath.current = null
+  }, [])
+
+  const commitDrop = useCallback(
+    async (
+      src: NonNullable<typeof dragState.current>,
+      targetPath: string,
+      position: 'before' | 'after' | 'inside'
+    ) => {
+      const destParent = position === 'inside' ? targetPath : getParentDirectory(targetPath)
+      if (src.sourcePath === targetPath) return
+      if (position === 'inside' && getParentDirectory(src.sourcePath) === destParent) return
+
+      try {
+        const res = await commands.moveItem(src.sourcePath, destParent)
+        if (res.status === 'ok') {
+          pushDndUndo({ movedToPath: res.data, originalParentPath: src.sourceParentPath })
+          const destCollection = resolveCollectionPath(destParent)
+          await loadCollection(src.sourceCollectionPath)
+          if (destCollection && destCollection !== src.sourceCollectionPath) {
+            await loadCollection(destCollection)
+          }
+          if (position === 'inside') setExpanded(destParent, true)
+          const name =
+            src.sourcePath
+              .split('/')
+              .pop()
+              ?.replace(/\.crx$/, '') ?? src.sourcePath
+          toast.success(`"${name}" moved`)
+        } else {
+          toast.error(`Move failed: ${res.error}`)
+        }
+      } catch (err) {
+        toast.error(`Move failed: ${String(err)}`)
+      }
+    },
+    [pushDndUndo, resolveCollectionPath, loadCollection, setExpanded]
+  )
+
+  const handleNodeMouseDown = useCallback(
+    (e: React.MouseEvent, path: string, type: 'folder' | 'request', parentPath: string) => {
+      if (e.button !== 0) return
+
+      dragState.current = {
+        sourcePath: path,
+        sourceType: type,
+        sourceParentPath: parentPath,
+        sourceCollectionPath: resolveCollectionPath(path),
+        startX: e.clientX,
+        startY: e.clientY,
+        isDragging: false,
+      }
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const state = dragState.current
+        if (!state) return
+
+        const dist = Math.hypot(ev.clientX - state.startX, ev.clientY - state.startY)
+        if (!state.isDragging) {
+          if (dist < 4) return
+          state.isDragging = true
+          setDraggingPath(state.sourcePath)
+        }
+
+        // Update ghost
+        const ghostLabel =
+          state.sourcePath
+            .split('/')
+            .pop()
+            ?.replace(/\.crx$/, '') ?? ''
+        setDragGhost({ x: ev.clientX, y: ev.clientY, label: ghostLabel })
+
+        // Find target node under cursor
+        const target = findDragTarget(ev.clientX, ev.clientY)
+        if (
+          !target ||
+          target.path === state.sourcePath ||
+          target.path.startsWith(state.sourcePath + '/') ||
+          target.path.startsWith(state.sourcePath + '\\')
+        ) {
+          const current = useCollectionStore.getState().dropIndicator
+          if (current !== null) clearDropIndicator()
+          clearHoverTimer()
+          return
+        }
+
+        const rect = target.element.getBoundingClientRect()
+        const position = computeDropPositionFromCoords(ev.clientY, rect, target.nodeType)
+
+        // Avoid flooding Zustand with identical updates at 60fps
+        const current = useCollectionStore.getState().dropIndicator
+        if (current?.targetPath !== target.path || current?.position !== position) {
+          setDropIndicator({ targetPath: target.path, position })
+        }
+
+        // Hover-to-expand
+        if (position === 'inside' && target.nodeType !== 'request') {
+          if (hoverTargetPath.current !== target.path) {
+            clearHoverTimer()
+            hoverTargetPath.current = target.path
+            hoverTimer.current = setTimeout(() => {
+              setExpanded(target.path, true)
+              if (collections[target.path] === undefined && !loadingCollections[target.path]) {
+                loadCollection(target.path)
+              }
+            }, 600)
+          }
+        } else {
+          clearHoverTimer()
+        }
+      }
+
+      const onMouseUp = async (ev: MouseEvent) => {
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+
+        const state = dragState.current
+        dragState.current = null
+        setDraggingPath(null)
+        setDragGhost(null)
+        clearDropIndicator()
+        clearHoverTimer()
+
+        if (!state?.isDragging) return
+
+        const target = findDragTarget(ev.clientX, ev.clientY)
+        if (
+          !target ||
+          target.path === state.sourcePath ||
+          target.path.startsWith(state.sourcePath + '/') ||
+          target.path.startsWith(state.sourcePath + '\\')
+        )
+          return
+
+        const rect = target.element.getBoundingClientRect()
+        const position = computeDropPositionFromCoords(ev.clientY, rect, target.nodeType)
+        await commitDrop(state, target.path, position)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [
+      resolveCollectionPath,
+      clearDropIndicator,
+      clearHoverTimer,
+      setDropIndicator,
+      setExpanded,
+      collections,
+      loadingCollections,
+      loadCollection,
+      commitDrop,
+    ]
+  )
+
+  // Undo last DnD move with Cmd/Ctrl+Z
+  useEffect(() => {
+    const onKeyDown = async (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        const entry = popDndUndo()
+        if (!entry) return
+        e.preventDefault()
+        e.stopPropagation()
+        try {
+          const res = await commands.moveItem(entry.movedToPath, entry.originalParentPath)
+          if (res.status === 'ok') {
+            const srcCollection = resolveCollectionPath(entry.movedToPath)
+            const destCollection = resolveCollectionPath(entry.originalParentPath)
+            if (srcCollection) await loadCollection(srcCollection)
+            if (destCollection && destCollection !== srcCollection) {
+              await loadCollection(destCollection)
+            }
+            toast.success('Move undone')
+          } else {
+            toast.error(`Undo failed: ${res.error}`)
+          }
+        } catch (err) {
+          toast.error(`Undo failed: ${String(err)}`)
+        }
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [popDndUndo, resolveCollectionPath, loadCollection])
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // Load last workspace on mount
   useEffect(() => {
@@ -579,6 +810,10 @@ const SidebarTree: React.FC = () => {
               path={folder.path}
               isExpanded={isExpanded}
               onToggle={() => toggleExpansion(folder.path)}
+              parentPath={getParentDirectory(folder.path)}
+              dropIndicator={dropIndicator}
+              isDragSource={draggingPath === folder.path}
+              onNodeMouseDown={handleNodeMouseDown}
             />
             {isExpanded && renderItems(folder.items, depth + 1, collectionPath, query)}
           </React.Fragment>
@@ -609,6 +844,10 @@ const SidebarTree: React.FC = () => {
                 useRequestStore.getState().populateRequest(tabId, request.content)
               }
             }}
+            parentPath={getParentDirectory(request.path)}
+            dropIndicator={dropIndicator}
+            isDragSource={draggingPath === request.path}
+            onNodeMouseDown={handleNodeMouseDown}
           />
         )
       }
@@ -701,6 +940,7 @@ const SidebarTree: React.FC = () => {
                 error={error}
                 onToggle={handleToggle}
                 onOpenSettings={handleOpenCollectionTab}
+                dropIndicator={dropIndicator}
               />
               {isExpanded && colData && (
                 <>
@@ -741,7 +981,23 @@ const SidebarTree: React.FC = () => {
     return <div className="p-4 text-error text-xs">Failed to load workspace: {workspaceError}</div>
   }
 
-  return <div className="flex-1 overflow-y-auto custom-scrollbar">{renderCollections()}</div>
+  return (
+    <>
+      <div id="sidebar-tree-root" className="flex-1 overflow-y-auto custom-scrollbar">
+        {renderCollections()}
+      </div>
+      {dragGhost &&
+        createPortal(
+          <div
+            className="fixed pointer-events-none z-[9999] bg-bg-overlay border border-border-default rounded px-2 py-1 text-xs text-text-primary shadow-lg"
+            style={{ left: dragGhost.x + 14, top: dragGhost.y - 8 }}
+          >
+            {dragGhost.label}
+          </div>,
+          document.body
+        )}
+    </>
+  )
 }
 
 export default SidebarTree

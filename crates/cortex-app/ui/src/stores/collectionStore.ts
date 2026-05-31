@@ -2,6 +2,16 @@ import { create } from 'zustand'
 import { commands } from '../bindings'
 import type { Collection } from '../bindings'
 
+export interface DndUndoEntry {
+  movedToPath: string
+  originalParentPath: string
+}
+
+export interface DropIndicator {
+  targetPath: string
+  position: 'before' | 'after' | 'inside'
+}
+
 interface CollectionState {
   collections: Record<string, Collection>
   loadingCollections: Record<string, boolean>
@@ -13,6 +23,8 @@ interface CollectionState {
   renamingPath: string | null
   clipboardPath: string | null
   clipboardType: 'folder' | 'request' | null
+  dropIndicator: DropIndicator | null
+  dndUndoStack: DndUndoEntry[]
 
   loadCollection: (path: string) => Promise<void>
   clearCollection: (path: string) => void
@@ -24,6 +36,10 @@ interface CollectionState {
   setRenamingPath: (path: string | null) => void
   setClipboard: (path: string, type: 'folder' | 'request') => void
   clearClipboard: () => void
+  setDropIndicator: (indicator: DropIndicator) => void
+  clearDropIndicator: () => void
+  pushDndUndo: (entry: DndUndoEntry) => void
+  popDndUndo: () => DndUndoEntry | undefined
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -37,6 +53,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   renamingPath: null,
   clipboardPath: null,
   clipboardType: null,
+  dropIndicator: null,
+  dndUndoStack: [],
 
   setCreatingInline: (val: boolean) => {
     set({ isCreatingInline: val })
@@ -123,5 +141,27 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   clearClipboard: () => {
     set({ clipboardPath: null, clipboardType: null })
+  },
+
+  setDropIndicator: (indicator: DropIndicator) => {
+    set({ dropIndicator: indicator })
+  },
+
+  clearDropIndicator: () => {
+    set({ dropIndicator: null })
+  },
+
+  pushDndUndo: (entry: DndUndoEntry) => {
+    set((state) => ({
+      dndUndoStack: [entry, ...state.dndUndoStack].slice(0, 10),
+    }))
+  },
+
+  popDndUndo: () => {
+    const stack = get().dndUndoStack
+    if (stack.length === 0) return undefined
+    const [top, ...rest] = stack
+    set({ dndUndoStack: rest })
+    return top
   },
 }))
