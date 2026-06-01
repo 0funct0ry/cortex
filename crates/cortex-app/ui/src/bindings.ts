@@ -577,6 +577,22 @@ async getItemInfo(path: string) : Promise<Result<ItemInfo, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async scanImportFolder(sourceDir: string, targetPath: string) : Promise<Result<ScanResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("scan_import_folder", { sourceDir, targetPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async bulkImportFolder(sourceDir: string, targetPath: string, decisions: ImportDecision[]) : Promise<Result<ImportResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("bulk_import_folder", { sourceDir, targetPath, decisions }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -690,6 +706,10 @@ order?: string[] | null }
 export type FormEntry = { key: string; value: string; is_file: boolean; file_path: string; enabled: boolean }
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean; is_valueless?: boolean | null }
+export type ImportAction = { type: "Skip" } | { type: "Replace" } | { type: "Rename"; value: string }
+export type ImportDecision = { rel_path: string; action: ImportAction }
+export type ImportFileEntry = { rel_path: string; name: string; parse_error: string | null; conflicts: boolean }
+export type ImportResult = { imported: number; skipped: number; failed: ([string, string])[] }
 export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[] }
 export type ItemInfo = { path: string; size_bytes: number; created: string | null; modified: string | null; item_count: number | null; folder_count: number | null }
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
@@ -764,6 +784,7 @@ export type RequestHistoryEntry = { id: string; request_name: string; method: st
 captured_variables: { [key in string]: string }; executed_at: string; duration_ms: number | null; status_code: number | null; status_text: string | null; response_body: string | null; headers?: { [key in string]: string }; error: string | null; warnings?: string[]; redirect_chain?: RedirectHop[] }
 export type RequestMetadata = { workspace_path: string | null; collection_path: string | null; environment_name: string | null; request_path: string | null }
 export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean; description?: string | null }
+export type ScanResult = { files: ImportFileEntry[]; skipped_non_crx: number }
 export type Scripts = { pre?: string | null; post?: string | null }
 export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; auth: AuthRef | null; body: RequestBody | null; settings: Settings | null }
 export type Settings = { timeout?: string | null; redirect_behavior?: string | null }

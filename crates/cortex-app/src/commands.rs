@@ -3224,3 +3224,175 @@ pub async fn oauth2_refresh_token(
 
     Ok(result)
 }
+
+// ── Bulk import ──────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Type, Clone)]
+pub struct ImportFileEntry {
+    pub rel_path: String,
+    pub name: String,
+    pub parse_error: Option<String>,
+    pub conflicts: bool,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct ScanResult {
+    pub files: Vec<ImportFileEntry>,
+    pub skipped_non_crx: u32,
+}
+
+#[derive(Serialize, Deserialize, Type, Clone)]
+#[serde(tag = "type", content = "value")]
+pub enum ImportAction {
+    Skip,
+    Replace,
+    Rename(String),
+}
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct ImportDecision {
+    pub rel_path: String,
+    pub action: ImportAction,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct ImportResult {
+    pub imported: u32,
+    pub skipped: u32,
+    pub failed: Vec<(String, String)>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn scan_import_folder(
+    source_dir: String,
+    target_path: String,
+) -> Result<ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use walkdir::WalkDir;
+        let source = std::path::Path::new(&source_dir);
+        let target = std::path::Path::new(&target_path);
+
+        let mut files = Vec::new();
+        let mut skipped_non_crx: u32 = 0;
+
+        for entry in WalkDir::new(source).min_depth(1).into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("crx") {
+                skipped_non_crx += 1;
+                continue;
+            }
+
+            let rel_path = path
+                .strip_prefix(source)
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+                .unwrap_or_default();
+
+            let name =
+                path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+
+            let parse_error = match std::fs::read_to_string(path) {
+                Err(e) => Some(e.to_string()),
+                Ok(content) => match cortex_core::request::RequestFile::from_yaml(&content) {
+                    Err(e) => Some(e.to_string()),
+                    Ok(_) => None,
+                },
+            };
+
+            let conflicts = target.join(&rel_path).exists();
+
+            files.push(ImportFileEntry { rel_path, name, parse_error, conflicts });
+        }
+
+        Ok(ScanResult { files, skipped_non_crx })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn bulk_import_folder(
+    source_dir: String,
+    target_path: String,
+    decisions: Vec<ImportDecision>,
+) -> Result<ImportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = std::path::Path::new(&source_dir);
+        let target = std::path::Path::new(&target_path);
+
+        let mut imported: u32 = 0;
+        let mut skipped: u32 = 0;
+        let mut failed: Vec<(String, String)> = Vec::new();
+
+        for decision in &decisions {
+            let src_file = source.join(&decision.rel_path);
+
+            match &decision.action {
+                ImportAction::Skip => {
+                    skipped += 1;
+                }
+                ImportAction::Replace => {
+                    let dst_file = target.join(&decision.rel_path);
+                    if let Some(parent) = dst_file.parent() {
+                        if let Err(e) = std::fs::create_dir_all(parent) {
+                            failed.push((decision.rel_path.clone(), e.to_string()));
+                            continue;
+                        }
+                    }
+                    match std::fs::copy(&src_file, &dst_file) {
+                        Ok(_) => imported += 1,
+                        Err(e) => failed.push((decision.rel_path.clone(), e.to_string())),
+                    }
+                }
+                ImportAction::Rename(new_name) => {
+                    let rel = std::path::Path::new(&decision.rel_path);
+                    let new_filename = if new_name.ends_with(".crx") {
+                        new_name.clone()
+                    } else {
+                        format!("{}.crx", new_name)
+                    };
+                    let dst_file = match rel.parent() {
+                        Some(p) if p != std::path::Path::new("") => {
+                            target.join(p).join(&new_filename)
+                        }
+                        _ => target.join(&new_filename),
+                    };
+                    if let Some(parent) = dst_file.parent() {
+                        if let Err(e) = std::fs::create_dir_all(parent) {
+                            failed.push((decision.rel_path.clone(), e.to_string()));
+                            continue;
+                        }
+                    }
+                    match std::fs::read_to_string(&src_file) {
+                        Err(e) => {
+                            failed.push((decision.rel_path.clone(), e.to_string()));
+                        }
+                        Ok(content) => {
+                            let stem = new_filename.trim_end_matches(".crx");
+                            let updated =
+                                match cortex_core::request::RequestFile::from_yaml(&content) {
+                                    Ok(mut rf) => {
+                                        rf.name = stem.to_string();
+                                        rf.to_yaml().unwrap_or(content)
+                                    }
+                                    Err(_) => content,
+                                };
+                            match std::fs::write(&dst_file, updated) {
+                                Ok(_) => imported += 1,
+                                Err(e) => failed.push((decision.rel_path.clone(), e.to_string())),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(ImportResult { imported, skipped, failed })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

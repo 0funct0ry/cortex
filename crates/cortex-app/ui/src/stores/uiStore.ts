@@ -6,6 +6,13 @@ interface NewRequestDialogState {
   folderPath: string | null
 }
 
+interface ImportFolderDialogState {
+  isOpen: boolean
+  targetPath: string | null
+  targetType: 'collection' | 'folder' | null
+  collectionPath: string | null
+}
+
 interface UIState {
   sidebarCollapsed: boolean
   toggleSidebar: () => void
@@ -23,6 +30,14 @@ interface UIState {
   saveToCollectionResetKey: number
   openSaveToCollectionDialog: (tabId: string) => void
   closeSaveToCollectionDialog: () => void
+  importFolderDialog: ImportFolderDialogState
+  importFolderResetKey: number
+  openImportFolderDialog: (
+    targetPath: string,
+    targetType: 'collection' | 'folder',
+    collectionPath: string
+  ) => void
+  closeImportFolderDialog: () => void
   layout: 'horizontal' | 'vertical'
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
@@ -79,6 +94,22 @@ export const useUIStore = create<UIState>((set) => {
       })),
     closeSaveToCollectionDialog: () =>
       set({ isSaveToCollectionDialogOpen: false, saveToCollectionTabId: null }),
+    importFolderDialog: { isOpen: false, targetPath: null, targetType: null, collectionPath: null },
+    importFolderResetKey: 0,
+    openImportFolderDialog: (targetPath, targetType, collectionPath) =>
+      set((state) => ({
+        importFolderDialog: { isOpen: true, targetPath, targetType, collectionPath },
+        importFolderResetKey: state.importFolderResetKey + 1,
+      })),
+    closeImportFolderDialog: () =>
+      set({
+        importFolderDialog: {
+          isOpen: false,
+          targetPath: null,
+          targetType: null,
+          collectionPath: null,
+        },
+      }),
     layout: initialLayout,
     toggleLayout: () =>
       set((state) => {

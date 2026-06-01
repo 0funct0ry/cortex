@@ -11,6 +11,7 @@ import FolderView from '../collection/FolderView'
 import NewRequestDialog from '../ui/NewRequestDialog'
 import NewTransientRequestDialog from '../ui/NewTransientRequestDialog'
 import SaveToCollectionDialog from '../ui/SaveToCollectionDialog'
+import ImportFolderDialog from '../ui/ImportFolderDialog'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
 
@@ -49,6 +50,9 @@ const PanelShell: React.FC = () => {
     saveToCollectionTabId,
     saveToCollectionResetKey,
     closeSaveToCollectionDialog,
+    importFolderDialog,
+    importFolderResetKey,
+    closeImportFolderDialog,
     layout,
     toggleLayout,
   } = useUIStore()
@@ -259,6 +263,14 @@ const PanelShell: React.FC = () => {
         isOpen={isSaveToCollectionDialogOpen}
         onClose={closeSaveToCollectionDialog}
         tabId={saveToCollectionTabId}
+      />
+      <ImportFolderDialog
+        key={importFolderResetKey}
+        isOpen={importFolderDialog.isOpen}
+        onClose={closeImportFolderDialog}
+        targetPath={importFolderDialog.targetPath}
+        targetType={importFolderDialog.targetType}
+        collectionPath={importFolderDialog.collectionPath}
       />
     </main>
   )

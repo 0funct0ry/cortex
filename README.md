@@ -245,6 +245,24 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 
     **Collection runner order**: The `order:` sequence stored in manifests is the authoritative execution order when the collection runner is introduced in a future story. The display order and execution order are always in sync.
 
+- **Bulk Import from Folder** *(Story 06.07)*: Import all `.crx` request files from a local directory into any collection or folder in one operation, preserving the source directory hierarchy.
+
+    **Entry point**: Right-clicking a collection or folder in the explorer sidebar exposes an **Import from folder…** context menu item (positioned after Clone).
+
+    **Workflow — three steps**:
+    1. **Pick**: A "Choose folder…" button invokes the native OS directory picker. The chosen path is shown in a monospace label.
+    2. **Preview**: The backend recursively walks the selected directory (`walkdir`) and returns a structured scan result. The dialog renders a file list showing:
+       - **OK** (green badge): valid `.crx` files ready to import.
+       - **Error** (red badge): files that failed YAML parsing — these are automatically skipped with the per-file parse error displayed inline.
+       - **Conflict** (yellow badge): files whose relative path already exists in the target. Each conflicting file offers three per-item radio choices — **Skip**, **Replace**, or **Rename** (with an editable name field).
+       - A stat row shows total `.crx` files found and how many non-`.crx` files were skipped.
+       - The **Import N files** button counts only files that will actually be written (non-errored, non-skipped).
+    3. **Summary**: After executing the import the dialog shows imported, skipped, and failed counts. Any failed files (e.g. disk write errors) are listed with their error message. Closing reloads the collection tree so new nodes appear immediately.
+
+    **Folder hierarchy preservation**: Intermediate subdirectories are created automatically on disk; the imported tree mirrors the source directory structure within the target collection/folder.
+
+    **Rename semantics**: When Rename is chosen the new filename stem is written into the `.crx` YAML `name:` field as well, keeping file content and filename in sync.
+
 - **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
 
     **Deep nesting**: The sidebar renders any number of nesting levels without horizontal overflow. Labels that exceed the available width are clipped with an ellipsis (`…`), and the sidebar can be resized down to approximately 200 px without visual truncation.

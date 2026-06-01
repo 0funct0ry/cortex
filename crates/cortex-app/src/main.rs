@@ -106,6 +106,8 @@ fn main() {
             commands::create_js_file,
             commands::clone_folder,
             commands::get_item_info,
+            commands::scan_import_folder,
+            commands::bulk_import_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -190,6 +192,8 @@ mod tests {
                 commands::create_js_file,
                 commands::clone_folder,
                 commands::get_item_info,
+                commands::scan_import_folder,
+                commands::bulk_import_folder,
             ]);
 
         builder

@@ -102,7 +102,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
   const { tabs, updateTab, closeTabsWhere, openTab } = useTabs()
-  const { openNewRequestDialog, openNewTransientDialog } = useUIStore()
+  const { openNewRequestDialog, openNewTransientDialog, openImportFolderDialog } = useUIStore()
 
   React.useEffect(() => {
     if (renamingPath === path) {
@@ -262,6 +262,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }, [path])
 
+  const handleImportFolder = useCallback(() => {
+    openImportFolderDialog(path, type as 'collection' | 'folder', collectionPath ?? path)
+  }, [path, type, collectionPath, openImportFolderDialog])
+
   const handleOpenCollectionView = useCallback(() => {
     openTab({
       type: 'collection',
@@ -400,6 +404,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         { label: 'Run', disabled: true, onClick: () => {} },
         { label: '', separator: true },
         { label: 'Clone', onClick: handleClone },
+        { label: 'Import from folder…', onClick: handleImportFolder },
         { label: 'Rename', onClick: () => setIsRenaming(true) },
         { label: 'Share', onClick: () => toast.info('Share is coming in a future release') },
         {
@@ -434,6 +439,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         { label: 'Move Down', shortcut: '⌥↓', disabled: !canMoveDown, onClick: handleMoveDown },
         { label: '', separator: true },
         { label: 'Clone', onClick: handleCloneFolder },
+        { label: 'Import from folder…', onClick: handleImportFolder },
         { label: 'Copy', onClick: handleCopy },
         { label: 'Rename', onClick: () => setIsRenaming(true) },
         {
@@ -504,6 +510,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     canMoveUp,
     canMoveDown,
     openNewTransientDialog,
+    handleImportFolder,
     onToggle,
     openTab,
     label,
