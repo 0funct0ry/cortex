@@ -263,6 +263,24 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 
     **Rename semantics**: When Rename is chosen the new filename stem is written into the `.crx` YAML `name:` field as well, keeping file content and filename in sync.
 
+- **Global Search / Command Palette** *(Story 06.08)*: A fast, keyboard-accessible command palette that searches across all open collections so you can jump to any request without manually browsing the sidebar tree.
+
+    **Trigger**: Press **Cmd+K** (macOS) or **Ctrl+K** (Windows/Linux) from anywhere in the app. **Cmd+P** / **Ctrl+P** also open the palette.
+
+    **Search scope**: Typing filters results in real time across every loaded collection. Each keystroke matches against:
+    - Request **name**
+    - Request **URL** (including template variable placeholders such as `{{baseUrl}}/users`)
+    - HTTP **method** (e.g. typing "post" shows all POST requests)
+    - Assigned **tags**
+
+    **Result layout**: Results are grouped by collection. Each row shows a colour-coded method badge, the request URL, any tag pills, and the request name. The full breadcrumb path (Collection / Folder / Subfolder / Request) is encoded in the grouping headers.
+
+    **Keyboard navigation**: Arrow keys move the highlighted selection. **Enter** or a mouse click opens the selected request in a tab and closes the palette. **Escape** dismisses without navigating.
+
+    **Recent selections**: When the search input is empty the palette shows up to five recently selected requests (persisted to `localStorage` under `cortex.search.recent`). Stale entries (requests that no longer exist in any loaded collection) are silently omitted.
+
+    **Footer hints**: A compact footer row inside the palette reminds users of `↑↓` navigate, `↵` open, and `esc` close shortcuts.
+
 - **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
 
     **Deep nesting**: The sidebar renders any number of nesting levels without horizontal overflow. Labels that exceed the available width are clipped with an ellipsis (`…`), and the sidebar can be resized down to approximately 200 px without visual truncation.

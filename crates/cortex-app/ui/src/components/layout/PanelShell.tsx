@@ -12,6 +12,7 @@ import NewRequestDialog from '../ui/NewRequestDialog'
 import NewTransientRequestDialog from '../ui/NewTransientRequestDialog'
 import SaveToCollectionDialog from '../ui/SaveToCollectionDialog'
 import ImportFolderDialog from '../ui/ImportFolderDialog'
+import CommandPaletteModal from '../ui/CommandPaletteModal'
 import { useUIStore } from '../../stores/uiStore'
 import { useTabs } from '../../contexts/TabsContext'
 
@@ -55,6 +56,7 @@ const PanelShell: React.FC = () => {
     closeImportFolderDialog,
     layout,
     toggleLayout,
+    openCommandPalette,
   } = useUIStore()
   const { tabs, activeTab, openTab } = useTabs()
 
@@ -158,6 +160,24 @@ const PanelShell: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [toggleLayout])
+
+  // Keyboard shortcut Cmd+K / Ctrl+K or Cmd+P / Ctrl+P — Global search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        (e.key === 'k' || e.key === 'p')
+      ) {
+        e.preventDefault()
+        openCommandPalette()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openCommandPalette])
 
   const onMainLayout = (sizes: number[]) => {
     setMainLayout(sizes)
@@ -272,6 +292,7 @@ const PanelShell: React.FC = () => {
         targetType={importFolderDialog.targetType}
         collectionPath={importFolderDialog.collectionPath}
       />
+      <CommandPaletteModal />
     </main>
   )
 }

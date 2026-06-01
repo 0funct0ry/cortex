@@ -41,6 +41,9 @@ interface UIState {
   layout: 'horizontal' | 'vertical'
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
+  isCommandPaletteOpen: boolean
+  openCommandPalette: () => void
+  closeCommandPalette: () => void
 }
 
 const STORAGE_KEY = 'cortex.sidebar-collapsed'
@@ -121,5 +124,8 @@ export const useUIStore = create<UIState>((set) => {
       localStorage.setItem(LAYOUT_STORAGE_KEY, layout)
       set({ layout })
     },
+    isCommandPaletteOpen: false,
+    openCommandPalette: () => set({ isCommandPaletteOpen: true }),
+    closeCommandPalette: () => set({ isCommandPaletteOpen: false }),
   }
 })
