@@ -16,6 +16,14 @@ async loadCollection(path: string) : Promise<Result<Collection, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async loadRequest(path: string) : Promise<Result<RequestFileWrapper, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_request", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async saveRequest(request: RequestFile, path: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_request", { request, path }) };
@@ -255,6 +263,14 @@ async updateCollectionDescription(collectionPath: string, description: string | 
 async saveCollection(collectionPath: string, payload: CollectionSavePayload) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_collection", { collectionPath, payload }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveTagRegistry(collectionPath: string, tags: TagDefinition[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_tag_registry", { collectionPath, tags }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -626,7 +642,11 @@ presets?: CollectionPreset[] | null;
 /**
  * Collection-level protobuf settings
  */
-protobuf?: CollectionProtobuf | null }
+protobuf?: CollectionProtobuf | null; 
+/**
+ * Shared tag registry for this collection (name → color)
+ */
+tag_registry?: TagDefinition[] | null }
 export type CollectionPreset = { name: string; fields: CollectionPresetField[] }
 export type CollectionPresetField = { key: string; value: string; enabled: boolean }
 export type CollectionProtoFile = { file: string; path: string }
@@ -731,6 +751,14 @@ export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret:
 export type Scripts = { pre?: string | null; post?: string | null }
 export type SendRequestPayload = { request_id: string; request_name: string; method: string; url: string; headers: HeaderEntry[]; auth: AuthRef | null; body: RequestBody | null; settings: Settings | null }
 export type Settings = { timeout?: string | null; redirect_behavior?: string | null }
+/**
+ * A named tag with an associated palette color, stored in the collection registry.
+ */
+export type TagDefinition = { name: string; 
+/**
+ * One of 12 named palette colors: red|orange|yellow|lime|green|teal|cyan|blue|indigo|violet|pink|gray
+ */
+color: string }
 /**
  * A template syntax error encountered during parsing or rendering.
  */

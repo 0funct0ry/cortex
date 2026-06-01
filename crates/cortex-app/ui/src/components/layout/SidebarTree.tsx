@@ -470,6 +470,8 @@ const SidebarTree: React.FC = () => {
     clearDropIndicator,
     pushDndUndo,
     popDndUndo,
+    activeTagFilters,
+    tagFilterMode,
   } = useCollectionStore()
 
   const { openTab, activeTab } = useTabs()
@@ -758,6 +760,22 @@ const SidebarTree: React.FC = () => {
     }
   }
 
+  const requestMatchesTagFilters = (requestTags: string[] | null | undefined): boolean => {
+    if (activeTagFilters.length === 0) return true
+    const tags = requestTags ?? []
+    if (tagFilterMode === 'and') {
+      return activeTagFilters.every((f) => tags.includes(f))
+    }
+    return activeTagFilters.some((f) => tags.includes(f))
+  }
+
+  const folderHasMatchingRequest = (items: CollectionItem[]): boolean => {
+    return items.some((item) => {
+      if (item.type === 'Request') return requestMatchesTagFilters(item.data.content?.tags)
+      return folderHasMatchingRequest(item.data.items)
+    })
+  }
+
   const renderItems = (
     items: CollectionItem[],
     depth: number,
@@ -765,29 +783,39 @@ const SidebarTree: React.FC = () => {
     query: string
   ) => {
     // Filter logic:
-    // 1. If query is empty, show everything.
+    // 1. If query is empty, show everything (unless tag filters active).
     // 2. If item matches query, show it.
     // 3. If item is a folder and has matching children, show it.
 
     const filteredItems = items.filter((item) => {
-      if (!query) return true
+      const tagFilterActive = activeTagFilters.length > 0
 
-      const q = query.toLowerCase()
       if (item.type === 'Request') {
-        return item.data.name.toLowerCase().includes(q)
+        const matchesSearch = !query || item.data.name.toLowerCase().includes(query.toLowerCase())
+        const matchesTags = !tagFilterActive || requestMatchesTagFilters(item.data.content?.tags)
+        return matchesSearch && matchesTags
       } else {
-        // Folder matches if its name matches OR any of its children match
-        const matchesName = item.data.name.toLowerCase().includes(q)
-        const hasMatchingChildren = (items: CollectionItem[]): boolean => {
-          return items.some((child) => {
+        // Folder: show if name matches search, or children match both search + tags
+        const matchesName = !query || item.data.name.toLowerCase().includes(query.toLowerCase())
+        const hasMatchingChildren = (subItems: CollectionItem[]): boolean => {
+          return subItems.some((child) => {
             if (child.type === 'Request') {
-              return child.data.name.toLowerCase().includes(q)
+              const matchesSearch =
+                !query || child.data.name.toLowerCase().includes(query.toLowerCase())
+              const matchesTags =
+                !tagFilterActive || requestMatchesTagFilters(child.data.content?.tags)
+              return matchesSearch && matchesTags
             } else {
               return (
-                child.data.name.toLowerCase().includes(q) || hasMatchingChildren(child.data.items)
+                !query ||
+                child.data.name.toLowerCase().includes(query.toLowerCase()) ||
+                hasMatchingChildren(child.data.items)
               )
             }
           })
+        }
+        if (tagFilterActive) {
+          return folderHasMatchingRequest(item.data.items)
         }
         return matchesName || hasMatchingChildren(item.data.items)
       }
@@ -800,7 +828,9 @@ const SidebarTree: React.FC = () => {
     return filteredItems.map((item) => {
       if (item.type === 'Folder') {
         const folder = item.data
-        const isExpanded = query ? true : expansionState[folder.path] || false
+        const isExpanded =
+          query || activeTagFilters.length > 0 ? true : expansionState[folder.path] || false
+        const isFolderDimmed = activeTagFilters.length > 0
         return (
           <React.Fragment key={folder.path}>
             <TreeNode
@@ -813,6 +843,7 @@ const SidebarTree: React.FC = () => {
               parentPath={getParentDirectory(folder.path)}
               dropIndicator={dropIndicator}
               isDragSource={draggingPath === folder.path}
+              dimmed={isFolderDimmed}
               onNodeMouseDown={handleNodeMouseDown}
             />
             {isExpanded && renderItems(folder.items, depth + 1, collectionPath, query)}
@@ -830,6 +861,8 @@ const SidebarTree: React.FC = () => {
             method={request.content?.method || 'GET'}
             error={request.error}
             isActive={activeTab?.requestPath === request.path}
+            requestTags={request.content?.tags ?? []}
+            collectionPath={collectionPath}
             onClick={() => {
               const tabId = openTab({
                 type: 'request',

@@ -37,6 +37,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::load_collection,
+            commands::load_request,
             commands::save_request,
             commands::create_request,
             commands::delete_item,
@@ -69,6 +70,7 @@ fn main() {
             commands::update_collection_tests,
             commands::update_collection_description,
             commands::save_collection,
+            commands::save_tag_registry,
             commands::update_environment_variables,
             commands::read_environment_file,
             commands::delete_environment,
@@ -118,6 +120,7 @@ mod tests {
             tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
                 commands::greet,
                 commands::load_collection,
+                commands::load_request,
                 commands::save_request,
                 commands::create_request,
                 commands::delete_item,
@@ -150,6 +153,7 @@ mod tests {
                 commands::update_collection_tests,
                 commands::update_collection_description,
                 commands::save_collection,
+                commands::save_tag_registry,
                 commands::update_environment_variables,
                 commands::read_environment_file,
                 commands::delete_environment,

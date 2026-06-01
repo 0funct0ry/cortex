@@ -1,6 +1,22 @@
 import { create } from 'zustand'
 import { commands } from '../bindings'
-import type { Collection } from '../bindings'
+import type { Collection, TagDefinition } from '../bindings'
+
+export type { TagDefinition }
+
+/** Returns all distinct tags across all loaded collections, deduped by name. */
+export function getAllTagsFromCollections(
+  collections: Record<string, Collection | undefined>
+): TagDefinition[] {
+  const seen = new Map<string, TagDefinition>()
+  for (const col of Object.values(collections)) {
+    if (!col) continue
+    for (const tag of col.manifest.tag_registry ?? []) {
+      if (!seen.has(tag.name)) seen.set(tag.name, tag)
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name))
+}
 
 export interface DndUndoEntry {
   movedToPath: string
@@ -25,6 +41,9 @@ interface CollectionState {
   clipboardType: 'folder' | 'request' | null
   dropIndicator: DropIndicator | null
   dndUndoStack: DndUndoEntry[]
+  activeTagFilters: string[]
+  tagFilterMode: 'and' | 'or'
+  showTagFilterBar: boolean
 
   loadCollection: (path: string) => Promise<void>
   clearCollection: (path: string) => void
@@ -40,6 +59,11 @@ interface CollectionState {
   clearDropIndicator: () => void
   pushDndUndo: (entry: DndUndoEntry) => void
   popDndUndo: () => DndUndoEntry | undefined
+  toggleTagFilter: (tagName: string) => void
+  setTagFilterMode: (mode: 'and' | 'or') => void
+  clearTagFilters: () => void
+  toggleTagFilterBar: () => void
+  updateTagRegistry: (collectionPath: string, tags: TagDefinition[]) => Promise<void>
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -55,6 +79,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   clipboardType: null,
   dropIndicator: null,
   dndUndoStack: [],
+  activeTagFilters: [],
+  tagFilterMode: 'and',
+  showTagFilterBar: false,
 
   setCreatingInline: (val: boolean) => {
     set({ isCreatingInline: val })
@@ -163,5 +190,52 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const [top, ...rest] = stack
     set({ dndUndoStack: rest })
     return top
+  },
+
+  toggleTagFilter: (tagName: string) => {
+    set((state) => {
+      const already = state.activeTagFilters.includes(tagName)
+      const next = already
+        ? state.activeTagFilters.filter((t) => t !== tagName)
+        : [...state.activeTagFilters, tagName]
+      return {
+        activeTagFilters: next,
+        showTagFilterBar: next.length > 0 ? state.showTagFilterBar : false,
+      }
+    })
+  },
+
+  setTagFilterMode: (mode: 'and' | 'or') => {
+    set({ tagFilterMode: mode })
+  },
+
+  clearTagFilters: () => {
+    set({ activeTagFilters: [], showTagFilterBar: false })
+  },
+
+  toggleTagFilterBar: () => {
+    set((state) => ({ showTagFilterBar: !state.showTagFilterBar }))
+  },
+
+  updateTagRegistry: async (collectionPath: string, tags: TagDefinition[]) => {
+    const result = await commands.saveTagRegistry(collectionPath, tags)
+    if (result.status === 'error') {
+      console.error('Failed to save tag registry', result.error)
+      return
+    }
+    // Optimistically update the in-memory collection manifest
+    set((state) => {
+      const col = state.collections[collectionPath]
+      if (!col) return {}
+      return {
+        collections: {
+          ...state.collections,
+          [collectionPath]: {
+            ...col,
+            manifest: { ...col.manifest, tag_registry: tags.length > 0 ? tags : null },
+          },
+        },
+      }
+    })
   },
 }))

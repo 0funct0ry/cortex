@@ -2,6 +2,7 @@ import React from 'react'
 import UrlBar from '../layout/UrlBar'
 import UrlPreviewBar from './UrlPreviewBar'
 import ComposerTabs from './ComposerTabs'
+import { TagsRow } from './TagsRow'
 import ParamsTab from './ParamsTab'
 import HeadersTab from './HeadersTab'
 import BodyTab from './BodyTab'
@@ -190,6 +191,9 @@ const Composer: React.FC = () => {
     <div className="h-full flex flex-col">
       <UrlBar />
       <UrlPreviewBar requestId={activeTabId} />
+      {activeTab?.type === 'request' && (
+        <TagsRow requestId={activeTabId} collectionPath={activeTab.collectionId ?? ''} />
+      )}
       <ComposerTabs requestId={activeTabId} />
       <div className="flex-1 overflow-hidden bg-bg-surface">{renderContent()}</div>
     </div>

@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import * as Icons from '../ui/Icons'
 import ImportModal from '../ui/ImportModal'
-import { useCollectionStore } from '../../stores/collectionStore'
+import { useCollectionStore, getAllTagsFromCollections } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { commands } from '../../bindings'
 import { toast } from '../../stores/toastStore'
+import { TagFilterBar } from './TagFilterBar'
 
 // ---------------------------------------------------------------------------
 // AddMenu — portal dropdown anchored below the + button
@@ -90,7 +91,14 @@ const SidebarHeader: React.FC = () => {
   const [isSearchActive, setIsSearchActive] = useState(false)
   const [addMenuRect, setAddMenuRect] = useState<DOMRect | null>(null)
   const [isImportOpen, setIsImportOpen] = useState(false)
-  const { searchQuery, setSearchQuery, setCreatingInline } = useCollectionStore()
+  const {
+    searchQuery,
+    setSearchQuery,
+    setCreatingInline,
+    collections,
+    showTagFilterBar,
+    toggleTagFilterBar,
+  } = useCollectionStore()
   const {
     activeWorkspace,
     activeWorkspacePath,
@@ -100,6 +108,9 @@ const SidebarHeader: React.FC = () => {
   const { loadCollection } = useCollectionStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const plusButtonRef = useRef<HTMLButtonElement>(null)
+
+  const allTags = getAllTagsFromCollections(collections)
+  const hasAnyTags = allTags.length > 0
 
   useEffect(() => {
     if (isSearchActive && searchInputRef.current) {
@@ -168,26 +179,42 @@ const SidebarHeader: React.FC = () => {
 
   if (isSearchActive) {
     return (
-      <div className="h-8 flex items-center gap-2 px-2 bg-bg-panel shrink-0 select-none border-b border-border-subtle">
-        <button
-          onClick={handleToggleSearch}
-          className="p-1 hover:bg-bg-muted rounded-md text-text-muted hover:text-text-primary transition-colors"
-        >
-          <Icons.X size={14} />
-        </button>
-        <div className="flex-1 flex items-center bg-bg-surface border border-border-default rounded h-6 px-1.5 gap-1.5 focus-within:border-accent">
-          <Icons.Search size={12} className="text-text-muted" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search requests..."
-            className="flex-1 bg-transparent border-none outline-none text-[12px] text-text-primary placeholder:text-text-muted h-full"
-          />
+      <>
+        <div className="h-8 flex items-center gap-2 px-2 bg-bg-panel shrink-0 select-none border-b border-border-subtle">
+          <button
+            onClick={handleToggleSearch}
+            className="p-1 hover:bg-bg-muted rounded-md text-text-muted hover:text-text-primary transition-colors"
+          >
+            <Icons.X size={14} />
+          </button>
+          <div className="flex-1 flex items-center bg-bg-surface border border-border-default rounded h-6 px-1.5 gap-1.5 focus-within:border-accent">
+            <Icons.Search size={12} className="text-text-muted" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search requests..."
+              className="flex-1 bg-transparent border-none outline-none text-[12px] text-text-primary placeholder:text-text-muted h-full"
+            />
+          </div>
+          <button
+            onClick={hasAnyTags ? toggleTagFilterBar : undefined}
+            className={`p-1 rounded-md transition-colors ${
+              !hasAnyTags
+                ? 'text-text-muted/30 cursor-not-allowed'
+                : showTagFilterBar
+                  ? 'bg-bg-muted text-accent-primary'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-muted'
+            }`}
+            title={hasAnyTags ? 'Filter by tags' : 'No tags defined'}
+          >
+            <Icons.Filter size={14} />
+          </button>
         </div>
-      </div>
+        {showTagFilterBar && <TagFilterBar />}
+      </>
     )
   }
 
@@ -203,6 +230,19 @@ const SidebarHeader: React.FC = () => {
             className="p-1 hover:bg-bg-muted rounded-md text-text-muted hover:text-text-primary transition-colors"
           >
             <Icons.Search size={14} />
+          </button>
+          <button
+            onClick={hasAnyTags ? toggleTagFilterBar : undefined}
+            className={`p-1 rounded-md transition-colors ${
+              !hasAnyTags
+                ? 'text-text-muted/30 cursor-not-allowed'
+                : showTagFilterBar
+                  ? 'bg-bg-muted text-accent-primary'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-muted'
+            }`}
+            title={hasAnyTags ? 'Filter by tags' : 'No tags defined'}
+          >
+            <Icons.Filter size={14} />
           </button>
           <button
             ref={plusButtonRef}
@@ -226,6 +266,8 @@ const SidebarHeader: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {showTagFilterBar && <TagFilterBar />}
 
       {addMenuRect && (
         <AddMenu

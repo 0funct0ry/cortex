@@ -58,6 +58,7 @@ export interface RequestData {
     timeout: string
     redirectBehavior: 'default' | 'follow' | 'manual'
   }
+  tags: string[]
   activeComposerTab: ComposerTabId
   inFlight: boolean
   requestId: string | null
@@ -104,6 +105,7 @@ const DEFAULT_REQUEST_STATE: RequestData = {
     timeout: '',
     redirectBehavior: 'default',
   },
+  tags: [],
   activeComposerTab: 'params',
   inFlight: false,
   requestId: null,
@@ -379,6 +381,7 @@ export const useRequestStore = create<RequestState>((set, get) => ({
         timeout: settingsTimeout,
         redirectBehavior: settingsRedirectBehavior,
       },
+      tags: content.tags ?? [],
     }
     get().updateRequest(tabId, data)
   },
@@ -442,6 +445,7 @@ export const useRequestStore = create<RequestState>((set, get) => ({
             })(),
       scripts: { pre: data.scripts.pre, post: data.scripts.post },
       tests: data.tests,
+      tags: data.tags.length > 0 ? data.tags : undefined,
       settings: {
         timeout: data.settings?.timeout || null,
         redirect_behavior:

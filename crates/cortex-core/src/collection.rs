@@ -5,6 +5,14 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// A named tag with an associated palette color, stored in the collection registry.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct TagDefinition {
+    pub name: String,
+    /// One of 12 named palette colors: red|orange|yellow|lime|green|teal|cyan|blue|indigo|violet|pink|gray
+    pub color: String,
+}
+
 /// Represents the structure of a `cortex.yaml` collection manifest file.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 #[serde(deny_unknown_fields)]
@@ -43,6 +51,9 @@ pub struct CollectionManifest {
     /// Collection-level protobuf settings
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protobuf: Option<CollectionProtobuf>,
+    /// Shared tag registry for this collection (name → color)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_registry: Option<Vec<TagDefinition>>,
 }
 
 impl CollectionManifest {
@@ -60,6 +71,7 @@ impl CollectionManifest {
             client_certificates: None,
             presets: None,
             protobuf: None,
+            tag_registry: None,
         }
     }
 
@@ -617,6 +629,7 @@ mod tests {
             client_certificates: None,
             presets: None,
             protobuf: None,
+            tag_registry: None,
         };
 
         let yaml = manifest.to_yaml().unwrap();

@@ -204,6 +204,35 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 
     Collection root nodes cannot be dragged (they are workspace-level entries managed separately). Only requests and folders are draggable.
 
+- **Request Tagging & Color Indicators** *(Story 06.05)*: Assign colored tags to requests for visual categorization and filtering.
+
+    **Tag data model**: Tags are free-text strings (e.g. `smoke`, `regression`, `auth`), each carrying an optional color from a predefined 12-color palette (red, orange, yellow, lime, green, teal, cyan, blue, indigo, violet, pink, gray). A request can carry zero or more tags. Tags are saved in the `.crx` file and persist across restarts. The collection manifest (`cortex.yaml`) holds a shared **tag registry** that maps tag names to their colors, so all requests in a collection share a consistent color scheme.
+
+    **Tags row in the Request Composer**: A thin **Tags row** sits between the URL bar and the tab bar. When the request has no tags the row shows a faint `＋ Add tag` affordance; once tags exist it renders them as compact colored chips (colored dot · name · × dismiss). Clicking `＋ Add tag` or the `+` button opens an **inline tag popover**:
+    - A text input with placeholder "Search or create tag…" receives focus automatically.
+    - A scrollable list of existing collection tags is shown filtered in real time.
+    - Selecting a suggestion applies the tag and keeps the popover open.
+    - If the typed text matches no existing tag a **Create "typed-name"** option appears; selecting it reveals an inline form with the tag name pre-filled and a row of 12 color swatches (first unused color pre-selected). Pressing Enter or clicking **Add** creates the tag in the collection registry and applies it.
+    - The popover closes on Escape or click-outside.
+    - Clicking the **colored dot** on a chip (not the `×`) opens a mini color-swatch popover to reassign the tag's color; the change propagates to every request carrying that tag in the collection.
+
+    **Context menu — Manage Tags**: Right-clicking any request node in the sidebar exposes a **Manage Tags** item (after Rename). Selecting it opens the **Tag Manager dialog** — a compact 320 px modal with:
+    - An **Applied tags** section listing current tags as removable chips.
+    - A search input with real-time autocomplete of the collection's registry.
+    - An inline **New tag** form (name pre-filled, 12 color swatches) when the typed name has no match.
+    - **Create & add** button that saves the tag to the registry and applies it in one step.
+    - **Done** button (or Escape) to close.
+
+    **Tag dots on tree nodes**: Request nodes in the collection explorer display up to **3 colored dots** to the right of the label, one per applied tag. When more than 3 tags are applied a `+N` badge is shown.
+
+    **Filtering by tags in the collection explorer**: The sidebar header carries a **funnel icon** to the right of the search input. The button is dimmed when no tags exist and becomes active once at least one tag is defined. Clicking it slides in a **Tag filter bar** below the header:
+    - All distinct tags across open collections are listed as clickable chips, sorted alphabetically.
+    - Active chips render with a filled background matching the tag color; inactive chips are outlined.
+    - An **AND / OR toggle** (default AND) switches between "match all selected tags" and "match any selected tag" logic.
+    - When filters are active: only matching requests are shown; parent folders render in a dimmed, non-interactive state to preserve location context; a pill reads "Filtered: N tags ×" with a one-click clear.
+    - Deselecting all chips collapses the filter bar.
+    - The active filter set is preserved for the duration of the session but not persisted across restarts.
+
 - **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
 
     **Deep nesting**: The sidebar renders any number of nesting levels without horizontal overflow. Labels that exceed the available width are clipped with an ellipsis (`…`), and the sidebar can be resized down to approximately 200 px without visual truncation.

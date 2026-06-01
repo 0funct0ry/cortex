@@ -1,5 +1,5 @@
 use crate::state::{AppSettings, EphemeralStore, HistoryStore, RecentWorkspace};
-use cortex_core::collection::Collection;
+use cortex_core::collection::{Collection, TagDefinition};
 use cortex_core::request::{AuthRef, RequestFile, RequestHistoryEntry};
 use cortex_core::variables::Variable;
 use cortex_core::workspace::{Workspace, WorkspaceManifest};
@@ -78,6 +78,40 @@ pub async fn load_collection(path: String) -> Result<Collection, String> {
 pub async fn load_collection_manifest(path: String) -> Result<Collection, String> {
     tauri::async_runtime::spawn_blocking(move || {
         Collection::load_manifest(path).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn load_request(
+    path: String,
+) -> Result<cortex_core::collection::RequestFileWrapper, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::fs;
+        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let relative_path = PathBuf::from(&path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let name = relative_path.trim_end_matches(".crx").to_string();
+        match RequestFile::from_yaml(&content) {
+            Ok(rf) => Ok(cortex_core::collection::RequestFileWrapper {
+                name: name.clone(),
+                path: PathBuf::from(path.clone()),
+                relative_path: PathBuf::from(&relative_path),
+                content: Some(rf),
+                error: None,
+            }),
+            Err(e) => Ok(cortex_core::collection::RequestFileWrapper {
+                name,
+                path: PathBuf::from(path),
+                relative_path: PathBuf::from(relative_path),
+                content: None,
+                error: Some(e.to_string()),
+            }),
+        }
     })
     .await
     .map_err(|e| e.to_string())?
@@ -954,6 +988,22 @@ pub async fn save_collection(
         collection.manifest.proxy = payload.proxy;
         collection.manifest.client_certificates = payload.client_certificates;
         collection.manifest.protobuf = payload.protobuf;
+        collection.save().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_tag_registry(
+    collection_path: String,
+    tags: Vec<TagDefinition>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut collection =
+            Collection::load_manifest_no_envs(&collection_path).map_err(|e| e.to_string())?;
+        collection.manifest.tag_registry = if tags.is_empty() { None } else { Some(tags) };
         collection.save().map_err(|e| e.to_string())
     })
     .await

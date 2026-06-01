@@ -7,12 +7,18 @@ import Dialog from '../ui/Dialog'
 import InlineInput from '../ui/InlineInput'
 import InfoPanel from '../ui/InfoPanel'
 import { commands } from '../../bindings'
-import { useCollectionStore, type DropIndicator } from '../../stores/collectionStore'
+import {
+  useCollectionStore,
+  getAllTagsFromCollections,
+  type DropIndicator,
+} from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
 import { type TreeNodeType } from '../../utils/dndUtils'
+import { getTagColor } from '../../utils/tagColors'
+import { TagManagerDialog } from '../composer/TagManagerDialog'
 
 interface TreeNodeProps {
   label: string
@@ -28,6 +34,9 @@ interface TreeNodeProps {
   onClick?: () => void
   onDoubleClick?: () => void
   onOpenSettings?: () => void
+  dimmed?: boolean
+  requestTags?: string[]
+  collectionPath?: string
   // DnD props
   parentPath?: string
   dropIndicator?: DropIndicator | null
@@ -56,6 +65,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onClick,
   onDoubleClick,
   onOpenSettings,
+  dimmed,
+  requestTags,
+  collectionPath,
   parentPath,
   dropIndicator,
   isDragSource,
@@ -67,6 +79,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [showInfoPanel, setShowInfoPanel] = useState(false)
+  const [showTagManager, setShowTagManager] = useState(false)
   const [folderItemCount, setFolderItemCount] = useState<number | null>(null)
   const [folderFolderCount, setFolderFolderCount] = useState<number | null>(null)
   const {
@@ -93,7 +106,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }, [renamingPath, path, setRenamingPath])
 
-  const collectionPath = useMemo(() => {
+  const resolvedCollectionPath = useMemo(() => {
     if (type === 'collection') return path
     for (const colPath of Object.keys(collections)) {
       if (path.startsWith(colPath)) return colPath
@@ -122,7 +135,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             await loadCollection(res.data)
           }
         } else {
-          if (collectionPath) await loadCollection(collectionPath)
+          if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
           const matchingTab = tabs.find((t) => t.requestPath === path)
           if (matchingTab) {
             updateTab(matchingTab.id, { name: newName, requestPath: res.data })
@@ -140,7 +153,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     try {
       const res = await commands.deleteItem(path)
       if (res.status === 'ok') {
-        if (collectionPath) await loadCollection(collectionPath)
+        if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
         closeTabsWhere((t) => t.requestPath !== null && t.requestPath.startsWith(path))
       }
     } catch (err) {
@@ -152,18 +165,18 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     try {
       const res = await commands.duplicateRequest(path)
       if (res.status === 'ok') {
-        if (collectionPath) await loadCollection(collectionPath)
+        if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
       }
     } catch (err) {
       toast.error(`Duplicate failed: ${String(err)}`)
     }
-  }, [path, collectionPath, loadCollection])
+  }, [path, resolvedCollectionPath, loadCollection])
 
   const handleCloneFolder = useCallback(async () => {
     try {
       const res = await commands.cloneFolder(path)
       if (res.status === 'ok') {
-        if (collectionPath) await loadCollection(collectionPath)
+        if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
         toast.success(`Folder cloned successfully`)
       } else {
         toast.error(`Clone failed: ${res.error}`)
@@ -171,27 +184,27 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     } catch (err) {
       toast.error(`Clone failed: ${String(err)}`)
     }
-  }, [path, collectionPath, loadCollection])
+  }, [path, resolvedCollectionPath, loadCollection])
 
   const handleCreateRequest = useCallback(() => {
     if (type === 'collection') {
       openNewRequestDialog(path, null)
     } else {
-      openNewRequestDialog(collectionPath || path, path)
+      openNewRequestDialog(resolvedCollectionPath || path, path)
     }
-  }, [type, path, collectionPath, openNewRequestDialog])
+  }, [type, path, resolvedCollectionPath, openNewRequestDialog])
 
   const handleCreateFolder = useCallback(async () => {
     try {
       const res = await commands.createFolder('New Folder', path)
       if (res.status === 'ok') {
-        await loadCollection(collectionPath || path)
+        await loadCollection(resolvedCollectionPath || path)
         useCollectionStore.getState().setRenamingPath(res.data)
       }
     } catch (err) {
       toast.error(`Create folder failed: ${String(err)}`)
     }
-  }, [path, collectionPath, loadCollection])
+  }, [path, resolvedCollectionPath, loadCollection])
 
   const handleCreateJsFile = useCallback(async () => {
     try {
@@ -386,8 +399,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             openTab({
               type: 'folder',
               folderPath: path,
-              collectionPath: collectionPath,
-              collectionId: collectionPath,
+              collectionPath: collectionPath ?? null,
+              collectionId: collectionPath ?? null,
               requestPath: null,
               name: label,
               method: '',
@@ -404,6 +417,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       { label: 'Clone', onClick: handleDuplicate },
       { label: 'Copy', onClick: handleCopy },
       { label: 'Rename', onClick: () => setIsRenaming(true) },
+      { label: 'Manage Tags', onClick: () => setShowTagManager(true) },
       {
         label: 'Generate Code',
         onClick: () => toast.info('Code generation is coming in a future release'),
@@ -489,7 +503,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         tabIndex={0}
         className={`flex items-center gap-1.5 h-[28px] cursor-pointer group transition-colors outline-none select-none focus:bg-bg-highlight ${
           isActive || selectedPath === path ? 'bg-bg-highlight' : isHovered ? 'bg-bg-muted' : ''
-        } ${isDragSource ? 'opacity-40' : ''} ${
+        } ${isDragSource || dimmed ? 'opacity-40' : ''} ${
           dropPosition === 'inside' ? 'ring-1 ring-inset ring-accent bg-accent/10' : ''
         } ${dropPosition === 'before' ? 'border-t-2 border-accent' : ''} ${
           dropPosition === 'after' ? 'border-b-2 border-accent' : ''
@@ -551,6 +565,36 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               {highlightMatch(label, searchQuery)}
             </span>
           )}
+          {type === 'request' &&
+            requestTags &&
+            requestTags.length > 0 &&
+            !isRenaming &&
+            (() => {
+              const allColTags = getAllTagsFromCollections(
+                collectionPath
+                  ? { [collectionPath]: useCollectionStore.getState().collections[collectionPath] }
+                  : {}
+              )
+              const visible = requestTags.slice(0, 3)
+              const extra = requestTags.length - 3
+              return (
+                <span className="ml-auto flex shrink-0 items-center gap-0.5 pl-1">
+                  {visible.map((tagName) => {
+                    const def = allColTags.find((t) => t.name === tagName)
+                    const color = getTagColor(def?.color ?? 'gray')
+                    return (
+                      <span
+                        key={tagName}
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: color.bg }}
+                        title={tagName}
+                      />
+                    )
+                  })}
+                  {extra > 0 && <span className="text-[9px] text-text-muted">+{extra}</span>}
+                </span>
+              )
+            })()}
         </div>
 
         {isHovered && !isRenaming && type === 'collection' && (
@@ -623,6 +667,16 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         path={path}
         type={type as 'folder' | 'request'}
       />
+
+      {type === 'request' && (
+        <TagManagerDialog
+          open={showTagManager}
+          onClose={() => setShowTagManager(false)}
+          collectionPath={collectionPath ?? ''}
+          requestPath={path}
+          initialTags={requestTags ?? []}
+        />
+      )}
     </div>
   )
 }
