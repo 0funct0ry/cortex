@@ -243,6 +243,17 @@ pub fn move_item(path: String, new_parent: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn reorder_item(
+    item_path: String,
+    target_path: String,
+    position: String,
+) -> Result<(), String> {
+    Collection::reorder_item(&PathBuf::from(item_path), &PathBuf::from(target_path), &position)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn create_folder(name: String, parent_path: String) -> Result<String, String> {
     Collection::create_folder(&name, &PathBuf::from(parent_path))
         .map(|p| p.to_string_lossy().to_string())
@@ -471,7 +482,7 @@ fn format_unix_timestamp(secs: u64) -> String {
 }
 
 fn is_leap(year: u64) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
 }
 
 fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
@@ -874,7 +885,12 @@ pub async fn update_folder_auth(folder_path: String, auth: Option<AuthRef>) -> R
             cortex_core::collection::FolderManifest::from_yaml(&content)
                 .map_err(|e| e.to_string())?
         } else {
-            cortex_core::collection::FolderManifest { headers: None, auth: None, scripts: None }
+            cortex_core::collection::FolderManifest {
+                headers: None,
+                auth: None,
+                scripts: None,
+                order: None,
+            }
         };
         fm.auth = auth;
         let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
@@ -1024,7 +1040,12 @@ pub async fn update_folder_headers(
             cortex_core::collection::FolderManifest::from_yaml(&content)
                 .map_err(|e| e.to_string())?
         } else {
-            cortex_core::collection::FolderManifest { headers: None, auth: None, scripts: None }
+            cortex_core::collection::FolderManifest {
+                headers: None,
+                auth: None,
+                scripts: None,
+                order: None,
+            }
         };
         fm.headers = headers;
         let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
@@ -1049,7 +1070,12 @@ pub async fn update_folder_scripts(
             cortex_core::collection::FolderManifest::from_yaml(&content)
                 .map_err(|e| e.to_string())?
         } else {
-            cortex_core::collection::FolderManifest { headers: None, auth: None, scripts: None }
+            cortex_core::collection::FolderManifest {
+                headers: None,
+                auth: None,
+                scripts: None,
+                order: None,
+            }
         };
         fm.scripts = scripts;
         let yaml = fm.to_yaml().map_err(|e| e.to_string())?;

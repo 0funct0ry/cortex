@@ -20,6 +20,10 @@ import { type TreeNodeType } from '../../utils/dndUtils'
 import { getTagColor } from '../../utils/tagColors'
 import { TagManagerDialog } from '../composer/TagManagerDialog'
 
+interface SiblingItem {
+  path: string
+}
+
 interface TreeNodeProps {
   label: string
   depth: number
@@ -37,6 +41,8 @@ interface TreeNodeProps {
   dimmed?: boolean
   requestTags?: string[]
   collectionPath?: string
+  /** Sibling items at the same level, used for Move Up / Move Down */
+  siblings?: SiblingItem[]
   // DnD props
   parentPath?: string
   dropIndicator?: DropIndicator | null
@@ -68,6 +74,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   dimmed,
   requestTags,
   collectionPath,
+  siblings,
   parentPath,
   dropIndicator,
   isDragSource,
@@ -287,6 +294,44 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }, [path, label, activeWorkspacePath, loadWorkspace, closeTabsWhere])
 
+  const siblingIndex = useMemo(
+    () => (siblings ? siblings.findIndex((s) => s.path === path) : -1),
+    [siblings, path]
+  )
+  const canMoveUp = siblingIndex > 0
+  const canMoveDown =
+    siblings !== undefined && siblingIndex >= 0 && siblingIndex < siblings.length - 1
+
+  const handleMoveUp = useCallback(async () => {
+    if (!canMoveUp || !siblings) return
+    const target = siblings[siblingIndex - 1]
+    try {
+      const res = await commands.reorderItem(path, target.path, 'before')
+      if (res.status === 'ok') {
+        if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
+      } else {
+        toast.error(`Move Up failed: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Move Up failed: ${String(err)}`)
+    }
+  }, [canMoveUp, siblings, siblingIndex, path, resolvedCollectionPath, loadCollection])
+
+  const handleMoveDown = useCallback(async () => {
+    if (!canMoveDown || !siblings) return
+    const target = siblings[siblingIndex + 1]
+    try {
+      const res = await commands.reorderItem(path, target.path, 'after')
+      if (res.status === 'ok') {
+        if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
+      } else {
+        toast.error(`Move Down failed: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Move Down failed: ${String(err)}`)
+    }
+  }, [canMoveDown, siblings, siblingIndex, path, resolvedCollectionPath, loadCollection])
+
   const handleCopy = useCallback(() => {
     if (type === 'folder' || type === 'request') {
       setClipboard(path, type)
@@ -385,6 +430,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         { label: '', separator: true },
         { label: 'Run', disabled: true, onClick: () => {} },
         { label: '', separator: true },
+        { label: 'Move Up', shortcut: '⌥↑', disabled: !canMoveUp, onClick: handleMoveUp },
+        { label: 'Move Down', shortcut: '⌥↓', disabled: !canMoveDown, onClick: handleMoveDown },
+        { label: '', separator: true },
         { label: 'Clone', onClick: handleCloneFolder },
         { label: 'Copy', onClick: handleCopy },
         { label: 'Rename', onClick: () => setIsRenaming(true) },
@@ -414,6 +462,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
     // Request
     return [
+      { label: 'Move Up', shortcut: '⌥↑', disabled: !canMoveUp, onClick: handleMoveUp },
+      { label: 'Move Down', shortcut: '⌥↓', disabled: !canMoveDown, onClick: handleMoveDown },
+      { label: '', separator: true },
       { label: 'Clone', onClick: handleDuplicate },
       { label: 'Copy', onClick: handleCopy },
       { label: 'Rename', onClick: () => setIsRenaming(true) },
@@ -448,6 +499,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     handleDuplicate,
     handleCopy,
     handleShowDeleteConfirm,
+    handleMoveUp,
+    handleMoveDown,
+    canMoveUp,
+    canMoveDown,
     openNewTransientDialog,
     onToggle,
     openTab,

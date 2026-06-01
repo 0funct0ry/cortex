@@ -64,6 +64,14 @@ async moveItem(path: string, newParent: string) : Promise<Result<string, string>
     else return { status: "error", error: e  as any };
 }
 },
+async reorderItem(itemPath: string, targetPath: string, position: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reorder_item", { itemPath, targetPath, position }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async createFolder(name: string, parentPath: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_folder", { name, parentPath }) };
@@ -646,7 +654,11 @@ protobuf?: CollectionProtobuf | null;
 /**
  * Shared tag registry for this collection (name → color)
  */
-tag_registry?: TagDefinition[] | null }
+tag_registry?: TagDefinition[] | null; 
+/**
+ * Custom display/execution order for top-level items (filenames/dirnames).
+ */
+order?: string[] | null }
 export type CollectionPreset = { name: string; fields: CollectionPresetField[] }
 export type CollectionPresetField = { key: string; value: string; enabled: boolean }
 export type CollectionProtoFile = { file: string; path: string }
@@ -670,7 +682,11 @@ export type Folder = { name: string; path: string; relative_path: string; manife
 /**
  * Represents the optional `folder.yaml` configuration inside a folder directory.
  */
-export type FolderManifest = { headers?: { [key in string]: string } | null; auth?: AuthRef | null; scripts?: Scripts | null }
+export type FolderManifest = { headers?: { [key in string]: string } | null; auth?: AuthRef | null; scripts?: Scripts | null; 
+/**
+ * Custom display/execution order for items in this folder (filenames/dirnames).
+ */
+order?: string[] | null }
 export type FormEntry = { key: string; value: string; is_file: boolean; file_path: string; enabled: boolean }
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean; is_valueless?: boolean | null }

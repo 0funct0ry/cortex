@@ -522,9 +522,35 @@ const SidebarTree: React.FC = () => {
       targetPath: string,
       position: 'before' | 'after' | 'inside'
     ) => {
-      const destParent = position === 'inside' ? targetPath : getParentDirectory(targetPath)
       if (src.sourcePath === targetPath) return
-      if (position === 'inside' && getParentDirectory(src.sourcePath) === destParent) return
+
+      const srcParent = getParentDirectory(src.sourcePath)
+      const tgtParent = getParentDirectory(targetPath)
+      const name =
+        src.sourcePath
+          .split('/')
+          .pop()
+          ?.replace(/\.crx$/, '') ?? src.sourcePath
+
+      if (position !== 'inside' && srcParent === tgtParent) {
+        // Reorder within the same parent
+        try {
+          const res = await commands.reorderItem(src.sourcePath, targetPath, position)
+          if (res.status === 'ok') {
+            await loadCollection(src.sourceCollectionPath)
+            toast.success(`"${name}" reordered`)
+          } else {
+            toast.error(`Reorder failed: ${res.error}`)
+          }
+        } catch (err) {
+          toast.error(`Reorder failed: ${String(err)}`)
+        }
+        return
+      }
+
+      // Move to a different parent (cross-folder move or drop-inside)
+      const destParent = position === 'inside' ? targetPath : tgtParent
+      if (position === 'inside' && srcParent === destParent) return
 
       try {
         const res = await commands.moveItem(src.sourcePath, destParent)
@@ -536,11 +562,6 @@ const SidebarTree: React.FC = () => {
             await loadCollection(destCollection)
           }
           if (position === 'inside') setExpanded(destParent, true)
-          const name =
-            src.sourcePath
-              .split('/')
-              .pop()
-              ?.replace(/\.crx$/, '') ?? src.sourcePath
           toast.success(`"${name}" moved`)
         } else {
           toast.error(`Move failed: ${res.error}`)
@@ -825,6 +846,10 @@ const SidebarTree: React.FC = () => {
       // This is handled by the caller to show "No results" if the whole tree is empty
     }
 
+    const siblingPaths = filteredItems.map((item) => ({
+      path: item.type === 'Folder' ? item.data.path : item.data.path,
+    }))
+
     return filteredItems.map((item) => {
       if (item.type === 'Folder') {
         const folder = item.data
@@ -840,6 +865,8 @@ const SidebarTree: React.FC = () => {
               path={folder.path}
               isExpanded={isExpanded}
               onToggle={() => toggleExpansion(folder.path)}
+              collectionPath={collectionPath}
+              siblings={siblingPaths}
               parentPath={getParentDirectory(folder.path)}
               dropIndicator={dropIndicator}
               isDragSource={draggingPath === folder.path}
@@ -863,6 +890,7 @@ const SidebarTree: React.FC = () => {
             isActive={activeTab?.requestPath === request.path}
             requestTags={request.content?.tags ?? []}
             collectionPath={collectionPath}
+            siblings={siblingPaths}
             onClick={() => {
               const tabId = openTab({
                 type: 'request',

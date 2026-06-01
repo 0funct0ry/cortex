@@ -190,7 +190,7 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     **General behaviour**: The menu closes on Escape or click-outside. Full keyboard navigation (ArrowUp/ArrowDown, Enter, Escape). F2 while a sidebar node has keyboard focus activates inline rename. Disabled items are visually greyed out and skipped during keyboard navigation.
 - **Drag-and-Drop Reorganisation** *(Story 06.02)*: Any request or folder in the sidebar can be dragged and dropped to restructure collections without using context menus or dialogs.
 
-    **Within a collection**: Drag a request or folder to reposition it. Because items are sorted alphabetically, dragging within the same parent directory is visually reflected in alphabetical order.
+    **Within a collection**: Drag a request or folder to reposition it. Dropping before or after a sibling in the same parent folder triggers a reorder (see Story 06.06) rather than a move.
 
     **Across collections / folders**: Drag a request or folder from one collection (or folder) and drop it into another. Both the source and destination collections reload automatically after a successful move; the underlying `.crx` file or directory is moved on disk immediately.
 
@@ -232,6 +232,18 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     - When filters are active: only matching requests are shown; parent folders render in a dimmed, non-interactive state to preserve location context; a pill reads "Filtered: N tags ×" with a one-click clear.
     - Deselecting all chips collapses the filter bar.
     - The active filter set is preserved for the duration of the session but not persisted across restarts.
+
+- **Manual Reordering** *(Story 06.06)*: Requests and folders within a collection can be placed in any custom sequence that persists across restarts.
+
+    **Drag-and-drop reordering**: Drag a request or folder within its current parent. When the cursor is in the upper or lower quarter of a sibling node (within the same parent directory), a two-pixel insertion line appears indicating a *before* or *after* reorder. Releasing the mouse commits the new position without changing the item's parent.
+
+    **Context menu reordering**: Right-click any request or folder to find **Move Up** (⌥↑) and **Move Down** (⌥↓) items at the top of the context menu. They are disabled when the item is already at the top or bottom of its sibling list. Selecting an option shifts the item by one position and immediately reloads the collection tree.
+
+    **Persistence**: The custom order is stored in `folder.yaml` (for items inside a folder) or `cortex.yaml` (for top-level collection items) under an `order:` key — a YAML list of filenames in the desired sequence. Items not present in `order` fall to the end sorted alphabetically, so new items added externally always appear last rather than disrupting the saved sequence.
+
+    **Folder semantics**: Reordering a folder moves the entire folder node (and all its contents) in the display order. The internal contents of the folder are not affected.
+
+    **Collection runner order**: The `order:` sequence stored in manifests is the authoritative execution order when the collection runner is introduced in a future story. The display order and execution order are always in sync.
 
 - **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
 
@@ -293,9 +305,9 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 
 ### 📁 Core File Formats
 - **Workspace Manifest (`cortex-workspace.yaml`)**: Groups multiple collections into a single organizational unit. Includes UI support for creating, switching, and persisting workspaces, with an IDE-style workspace picker that tracks recently opened projects.
-- **Collection Manifest (`cortex.yaml`)**: Root configuration for a collection. Supports `name`, `description`, `auth`, `headers`, `variables`, `scripts` (pre/post-request), and `tests` fields.
+- **Collection Manifest (`cortex.yaml`)**: Root configuration for a collection. Supports `name`, `description`, `auth`, `headers`, `variables`, `scripts` (pre/post-request), `tests`, and `order` (custom display/execution sequence for top-level items) fields.
 - **Request Files (`.crx`)**: Standalone YAML files for individual API requests.
-- **Folder Manifest (`folder.yaml`)**: Optional folder-level override file supporting shared parameters (e.g. inherited headers) across child items.
+- **Folder Manifest (`folder.yaml`)**: Optional folder-level override file supporting shared parameters (e.g. inherited headers) across child items, and an `order` list of filenames that defines the custom display/execution sequence of items inside that folder.
 - **Environments (`environments/*.yaml`)**: Environment-specific variables with support for encrypted secrets.
 
 - Mark a variable as `secret: true` in any scope (Global, Collection, or Environment).

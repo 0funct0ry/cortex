@@ -54,6 +54,9 @@ pub struct CollectionManifest {
     /// Shared tag registry for this collection (name → color)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag_registry: Option<Vec<TagDefinition>>,
+    /// Custom display/execution order for top-level items (filenames/dirnames).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<Vec<String>>,
 }
 
 impl CollectionManifest {
@@ -72,6 +75,7 @@ impl CollectionManifest {
             presets: None,
             protobuf: None,
             tag_registry: None,
+            order: None,
         }
     }
 
@@ -141,7 +145,6 @@ pub struct RequestFileWrapper {
 
 /// Represents the optional `folder.yaml` configuration inside a folder directory.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
-#[serde(deny_unknown_fields)]
 pub struct FolderManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<BTreeMap<String, String>>,
@@ -149,6 +152,9 @@ pub struct FolderManifest {
     pub auth: Option<AuthRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scripts: Option<Scripts>,
+    /// Custom display/execution order for items in this folder (filenames/dirnames).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<Vec<String>>,
 }
 
 impl FolderManifest {
@@ -477,6 +483,146 @@ impl Collection {
         fs::create_dir_all(&path)?;
         Ok(path)
     }
+
+    /// Reorders `item_path` relative to `target_path` within their shared parent directory.
+    /// `position` must be `"before"` or `"after"`. Writes the new order to the parent manifest.
+    pub fn reorder_item(
+        item_path: &Path,
+        target_path: &Path,
+        position: &str,
+    ) -> Result<(), CollectionError> {
+        let parent = item_path
+            .parent()
+            .ok_or_else(|| CollectionError::InvalidPath("Item has no parent".to_string()))?;
+        let target_parent = target_path
+            .parent()
+            .ok_or_else(|| CollectionError::InvalidPath("Target has no parent".to_string()))?;
+
+        if parent != target_parent {
+            return Err(CollectionError::InvalidPath(
+                "Item and target must share the same parent directory".to_string(),
+            ));
+        }
+
+        let item_name = item_path
+            .file_name()
+            .ok_or_else(|| CollectionError::InvalidPath("Invalid item filename".to_string()))?
+            .to_string_lossy()
+            .to_string();
+        let target_name = target_path
+            .file_name()
+            .ok_or_else(|| CollectionError::InvalidPath("Invalid target filename".to_string()))?
+            .to_string_lossy()
+            .to_string();
+
+        if item_name == target_name {
+            return Ok(());
+        }
+
+        // Build the current ordered list from the parent manifest (or filesystem order).
+        let cortex_yaml = parent.join("cortex.yaml");
+        let folder_yaml = parent.join("folder.yaml");
+
+        let existing_order: Option<Vec<String>> = if cortex_yaml.exists() {
+            fs::read_to_string(&cortex_yaml)
+                .ok()
+                .and_then(|s| CollectionManifest::from_yaml(&s).ok())
+                .and_then(|m| m.order)
+        } else if folder_yaml.exists() {
+            fs::read_to_string(&folder_yaml)
+                .ok()
+                .and_then(|s| FolderManifest::from_yaml(&s).ok())
+                .and_then(|m| m.order)
+        } else {
+            None
+        };
+
+        // Collect all sibling filenames from the filesystem.
+        let mut names: Vec<String> = fs::read_dir(parent)?
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| {
+                let p = parent.join(n);
+                p.is_dir() || p.extension().is_some_and(|ext| ext == "crx")
+            })
+            .collect();
+
+        // Apply any existing order so we start from a stable sequence.
+        if let Some(ref order) = existing_order {
+            names.sort_by(|a, b| {
+                let ia = order.iter().position(|s| s == a).unwrap_or(usize::MAX);
+                let ib = order.iter().position(|s| s == b).unwrap_or(usize::MAX);
+                ia.cmp(&ib).then(a.cmp(b))
+            });
+        } else {
+            names.sort();
+        }
+
+        // Ensure both item and target are present.
+        if !names.contains(&item_name) {
+            names.push(item_name.clone());
+        }
+        if !names.contains(&target_name) {
+            names.push(target_name.clone());
+        }
+
+        // Remove the item from its current position.
+        names.retain(|n| n != &item_name);
+
+        // Insert before or after the target.
+        let target_idx = names.iter().position(|n| n == &target_name).unwrap_or(names.len());
+
+        let insert_at = if position == "before" { target_idx } else { target_idx + 1 };
+        names.insert(insert_at, item_name);
+
+        // Persist the new order to the parent manifest.
+        if cortex_yaml.exists() {
+            let yaml_str = fs::read_to_string(&cortex_yaml)?;
+            let mut manifest = CollectionManifest::from_yaml(&yaml_str)?;
+            manifest.order = Some(names);
+            fs::write(&cortex_yaml, manifest.to_yaml()?)?;
+        } else {
+            // Read or create a folder.yaml.
+            let mut manifest = if folder_yaml.exists() {
+                let yaml_str = fs::read_to_string(&folder_yaml)?;
+                FolderManifest::from_yaml(&yaml_str)?
+            } else {
+                FolderManifest { headers: None, auth: None, scripts: None, order: None }
+            };
+            manifest.order = Some(names);
+            fs::write(&folder_yaml, manifest.to_yaml()?)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Returns the filename (dir name or `.crx` filename) used as the key in order lists.
+fn item_filename(item: &CollectionItem) -> String {
+    match item {
+        CollectionItem::Folder(f) => f.name.clone(),
+        CollectionItem::Request(r) => format!("{}.crx", r.name),
+    }
+}
+
+/// Sorts `items` according to `order` (list of filenames). Items not in `order` fall to the end
+/// sorted alphabetically, folders before requests.
+fn apply_order(items: &mut [CollectionItem], order: &[String]) {
+    items.sort_by(|a, b| {
+        let name_a = item_filename(a);
+        let name_b = item_filename(b);
+        let idx_a = order.iter().position(|s| s == &name_a).unwrap_or(usize::MAX);
+        let idx_b = order.iter().position(|s| s == &name_b).unwrap_or(usize::MAX);
+        if idx_a != usize::MAX || idx_b != usize::MAX {
+            return idx_a.cmp(&idx_b);
+        }
+        // Both unordered: folders first, then alpha
+        match (a, b) {
+            (CollectionItem::Folder(_), CollectionItem::Request(_)) => std::cmp::Ordering::Less,
+            (CollectionItem::Request(_), CollectionItem::Folder(_)) => std::cmp::Ordering::Greater,
+            _ => name_a.cmp(&name_b),
+        }
+    });
 }
 
 fn load_tree(
@@ -531,13 +677,36 @@ fn load_tree(
         }
     }
 
-    // Sort items by name (folders first, then requests)
-    items.sort_by(|a, b| match (a, b) {
-        (CollectionItem::Folder(_), CollectionItem::Request(_)) => std::cmp::Ordering::Less,
-        (CollectionItem::Request(_), CollectionItem::Folder(_)) => std::cmp::Ordering::Greater,
-        (CollectionItem::Folder(f1), CollectionItem::Folder(f2)) => f1.name.cmp(&f2.name),
-        (CollectionItem::Request(r1), CollectionItem::Request(r2)) => r1.name.cmp(&r2.name),
-    });
+    // Apply stored order from the current directory's manifest, or fall back to alpha sort.
+    let stored_order: Option<Vec<String>> = {
+        let cortex_yaml = current_path.join("cortex.yaml");
+        let folder_yaml = current_path.join("folder.yaml");
+        if cortex_yaml.exists() {
+            fs::read_to_string(&cortex_yaml)
+                .ok()
+                .and_then(|s| CollectionManifest::from_yaml(&s).ok())
+                .and_then(|m| m.order)
+        } else if folder_yaml.exists() {
+            fs::read_to_string(&folder_yaml)
+                .ok()
+                .and_then(|s| FolderManifest::from_yaml(&s).ok())
+                .and_then(|m| m.order)
+        } else {
+            None
+        }
+    };
+
+    if let Some(order) = stored_order {
+        apply_order(&mut items, &order);
+    } else {
+        // Default: folders first, then requests, each group sorted alphabetically
+        items.sort_by(|a, b| match (a, b) {
+            (CollectionItem::Folder(_), CollectionItem::Request(_)) => std::cmp::Ordering::Less,
+            (CollectionItem::Request(_), CollectionItem::Folder(_)) => std::cmp::Ordering::Greater,
+            (CollectionItem::Folder(f1), CollectionItem::Folder(f2)) => f1.name.cmp(&f2.name),
+            (CollectionItem::Request(r1), CollectionItem::Request(r2)) => r1.name.cmp(&r2.name),
+        });
+    }
 
     Ok(items)
 }
@@ -630,6 +799,7 @@ mod tests {
             presets: None,
             protobuf: None,
             tag_registry: None,
+            order: None,
         };
 
         let yaml = manifest.to_yaml().unwrap();
@@ -704,7 +874,8 @@ description: \"Description\"
     fn test_folder_manifest_roundtrip() {
         let mut headers = BTreeMap::new();
         headers.insert("X-Folder-Level".to_string(), "true".to_string());
-        let manifest = FolderManifest { headers: Some(headers), auth: None, scripts: None };
+        let manifest =
+            FolderManifest { headers: Some(headers), auth: None, scripts: None, order: None };
         let yaml = manifest.to_yaml().unwrap();
         let decoded = FolderManifest::from_yaml(&yaml).unwrap();
         assert_eq!(manifest, decoded);
