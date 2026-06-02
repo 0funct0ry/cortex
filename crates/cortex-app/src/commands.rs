@@ -688,8 +688,12 @@ pub fn create_collection(name: String, path: String) -> Result<String, String> {
         std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     }
 
-    let collection =
-        cortex_core::collection::Collection { path: path.clone(), manifest, items: Vec::new() };
+    let collection = cortex_core::collection::Collection {
+        path: path.clone(),
+        manifest,
+        items: Vec::new(),
+        is_git_repo: false,
+    };
 
     collection.save().map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
@@ -3392,6 +3396,409 @@ pub async fn bulk_import_folder(
         }
 
         Ok(ImportResult { imported, skipped, failed })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ── Share / Export / Import ───────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize, Type)]
+pub struct GitInitResult {
+    pub already_initialized: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Type)]
+pub struct ImportPreview {
+    pub collection_name: String,
+    pub request_count: u32,
+}
+
+/// Replaces all secret variable values with `__REDACTED__` for export.
+/// Both ENC(v1:…) blobs and plain-text values are replaced — neither
+/// must appear in an exported file.
+fn redact_secrets_for_export(manifest: &mut cortex_core::collection::CollectionManifest) {
+    if let Some(vars) = &mut manifest.variables {
+        for var in vars {
+            if var.secret {
+                var.value = serde_json::Value::String("__REDACTED__".to_string());
+            }
+        }
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_git_initialized(collection_path: String) -> Result<bool, String> {
+    Ok(std::path::Path::new(&collection_path).join(".git").exists())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_init_collection(collection_path: String) -> Result<GitInitResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = std::path::PathBuf::from(&collection_path);
+        if path.join(".git").exists() {
+            return Ok(GitInitResult { already_initialized: true });
+        }
+        let output = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(&path)
+            .output()
+            .map_err(|e| format!("Failed to run git: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(stderr.trim().to_string());
+        }
+        Ok(GitInitResult { already_initialized: false })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn export_collection_zip(
+    collection_path: String,
+    dest_path: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Write as _;
+        use walkdir::WalkDir;
+
+        let root = std::path::Path::new(&collection_path);
+        let cursor = std::io::Cursor::new(Vec::<u8>::new());
+        let mut zip = zip::ZipWriter::new(cursor);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        for entry in
+            WalkDir::new(root).min_depth(1).sort_by_file_name().into_iter().filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let rel = path.strip_prefix(root).map_err(|e| e.to_string())?;
+            let rel_str = rel.to_string_lossy().replace('\\', "/");
+
+            if rel_str == "cortex-workspace.yaml" {
+                continue;
+            }
+
+            let fname = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let include = fname == "cortex.yaml" || ext == "crx" || fname == "folder.yaml";
+            if !include {
+                continue;
+            }
+
+            let contents = std::fs::read_to_string(path)
+                .map_err(|e| format!("Failed to read {}: {}", rel_str, e))?;
+
+            let data = if fname == "cortex.yaml" {
+                match cortex_core::collection::CollectionManifest::from_yaml(&contents) {
+                    Ok(mut manifest) => {
+                        redact_secrets_for_export(&mut manifest);
+                        manifest.to_yaml().unwrap_or(contents)
+                    }
+                    Err(_) => contents,
+                }
+            } else {
+                contents
+            };
+
+            zip.start_file(&rel_str, options).map_err(|e| e.to_string())?;
+            zip.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        }
+
+        let cursor = zip.finish().map_err(|e| e.to_string())?;
+        std::fs::write(&dest_path, cursor.into_inner())
+            .map_err(|e| format!("Failed to write ZIP: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn export_collection_bundle(
+    collection_path: String,
+    dest_path: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use walkdir::WalkDir;
+
+        #[derive(serde::Serialize)]
+        struct BundleEntry {
+            path: String,
+            content: serde_yaml::Value,
+        }
+
+        #[derive(serde::Serialize)]
+        struct CortexBundle {
+            cortex_bundle_version: String,
+            collection: serde_yaml::Value,
+            entries: Vec<BundleEntry>,
+        }
+
+        let root = std::path::Path::new(&collection_path);
+        let manifest_str = std::fs::read_to_string(root.join("cortex.yaml"))
+            .map_err(|e| format!("Failed to read cortex.yaml: {}", e))?;
+
+        let mut manifest = cortex_core::collection::CollectionManifest::from_yaml(&manifest_str)
+            .map_err(|e| format!("Failed to parse cortex.yaml: {}", e))?;
+        redact_secrets_for_export(&mut manifest);
+
+        let collection_val = serde_yaml::to_value(&manifest)
+            .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
+
+        let mut entries: Vec<BundleEntry> = Vec::new();
+
+        for entry in
+            WalkDir::new(root).min_depth(1).sort_by_file_name().into_iter().filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let rel = path.strip_prefix(root).map_err(|e| e.to_string())?;
+            let rel_str = rel.to_string_lossy().replace('\\', "/");
+
+            if rel_str == "cortex.yaml" || rel_str == "cortex-workspace.yaml" {
+                continue;
+            }
+
+            let fname = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let include = ext == "crx" || fname == "folder.yaml";
+            if !include {
+                continue;
+            }
+
+            let content_str = std::fs::read_to_string(path)
+                .map_err(|e| format!("Failed to read {}: {}", rel_str, e))?;
+            let content: serde_yaml::Value = serde_yaml::from_str(&content_str)
+                .map_err(|e| format!("Failed to parse {}: {}", rel_str, e))?;
+
+            entries.push(BundleEntry { path: rel_str, content });
+        }
+
+        let bundle = CortexBundle {
+            cortex_bundle_version: "1".to_string(),
+            collection: collection_val,
+            entries,
+        };
+
+        let yaml_str = serde_yaml::to_string(&bundle)
+            .map_err(|e| format!("Failed to serialize bundle: {}", e))?;
+        std::fs::write(&dest_path, yaml_str)
+            .map_err(|e| format!("Failed to write bundle: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_import_zip(zip_path: String) -> Result<ImportPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Read as _;
+
+        let file =
+            std::fs::File::open(&zip_path).map_err(|e| format!("Failed to open ZIP: {}", e))?;
+        let mut archive =
+            zip::ZipArchive::new(file).map_err(|e| format!("Failed to read ZIP: {}", e))?;
+
+        let manifest_str = {
+            let mut entry = archive
+                .by_name("cortex.yaml")
+                .map_err(|_| "Invalid Cortex ZIP: cortex.yaml not found at root".to_string())?;
+            let mut s = String::new();
+            entry
+                .read_to_string(&mut s)
+                .map_err(|e| format!("Failed to read cortex.yaml: {}", e))?;
+            s
+        };
+
+        let manifest = cortex_core::collection::CollectionManifest::from_yaml(&manifest_str)
+            .map_err(|e| format!("Failed to parse cortex.yaml: {}", e))?;
+
+        let request_count = (0..archive.len())
+            .filter(|&i| archive.by_index(i).map(|e| e.name().ends_with(".crx")).unwrap_or(false))
+            .count() as u32;
+
+        Ok(ImportPreview { collection_name: manifest.name, request_count })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_import_bundle(bundle_path: String) -> Result<ImportPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let content = std::fs::read_to_string(&bundle_path)
+            .map_err(|e| format!("Failed to read bundle: {}", e))?;
+
+        let value: serde_yaml::Value =
+            serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse bundle: {}", e))?;
+
+        if value.get("cortex_bundle_version").is_none() || value.get("collection").is_none() {
+            return Err("Invalid Cortex bundle: missing cortex_bundle_version or collection key"
+                .to_string());
+        }
+
+        let collection_name = value["collection"]["name"]
+            .as_str()
+            .ok_or("Invalid bundle: collection.name not found")?
+            .to_string();
+
+        let request_count = value["entries"]
+            .as_sequence()
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter(|e| e["path"].as_str().map(|p| p.ends_with(".crx")).unwrap_or(false))
+                    .count() as u32
+            })
+            .unwrap_or(0);
+
+        Ok(ImportPreview { collection_name, request_count })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn extract_collection_zip(
+    zip_path: String,
+    dest_dir: String,
+    replace: bool,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Read as _;
+
+        let file =
+            std::fs::File::open(&zip_path).map_err(|e| format!("Failed to open ZIP: {}", e))?;
+        let mut archive =
+            zip::ZipArchive::new(file).map_err(|e| format!("Failed to read ZIP: {}", e))?;
+
+        let collection_name = {
+            let mut entry = archive
+                .by_name("cortex.yaml")
+                .map_err(|_| "Invalid Cortex ZIP: cortex.yaml not found at root".to_string())?;
+            let mut s = String::new();
+            entry
+                .read_to_string(&mut s)
+                .map_err(|e| format!("Failed to read cortex.yaml: {}", e))?;
+            cortex_core::collection::CollectionManifest::from_yaml(&s)
+                .map_err(|e| format!("Failed to parse cortex.yaml: {}", e))?
+                .name
+        };
+
+        let dest = std::path::Path::new(&dest_dir).join(&collection_name);
+
+        if dest.exists() {
+            if !replace {
+                return Err(format!("CONFLICT:{}", dest.to_string_lossy()));
+            }
+            std::fs::remove_dir_all(&dest)
+                .map_err(|e| format!("Failed to remove existing directory: {}", e))?;
+        }
+
+        std::fs::create_dir_all(&dest)
+            .map_err(|e| format!("Failed to create destination: {}", e))?;
+
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+            let entry_name = entry.name().to_string();
+
+            if entry_name.ends_with('/') {
+                std::fs::create_dir_all(dest.join(&entry_name))
+                    .map_err(|e| format!("Failed to create dir: {}", e))?;
+                continue;
+            }
+
+            let entry_path = dest.join(&entry_name);
+            if let Some(parent) = entry_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create parent dir: {}", e))?;
+            }
+
+            let mut buf = Vec::new();
+            entry
+                .read_to_end(&mut buf)
+                .map_err(|e| format!("Failed to read entry {}: {}", entry_name, e))?;
+            std::fs::write(&entry_path, &buf)
+                .map_err(|e| format!("Failed to write {}: {}", entry_name, e))?;
+        }
+
+        Ok(dest.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn extract_collection_bundle(
+    bundle_path: String,
+    dest_dir: String,
+    replace: bool,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let content = std::fs::read_to_string(&bundle_path)
+            .map_err(|e| format!("Failed to read bundle: {}", e))?;
+
+        let value: serde_yaml::Value =
+            serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse bundle: {}", e))?;
+
+        let collection_name = value["collection"]["name"]
+            .as_str()
+            .ok_or("Invalid bundle: collection.name not found")?
+            .to_string();
+
+        let dest = std::path::Path::new(&dest_dir).join(&collection_name);
+
+        if dest.exists() {
+            if !replace {
+                return Err(format!("CONFLICT:{}", dest.to_string_lossy()));
+            }
+            std::fs::remove_dir_all(&dest)
+                .map_err(|e| format!("Failed to remove existing directory: {}", e))?;
+        }
+
+        std::fs::create_dir_all(&dest)
+            .map_err(|e| format!("Failed to create destination: {}", e))?;
+
+        let collection_yaml = serde_yaml::to_string(&value["collection"])
+            .map_err(|e| format!("Failed to serialize collection: {}", e))?;
+        std::fs::write(dest.join("cortex.yaml"), collection_yaml)
+            .map_err(|e| format!("Failed to write cortex.yaml: {}", e))?;
+
+        if let Some(entries) = value["entries"].as_sequence() {
+            for entry in entries {
+                let rel_path = entry["path"].as_str().ok_or("Invalid entry: missing path field")?;
+                let content_val = &entry["content"];
+
+                let entry_path = dest.join(rel_path);
+                if let Some(parent) = entry_path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| format!("Failed to create dir for {}: {}", rel_path, e))?;
+                }
+
+                let entry_yaml = serde_yaml::to_string(content_val)
+                    .map_err(|e| format!("Failed to serialize {}: {}", rel_path, e))?;
+                std::fs::write(&entry_path, entry_yaml)
+                    .map_err(|e| format!("Failed to write {}: {}", rel_path, e))?;
+            }
+        }
+
+        Ok(dest.to_string_lossy().to_string())
     })
     .await
     .map_err(|e| e.to_string())?

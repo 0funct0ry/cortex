@@ -108,6 +108,14 @@ fn main() {
             commands::get_item_info,
             commands::scan_import_folder,
             commands::bulk_import_folder,
+            commands::check_git_initialized,
+            commands::git_init_collection,
+            commands::export_collection_zip,
+            commands::export_collection_bundle,
+            commands::preview_import_zip,
+            commands::preview_import_bundle,
+            commands::extract_collection_zip,
+            commands::extract_collection_bundle,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -194,6 +202,14 @@ mod tests {
                 commands::get_item_info,
                 commands::scan_import_folder,
                 commands::bulk_import_folder,
+                commands::check_git_initialized,
+                commands::git_init_collection,
+                commands::export_collection_zip,
+                commands::export_collection_bundle,
+                commands::preview_import_zip,
+                commands::preview_import_bundle,
+                commands::extract_collection_zip,
+                commands::extract_collection_bundle,
             ]);
 
         builder

@@ -1002,6 +1002,7 @@ const SidebarTree: React.FC = () => {
                 onToggle={handleToggle}
                 onOpenSettings={handleOpenCollectionTab}
                 dropIndicator={dropIndicator}
+                isGitRepo={colData?.is_git_repo === true}
               />
               {isExpanded && colData && (
                 <>

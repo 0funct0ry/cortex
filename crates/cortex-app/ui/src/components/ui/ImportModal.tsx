@@ -2,6 +2,7 @@ import React from 'react'
 import { createPortal } from 'react-dom'
 import * as Icons from './Icons'
 import { toast } from '../../stores/toastStore'
+import { useUIStore } from '../../stores/uiStore'
 
 interface ImportModalProps {
   isOpen: boolean
@@ -9,11 +10,64 @@ interface ImportModalProps {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => {
+  const { openImportCollectionDialog } = useUIStore()
+
   if (!isOpen) return null
 
   const handleImportOption = (format: string) => {
     toast.info(`Importing from ${format} (Epic 10) is coming soon!`)
   }
+
+  const cortexOptions = [
+    {
+      name: 'Cortex ZIP Archive',
+      description: 'Import a Cortex collection exported as a .zip archive',
+      icon: (props: React.SVGProps<SVGSVGElement>) => (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          {...props}
+        >
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
+        </svg>
+      ),
+      onClick: () => {
+        onClose()
+        openImportCollectionDialog('zip')
+      },
+    },
+    {
+      name: 'Cortex YAML Bundle',
+      description: 'Import a portable Cortex bundle (.yaml file)',
+      icon: (props: React.SVGProps<SVGSVGElement>) => (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          {...props}
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+      ),
+      onClick: () => {
+        onClose()
+        openImportCollectionDialog('bundle')
+      },
+    },
+  ]
 
   const importOptions = [
     {
@@ -97,6 +151,35 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => {
         </p>
 
         <div className="space-y-3">
+          {/* Cortex-native formats */}
+          {cortexOptions.map((opt) => (
+            <button
+              key={opt.name}
+              onClick={opt.onClick}
+              className="w-full flex items-start gap-4 p-3.5 rounded-lg border border-border-subtle bg-bg-surface hover:bg-bg-muted hover:border-border-default hover:scale-[1.01] text-left transition-all active:scale-[0.99] group"
+            >
+              <div className="p-2 bg-bg-muted group-hover:bg-accent/10 rounded-md text-text-secondary group-hover:text-accent transition-colors shrink-0">
+                <opt.icon className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-text-primary group-hover:text-accent transition-colors">
+                  {opt.name}
+                </div>
+                <div className="text-xs text-text-muted mt-0.5 leading-relaxed">
+                  {opt.description}
+                </div>
+              </div>
+              <Icons.ChevronRight
+                size={14}
+                className="text-text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all self-center"
+              />
+            </button>
+          ))}
+
+          {/* Third-party formats (coming soon) */}
+          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider pt-1">
+            Third-party formats
+          </p>
           {importOptions.map((opt) => (
             <button
               key={opt.name}

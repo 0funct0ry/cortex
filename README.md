@@ -157,7 +157,9 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     6. **Run** — opens the Collection Runner panel pre-scoped to this collection (see Story 06.10).
     7. **Clone** — full recursive copy of the collection into the same workspace directory with a `copy` suffix; appears in the sidebar immediately.
     8. **Rename** — inline name editing; confirmed with Enter, cancelled with Escape.
-    9. **Share** — placeholder (coming in Story 06.11).
+    9. **Share** — opens the "Share Collection" modal with two tabs:
+       - **Git tab**: explains why Git is a natural fit for plain-text YAML collections. Lists four benefits ("Full history of every API change", "Collaborate via pull requests", "Sync across machines", "Keep APIs versioned with your codebase"). Shows an **Initialize Git Repository** button if the collection directory has no `.git` folder; clicking it runs `git init` in that directory. If the repo is already initialized, shows a "Git repository already initialized" status line and a note to push to GitHub/GitLab/Gitea/Bitbucket. On error (git not installed, permissions issue), shows the raw error message inline.
+       - **Export tab**: lets you choose between two export formats — **Cortex Collection (ZIP)** (recommended; preserves full folder/file structure) and **Single File (.yaml)** (a portable YAML bundle). A disabled "Other Formats" section previews the Postman and OpenAPI exports coming in Epic 10. If the collection has any `secret: true` variables, a warning banner shows the count; their values are replaced with `__REDACTED__` in every export (the raw encrypted blob is never written). Clicking **Proceed** opens the OS file-save dialog; cancelling leaves the modal open and writes no file. On success the modal closes and a toast shows the exported filename.
     10. **Generate Docs** — placeholder (coming in Story 06.12).
     11. **Collapse** — collapses the entire collection tree including nested folders; disabled when already collapsed.
     12. **Reveal in Finder / Reveal in Explorer** — opens the OS file manager at the collection directory.
@@ -295,6 +297,20 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     **Execution model**: Requests are sent one at a time using the same HTTP executor as the individual Send button. Each request's `.crx` file is loaded fresh from disk before sending, so any unsaved edits in open tabs are not included. All environment variables are resolved server-side using the selected environment. Delay (`delayMs`) is applied between each request, not after the last one.
 
     **Sidebar indicator**: While a run is active, a small animated spinner appears on the collection or folder node in the sidebar. On completion a green dot (pass) or orange dot (aborted) replaces the spinner briefly.
+
+- **Share / Export a Collection** *(Story 06.11)*: Share any collection with teammates via Git version control or as a portable exported file. Accessed from the **Share** item in the collection context menu.
+
+    **Share Collection modal — Git tab**: Explains that Cortex collections are plain-text YAML files, lists four Git benefits, and provides an **Initialize Git Repository** button. Clicking it runs `git init` in the collection directory. If `.git/` already exists, the button is replaced with an "already initialized" status line and a note to push to a remote host. If `git` is not on PATH or a permissions error occurs, the raw error is shown inline. The dialog deliberately does not configure remotes, stage files, or push — those are left to the user's existing Git workflow.
+
+    **Share Collection modal — Export tab**: Choose between two native formats:
+    - **Cortex Collection (ZIP)** *(Recommended)*: A `.zip` archive containing `cortex.yaml`, all `.crx` request files, and all `folder.yaml` files at their relative paths. `cortex-workspace.yaml` is excluded (workspace-scoped). Default filename: `<collection-name>-<YYYY-MM-DD>.zip`.
+    - **Single File (.yaml)** *(Quick share)*: A self-contained YAML bundle with the structure `cortex_bundle_version: "1"`, `collection:` (the full manifest inline), and `entries:` (a list of `{ path, content }` objects for every `.crx` and `folder.yaml`). Default filename: `<collection-name>-<YYYY-MM-DD>.yaml`.
+
+    A disabled **Other Formats** section previews Postman and OpenAPI exports coming in Epic 10. If the collection contains `secret: true` variables, a warning banner counts them; their values are replaced with `__REDACTED__` in every export (the raw `ENC(v1:…)` encrypted blob is never written). Pressing **Proceed** opens the OS file-save dialog; cancelling writes nothing. On success the modal closes and a toast shows the exported filename.
+
+    **Import counterpart — ZIP archive**: Available from **Import Collection → Cortex ZIP Archive** in the sidebar **+** menu or Import Collection modal. A file-open dialog (filtered to `.zip`) is shown immediately. After picking a file, a preview shows the collection name and request count. The user then picks a destination folder; if a directory with the same name already exists, a **Cancel / Replace** prompt appears. On confirmation the collection is extracted and added to the current workspace. Variables with value `__REDACTED__` appear empty in the **Collection Variables** panel with a yellow banner: *"N secret variable(s) were redacted in this export. Fill in their values below."*
+
+    **Import counterpart — YAML bundle**: Same flow as ZIP import but for `.yaml` bundle files. Validated by checking for `cortex_bundle_version` and `collection` top-level keys. The collection directory is reconstructed from `entries`, with `cortex.yaml` written from the `collection` key.
 
 - **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
 

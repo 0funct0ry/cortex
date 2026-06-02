@@ -182,6 +182,8 @@ pub struct Collection {
     pub path: PathBuf,
     pub manifest: CollectionManifest,
     pub items: Vec<CollectionItem>,
+    /// True when a `.git` directory exists directly inside the collection root.
+    pub is_git_repo: bool,
 }
 
 #[derive(Debug)]
@@ -253,8 +255,9 @@ impl Collection {
         let _ = manifest.decrypt_secrets(&key);
 
         let items = load_tree(&path, &path)?;
+        let is_git_repo = path.join(".git").exists();
 
-        Ok(Self { path, manifest, items })
+        Ok(Self { path, manifest, items, is_git_repo })
     }
 
     /// Loads only the manifest from a collection directory, skipping environments and the items tree.
@@ -281,7 +284,7 @@ impl Collection {
         let key = crate::crypto::get_app_key();
         let _ = manifest.decrypt_secrets(&key);
 
-        Ok(Self { path, manifest, items: Vec::new() })
+        Ok(Self { path, manifest, items: Vec::new(), is_git_repo: false })
     }
 
     /// Loads only the manifest and environments from a collection directory, skipping the items tree.
@@ -308,7 +311,7 @@ impl Collection {
         let key = crate::crypto::get_app_key();
         let _ = manifest.decrypt_secrets(&key);
 
-        Ok(Self { path, manifest, items: Vec::new() })
+        Ok(Self { path, manifest, items: Vec::new(), is_git_repo: false })
     }
 
     /// Saves the manifest back to disk.
@@ -639,6 +642,10 @@ fn load_tree(
         let relative_path = path.strip_prefix(base_path).unwrap_or(&path).to_path_buf();
 
         if path.is_dir() {
+            // Skip hidden dot-directories (e.g. .git, .svn, .vscode) at any depth
+            if name.starts_with('.') {
+                continue;
+            }
             // Skip environments directory at root
             if name == "environments" && current_path == base_path {
                 continue;
@@ -811,7 +818,12 @@ mod tests {
     fn test_save_collection_with_gitignore() {
         let dir = tempdir().unwrap();
         let manifest = CollectionManifest::new("Test Collection".to_string());
-        let collection = Collection { path: dir.path().to_path_buf(), manifest, items: Vec::new() };
+        let collection = Collection {
+            path: dir.path().to_path_buf(),
+            manifest,
+            items: Vec::new(),
+            is_git_repo: false,
+        };
 
         collection.save().unwrap();
         let gitignore_path = dir.path().join(".gitignore");

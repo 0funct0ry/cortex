@@ -10,6 +10,8 @@ import { listen } from '@tauri-apps/api/event'
 import { useResponseStore, type ResponsePayload } from './stores/responseStore'
 import ToastContainer from './components/ui/ToastContainer'
 import CollectionRunnerPanel from './components/collection-runner/CollectionRunnerPanel'
+import ShareCollectionModal from './components/ui/ShareCollectionModal'
+import ImportCollectionDialog from './components/ui/ImportCollectionDialog'
 
 function App() {
   const { setResponse } = useResponseStore()
@@ -46,6 +48,8 @@ function App() {
       </div>
       <ToastContainer />
       <CollectionRunnerPanel />
+      <ShareCollectionModal />
+      <ImportCollectionDialog />
     </TabsProvider>
   )
 }

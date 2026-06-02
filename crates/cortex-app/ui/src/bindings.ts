@@ -593,6 +593,70 @@ async bulkImportFolder(sourceDir: string, targetPath: string, decisions: ImportD
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async checkGitInitialized(collectionPath: string) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_git_initialized", { collectionPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async gitInitCollection(collectionPath: string) : Promise<Result<GitInitResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("git_init_collection", { collectionPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async exportCollectionZip(collectionPath: string, destPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_collection_zip", { collectionPath, destPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async exportCollectionBundle(collectionPath: string, destPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_collection_bundle", { collectionPath, destPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async previewImportZip(zipPath: string) : Promise<Result<ImportPreview, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_import_zip", { zipPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async previewImportBundle(bundlePath: string) : Promise<Result<ImportPreview, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_import_bundle", { bundlePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async extractCollectionZip(zipPath: string, destDir: string, replace: boolean) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("extract_collection_zip", { zipPath, destDir, replace }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async extractCollectionBundle(bundlePath: string, destDir: string, replace: boolean) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("extract_collection_bundle", { bundlePath, destDir, replace }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -611,7 +675,11 @@ export type AuthRef = ({ [key in string]: string }) & { type: string }
 /**
  * Represents a loaded collection.
  */
-export type Collection = { path: string; manifest: CollectionManifest; items: CollectionItem[] }
+export type Collection = { path: string; manifest: CollectionManifest; items: CollectionItem[]; 
+/**
+ * True when a `.git` directory exists directly inside the collection root.
+ */
+is_git_repo: boolean }
 export type CollectionClientCertificate = { hostname: string; cert_file: string; key_file?: string | null; passphrase?: string | null; enabled: boolean }
 export type CollectionImportPath = { directory: string; path: string }
 export type CollectionItem = { type: "Request"; data: RequestFileWrapper } | { type: "Folder"; data: Folder }
@@ -704,11 +772,13 @@ export type FolderManifest = { headers?: { [key in string]: string } | null; aut
  */
 order?: string[] | null }
 export type FormEntry = { key: string; value: string; is_file: boolean; file_path: string; enabled: boolean }
+export type GitInitResult = { already_initialized: boolean }
 export type GreetResponse = { message: string }
 export type HeaderEntry = { key: string; value: string; enabled: boolean; is_valueless?: boolean | null }
 export type ImportAction = { type: "Skip" } | { type: "Replace" } | { type: "Rename"; value: string }
 export type ImportDecision = { rel_path: string; action: ImportAction }
 export type ImportFileEntry = { rel_path: string; name: string; parse_error: string | null; conflicts: boolean }
+export type ImportPreview = { collection_name: string; request_count: number }
 export type ImportResult = { imported: number; skipped: number; failed: ([string, string])[] }
 export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[] }
 export type ItemInfo = { path: string; size_bytes: number; created: string | null; modified: string | null; item_count: number | null; folder_count: number | null }

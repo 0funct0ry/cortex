@@ -42,6 +42,8 @@ interface TreeNodeProps {
   dimmed?: boolean
   requestTags?: string[]
   collectionPath?: string
+  /** Whether this collection has a Git repository initialised in its root directory */
+  isGitRepo?: boolean
   /** Sibling items at the same level, used for Move Up / Move Down */
   siblings?: SiblingItem[]
   // DnD props
@@ -75,6 +77,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   dimmed,
   requestTags,
   collectionPath,
+  isGitRepo,
   siblings,
   parentPath,
   dropIndicator,
@@ -103,7 +106,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
   const { tabs, updateTab, closeTabsWhere, openTab } = useTabs()
-  const { openNewRequestDialog, openNewTransientDialog, openImportFolderDialog } = useUIStore()
+  const { openNewRequestDialog, openNewTransientDialog, openImportFolderDialog, openShareModal } =
+    useUIStore()
 
   React.useEffect(() => {
     if (renamingPath === path) {
@@ -431,7 +435,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         { label: 'Clone', onClick: handleClone },
         { label: 'Import from folder…', onClick: handleImportFolder },
         { label: 'Rename', onClick: () => setIsRenaming(true) },
-        { label: 'Share', onClick: () => toast.info('Share is coming in a future release') },
+        { label: 'Share', onClick: () => openShareModal(path, label) },
         {
           label: 'Generate Docs',
           onClick: () => toast.info('Documentation generation is coming in a future release'),
@@ -541,6 +545,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     openTab,
     label,
     collectionPath,
+    openShareModal,
   ])
 
   const highlightMatch = (text: string, query: string) => {
@@ -651,6 +656,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               }`}
             >
               {highlightMatch(label, searchQuery)}
+            </span>
+          )}
+          {type === 'collection' && isGitRepo && !isRenaming && (
+            <span
+              title="Git repository initialized"
+              className="ml-auto shrink-0 flex items-center gap-0.5 text-text-muted opacity-50"
+            >
+              <Icons.Branch size={10} />
             </span>
           )}
           {type === 'request' &&

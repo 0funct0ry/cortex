@@ -4,6 +4,7 @@ import * as Icons from '../ui/Icons'
 import ImportModal from '../ui/ImportModal'
 import { useCollectionStore, getAllTagsFromCollections } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useUIStore } from '../../stores/uiStore'
 import { commands } from '../../bindings'
 import { toast } from '../../stores/toastStore'
 import { TagFilterBar } from './TagFilterBar'
@@ -18,6 +19,8 @@ interface AddMenuProps {
   onCreateCollection: () => void
   onOpenCollection: () => void
   onImportCollection: () => void
+  onImportZip: () => void
+  onImportBundle: () => void
 }
 
 const AddMenu: React.FC<AddMenuProps> = ({
@@ -26,6 +29,8 @@ const AddMenu: React.FC<AddMenuProps> = ({
   onCreateCollection,
   onOpenCollection,
   onImportCollection,
+  onImportZip,
+  onImportBundle,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -57,6 +62,8 @@ const AddMenu: React.FC<AddMenuProps> = ({
     { icon: <Icons.Plus size={14} />, label: 'Create collection', onClick: onCreateCollection },
     { icon: <Icons.Folder size={14} />, label: 'Open collection', onClick: onOpenCollection },
     { icon: <Icons.Download size={14} />, label: 'Import collection', onClick: onImportCollection },
+    { icon: <Icons.Download size={14} />, label: 'From ZIP archive…', onClick: onImportZip },
+    { icon: <Icons.FileText size={14} />, label: 'From YAML bundle…', onClick: onImportBundle },
   ]
 
   return createPortal(
@@ -105,6 +112,7 @@ const SidebarHeader: React.FC = () => {
     isLoading: isWorkspaceLoading,
     loadWorkspace,
   } = useWorkspaceStore()
+  const { openImportCollectionDialog } = useUIStore()
   const { loadCollection } = useCollectionStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const plusButtonRef = useRef<HTMLButtonElement>(null)
@@ -276,6 +284,8 @@ const SidebarHeader: React.FC = () => {
           onCreateCollection={() => setCreatingInline(true)}
           onOpenCollection={handleOpenCollection}
           onImportCollection={() => setIsImportOpen(true)}
+          onImportZip={() => openImportCollectionDialog('zip')}
+          onImportBundle={() => openImportCollectionDialog('bundle')}
         />
       )}
 

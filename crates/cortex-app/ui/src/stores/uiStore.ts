@@ -13,6 +13,17 @@ interface ImportFolderDialogState {
   collectionPath: string | null
 }
 
+interface ShareModalState {
+  isOpen: boolean
+  collectionPath: string | null
+  collectionName: string | null
+}
+
+interface ImportCollectionDialogState {
+  isOpen: boolean
+  format: 'zip' | 'bundle' | null
+}
+
 interface UIState {
   sidebarCollapsed: boolean
   toggleSidebar: () => void
@@ -38,6 +49,12 @@ interface UIState {
     collectionPath: string
   ) => void
   closeImportFolderDialog: () => void
+  shareModal: ShareModalState
+  openShareModal: (collectionPath: string, collectionName: string) => void
+  closeShareModal: () => void
+  importCollectionDialog: ImportCollectionDialogState
+  openImportCollectionDialog: (format: 'zip' | 'bundle') => void
+  closeImportCollectionDialog: () => void
   layout: 'horizontal' | 'vertical'
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
@@ -113,6 +130,16 @@ export const useUIStore = create<UIState>((set) => {
           collectionPath: null,
         },
       }),
+    shareModal: { isOpen: false, collectionPath: null, collectionName: null },
+    openShareModal: (collectionPath, collectionName) =>
+      set({ shareModal: { isOpen: true, collectionPath, collectionName } }),
+    closeShareModal: () =>
+      set({ shareModal: { isOpen: false, collectionPath: null, collectionName: null } }),
+    importCollectionDialog: { isOpen: false, format: null },
+    openImportCollectionDialog: (format) =>
+      set({ importCollectionDialog: { isOpen: true, format } }),
+    closeImportCollectionDialog: () =>
+      set({ importCollectionDialog: { isOpen: false, format: null } }),
     layout: initialLayout,
     toggleLayout: () =>
       set((state) => {
