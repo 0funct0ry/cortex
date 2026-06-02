@@ -19,6 +19,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { type TreeNodeType } from '../../utils/dndUtils'
 import { getTagColor } from '../../utils/tagColors'
 import { TagManagerDialog } from '../composer/TagManagerDialog'
+import { useCollectionRunnerStore, buildRunnerItems } from '../../stores/collectionRunnerStore'
 
 interface SiblingItem {
   path: string
@@ -120,6 +121,30 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
     return ''
   }, [type, path, collections])
+
+  const {
+    open: openRunner,
+    scope: runnerScope,
+    runStatus: runnerStatus,
+  } = useCollectionRunnerStore()
+
+  const isRunnerActive = runnerScope?.path === path
+  const isRunnerRunning = isRunnerActive && runnerStatus === 'running'
+  const isRunnerDone =
+    isRunnerActive && (runnerStatus === 'completed' || runnerStatus === 'aborted')
+
+  const handleRun = useCallback(() => {
+    const items = buildRunnerItems(path, type as 'collection' | 'folder')
+    openRunner(
+      {
+        path,
+        type: type as 'collection' | 'folder',
+        label,
+        collectionPath: resolvedCollectionPath || path,
+      },
+      items
+    )
+  }, [path, type, label, resolvedCollectionPath, openRunner])
 
   const indentation = depth * 12 + 12
 
@@ -401,7 +426,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       return [
         ...creationGroup,
         { label: '', separator: true },
-        { label: 'Run', disabled: true, onClick: () => {} },
+        { label: 'Run', onClick: handleRun },
         { label: '', separator: true },
         { label: 'Clone', onClick: handleClone },
         { label: 'Import from folder…', onClick: handleImportFolder },
@@ -433,7 +458,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       return [
         ...creationGroup,
         { label: '', separator: true },
-        { label: 'Run', disabled: true, onClick: () => {} },
+        { label: 'Run', onClick: handleRun },
         { label: '', separator: true },
         { label: 'Move Up', shortcut: '⌥↑', disabled: !canMoveUp, onClick: handleMoveUp },
         { label: 'Move Down', shortcut: '⌥↓', disabled: !canMoveDown, onClick: handleMoveDown },
@@ -502,6 +527,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     handleCloneFolder,
     handleOpenCollectionView,
     handleOpenInTerminal,
+    handleRun,
     handleDuplicate,
     handleCopy,
     handleShowDeleteConfirm,
@@ -658,6 +684,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               )
             })()}
         </div>
+
+        {(type === 'collection' || type === 'folder') && isRunnerRunning && (
+          <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
+        )}
+        {(type === 'collection' || type === 'folder') && isRunnerDone && !isRunnerRunning && (
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              runnerStatus === 'completed' ? 'bg-success' : 'bg-warning'
+            }`}
+          />
+        )}
 
         {isHovered && !isRenaming && type === 'collection' && (
           <button

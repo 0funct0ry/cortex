@@ -154,7 +154,7 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     3. **New Quick Request** (Cmd+N) — opens an untitled request tab immediately.
     4. **New Folder** — inserts an inline-editable folder name field as the first child.
     5. **New JS File** — creates a `script.js` file in the collection directory and opens the collection view on the Script tab.
-    6. **Run** — greyed out (Collection Runner coming in Story 06.10).
+    6. **Run** — opens the Collection Runner panel pre-scoped to this collection (see Story 06.10).
     7. **Clone** — full recursive copy of the collection into the same workspace directory with a `copy` suffix; appears in the sidebar immediately.
     8. **Rename** — inline name editing; confirmed with Enter, cancelled with Escape.
     9. **Share** — placeholder (coming in Story 06.11).
@@ -167,7 +167,7 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 
     **Folder node** (14 items + separators):
     1–5. Same creation group as collection (New Request, New Transient Request, New Quick Request, New Folder, New JS File).
-    6. **Run** — greyed out (coming in Story 06.10).
+    6. **Run** — opens the Collection Runner panel pre-scoped to this folder (see Story 06.10).
     7. **Clone** — deep recursive copy of the folder to a sibling with a `copy` suffix.
     8. **Copy** — copies the folder path to the internal clipboard for a subsequent paste operation.
     9. **Rename** — inline name editing.
@@ -280,6 +280,21 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     **Recent selections**: When the search input is empty the palette shows up to five recently selected requests (persisted to `localStorage` under `cortex.search.recent`). Stale entries (requests that no longer exist in any loaded collection) are silently omitted.
 
     **Footer hints**: A compact footer row inside the palette reminds users of `↑↓` navigate, `↵` open, and `esc` close shortcuts.
+
+- **Collection Runner** *(Story 06.10)*: Execute all requests in a collection or folder in one click without leaving the sidebar.
+
+    **How to open**: Right-click any collection or folder node in the sidebar and choose **Run**. The Collection Runner panel slides in from the right, pre-scoped to the selected collection or folder with all contained requests pre-selected in their current display order (the same order defined by Story 06.06 drag-and-drop reordering).
+
+    **Panel layout**:
+    - **Left column** — the full request list with a checkbox per entry. All requests start checked; uncheck any you want to skip. A method badge and current run status icon (spinner / green ✓ / red ✕) appear beside each name.
+    - **Right column** — live results. Each completed request adds a row showing name, iteration number, HTTP status code, and duration. Clicking a row expands it to show the status text or error detail.
+    - **Options bar** — three controls above the list: *Iterations* (1–100, default 1), *Delay* between requests in milliseconds (default 0), and an *Environment* dropdown populated from the workspace's available environments.
+    - **Run / Stop button** — starts sequential execution; becomes a red **Stop** button while running. Pressing Stop halts after the current in-flight request completes.
+    - **Summary bar** — fixed footer showing *X passed / Y failed / Z total results* and the current run state (Running… / Completed / Aborted).
+
+    **Execution model**: Requests are sent one at a time using the same HTTP executor as the individual Send button. Each request's `.crx` file is loaded fresh from disk before sending, so any unsaved edits in open tabs are not included. All environment variables are resolved server-side using the selected environment. Delay (`delayMs`) is applied between each request, not after the last one.
+
+    **Sidebar indicator**: While a run is active, a small animated spinner appears on the collection or folder node in the sidebar. On completion a green dot (pass) or orange dot (aborted) replaces the spinner briefly.
 
 - **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
 
