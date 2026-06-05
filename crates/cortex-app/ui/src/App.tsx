@@ -12,6 +12,7 @@ import ToastContainer from './components/ui/ToastContainer'
 import CollectionRunnerPanel from './components/collection-runner/CollectionRunnerPanel'
 import ShareCollectionModal from './components/ui/ShareCollectionModal'
 import ImportCollectionDialog from './components/ui/ImportCollectionDialog'
+import GenerateDocsModal from './components/ui/GenerateDocsModal'
 
 function App() {
   const { setResponse } = useResponseStore()
@@ -50,6 +51,7 @@ function App() {
       <CollectionRunnerPanel />
       <ShareCollectionModal />
       <ImportCollectionDialog />
+      <GenerateDocsModal />
     </TabsProvider>
   )
 }

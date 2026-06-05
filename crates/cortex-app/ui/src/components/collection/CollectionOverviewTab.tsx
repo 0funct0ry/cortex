@@ -4,7 +4,7 @@ import * as Icons from '../ui/Icons'
 import type { CollectionDraft } from '../../stores/collectionViewStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
-import { toast } from '../../stores/toastStore'
+import { useUIStore } from '../../stores/uiStore'
 import type { CollectionItem } from '../../bindings'
 
 interface CollectionOverviewTabProps {
@@ -28,6 +28,7 @@ const CollectionOverviewTab: React.FC<CollectionOverviewTabProps> = ({
   const [showPreview, setShowPreview] = useState(false)
   const { collections } = useCollectionStore()
   const { activeWorkspace } = useWorkspaceStore()
+  const { openShareModal, openGenerateDocsModal } = useUIStore()
 
   const colData = collections[collectionPath]
   const requestCount = useMemo(() => (colData ? countRequests(colData.items) : 0), [colData])
@@ -94,7 +95,7 @@ const CollectionOverviewTab: React.FC<CollectionOverviewTabProps> = ({
         {/* Action links */}
         <div className="flex gap-3">
           <button
-            onClick={() => toast.info('Share Collection — coming soon')}
+            onClick={() => openShareModal(collectionPath, draft.name)}
             className="flex items-center gap-1.5 text-xs text-accent hover:text-accent-hover font-medium transition-colors"
           >
             <Icons.ExternalLink size={13} />
@@ -102,7 +103,7 @@ const CollectionOverviewTab: React.FC<CollectionOverviewTabProps> = ({
           </button>
           <span className="text-border-subtle">·</span>
           <button
-            onClick={() => toast.info('Generate Docs — coming soon')}
+            onClick={() => openGenerateDocsModal(collectionPath, draft.name)}
             className="flex items-center gap-1.5 text-xs text-accent hover:text-accent-hover font-medium transition-colors"
           >
             <Icons.FileText size={13} />

@@ -24,6 +24,12 @@ interface ImportCollectionDialogState {
   format: 'zip' | 'bundle' | null
 }
 
+interface GenerateDocsModalState {
+  isOpen: boolean
+  collectionPath: string | null
+  collectionName: string | null
+}
+
 interface UIState {
   sidebarCollapsed: boolean
   toggleSidebar: () => void
@@ -55,6 +61,9 @@ interface UIState {
   importCollectionDialog: ImportCollectionDialogState
   openImportCollectionDialog: (format: 'zip' | 'bundle') => void
   closeImportCollectionDialog: () => void
+  generateDocsModal: GenerateDocsModalState
+  openGenerateDocsModal: (collectionPath: string, collectionName: string) => void
+  closeGenerateDocsModal: () => void
   layout: 'horizontal' | 'vertical'
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
@@ -140,6 +149,11 @@ export const useUIStore = create<UIState>((set) => {
       set({ importCollectionDialog: { isOpen: true, format } }),
     closeImportCollectionDialog: () =>
       set({ importCollectionDialog: { isOpen: false, format: null } }),
+    generateDocsModal: { isOpen: false, collectionPath: null, collectionName: null },
+    openGenerateDocsModal: (collectionPath, collectionName) =>
+      set({ generateDocsModal: { isOpen: true, collectionPath, collectionName } }),
+    closeGenerateDocsModal: () =>
+      set({ generateDocsModal: { isOpen: false, collectionPath: null, collectionName: null } }),
     layout: initialLayout,
     toggleLayout: () =>
       set((state) => {

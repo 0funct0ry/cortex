@@ -160,7 +160,7 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     9. **Share** — opens the "Share Collection" modal with two tabs:
        - **Git tab**: explains why Git is a natural fit for plain-text YAML collections. Lists four benefits ("Full history of every API change", "Collaborate via pull requests", "Sync across machines", "Keep APIs versioned with your codebase"). Shows an **Initialize Git Repository** button if the collection directory has no `.git` folder; clicking it runs `git init` in that directory. If the repo is already initialized, shows a "Git repository already initialized" status line and a note to push to GitHub/GitLab/Gitea/Bitbucket. On error (git not installed, permissions issue), shows the raw error message inline.
        - **Export tab**: lets you choose between two export formats — **Cortex Collection (ZIP)** (recommended; preserves full folder/file structure) and **Single File (.yaml)** (a portable YAML bundle). A disabled "Other Formats" section previews the Postman and OpenAPI exports coming in Epic 10. If the collection has any `secret: true` variables, a warning banner shows the count; their values are replaced with `__REDACTED__` in every export (the raw encrypted blob is never written). Clicking **Proceed** opens the OS file-save dialog; cancelling leaves the modal open and writes no file. On success the modal closes and a toast shows the exported filename.
-    10. **Generate Docs** — placeholder (coming in Story 06.12).
+    10. **Generate Docs** — opens the **Generate Documentation** modal (see Story 06.12).
     11. **Collapse** — collapses the entire collection tree including nested folders; disabled when already collapsed.
     12. **Reveal in Finder / Reveal in Explorer** — opens the OS file manager at the collection directory.
     13. **Settings** — opens the collection view tab.
@@ -311,6 +311,33 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
     **Import counterpart — ZIP archive**: Available from **Import Collection → Cortex ZIP Archive** in the sidebar **+** menu or Import Collection modal. A file-open dialog (filtered to `.zip`) is shown immediately. After picking a file, a preview shows the collection name and request count. The user then picks a destination folder; if a directory with the same name already exists, a **Cancel / Replace** prompt appears. On confirmation the collection is extracted and added to the current workspace. Variables with value `__REDACTED__` appear empty in the **Collection Variables** panel with a yellow banner: *"N secret variable(s) were redacted in this export. Fill in their values below."*
 
     **Import counterpart — YAML bundle**: Same flow as ZIP import but for `.yaml` bundle files. Validated by checking for `cortex_bundle_version` and `collection` top-level keys. The collection directory is reconstructed from `entries`, with `cortex.yaml` written from the `collection` key.
+
+- **Generate Documentation** *(Story 06.12)*: Auto-generate human-readable API documentation from any collection, entirely offline. Accessed from **Generate Docs** in the collection context menu.
+
+    **Generate Docs modal**: A 960 px wide, 80 vh tall dialog with three tabs. All generation happens locally from the collection's `.crx` and manifest files — no network requests are made during generation. The collection tree is traversed in display order (respecting `order` fields in manifests). Headers are merged (collection → folder → request). Secret variables are **never resolved** — their `{{name}}` placeholder tokens are preserved verbatim in all output formats; the raw `ENC(v1:…)` encrypted blob is never written to any output. When one or more secret variables are referenced, a **Secrets Notice** is inserted near the top of the output.
+
+    **HTML tab** — generates a self-contained single-file HTML document with all CSS and JavaScript inlined (no external dependencies). Two themes available:
+    - **Cortex** *(default)*: A three-column layout (sticky left nav, scrollable main content, sticky right code-sample panel) with: color-coded method badges (GET=blue, POST=green, PUT=orange, PATCH=yellow, DELETE=red), `{{variable}}` tokens displayed as highlighted chips in URLs, a light/dark toggle (preference stored in `localStorage`), scroll-spy left navigation, and per-endpoint anchor links. Each endpoint card shows URL, auth type, parameters table, headers table, body block, and tags. The right panel shows a generated `curl` sample for the active endpoint. Optional **Try it out** section per endpoint: pre-filled URL input, body editor, and a **Send** button that calls `fetch()` directly from the browser with an inline CORS warning banner.
+    - **Scalar**: Embeds a generated OpenAPI 3.1 spec (base64-encoded) into a Scalar CDN `<script>` tag. Requires an internet connection to render. A notice is shown when this theme is selected.
+    - **Redoc**, **Stoplight Elements**, **ReadMe.io**: Shown as disabled "Coming soon" cards.
+
+    HTML format options: Theme, Include try it out (default on), Resolve non-secret variables (default off), Include pre/post scripts (default off), Include tags (default on).
+
+    **Markdown tab** — generates GitHub/GitLab-compatible Markdown following this structure: H1 collection name, description, auth type and base URL callout, secrets notice, variables table (secret values shown as `*(secret)*`), then `##` folder sections with `### \`METHOD\` Request Name` headings and fenced URL blocks. Parameters, headers, and request body are rendered as tables and code blocks. Saved examples are wrapped in `<details>` tags (collapsible). Folder sections are separated by `---` rules.
+
+    Markdown format options: Resolve non-secret variables (default off), Collapse examples (default on), Include scripts (default off), Include tags (default on), Heading offset 0–3 (default 1, shifts all heading levels down for embedding into a larger doc).
+
+    **Other Formats tab** — four active formats selectable via a format picker:
+    - **OpenAPI YAML / JSON**: Generates a valid OpenAPI 3.1 specification. Maps folders to `tags`, requests to `paths[url][method]` operations, collection auth to `components.securitySchemes`, query params to `parameters[in:query]`, auto-detected path params (`{param}` or `{{param}}`) to `parameters[in:path]`, and request bodies to `requestBody` with type-inferred JSON schema. Secret variables are annotated `x-cortex-secret: true`. A known-limitations notice is shown (schemas are inferred from example values; not authoritative).
+    - **API Blueprint** (`.apib`): Generates an Apiary/aglio-compatible API Blueprint document.
+    - **Postman v2.1**: Exports a Postman Collection JSON importable directly into Postman. Collection auth, variables (secret values as `{{name}}` references), folder nesting, and requests are all mapped. This is a lossy interoperability export, not a round-trip format.
+    - **Insomnia JSON** and **RAML 1.0**: Shown as disabled "Coming soon" cards.
+
+    **Preview pane**: Updates debounced 400 ms after any option change. HTML tab renders in a sandboxed `<iframe srcdoc>`. All other formats render in a read-only `CodeEditor` with matching syntax highlighting (markdown, yaml, json, or plain text).
+
+    **Footer buttons**: **Copy to Clipboard** (with 2-second "Copied!" confirmation), **Save to File** (opens OS file-save dialog with format-appropriate filter and default filename: `<collection-name>-docs-<YYYY-MM-DD>.html` / `.md` / `-openapi-<date>.yaml` / `.json` / `.apib` / `-postman-<date>.json`), **Cancel**.
+
+    **Generation warnings**: If any `.crx` file cannot be parsed, the failed request is collected into a warnings section appended to the output rather than silently skipped. A banner above the preview shows the count of skipped requests.
 
 - **Folder Hierarchy** *(Story 06.03)*: Folders support arbitrary nesting depth. Any folder can contain both requests and subfolders simultaneously, and new subfolders can be created inside any existing folder via the context menu (**New Folder**) or keyboard shortcut.
 

@@ -4,6 +4,8 @@ import { json } from '@codemirror/lang-json'
 import { xml } from '@codemirror/lang-xml'
 import { html } from '@codemirror/lang-html'
 import { javascript } from '@codemirror/lang-javascript'
+import { markdown } from '@codemirror/lang-markdown'
+import { yaml } from '@codemirror/lang-yaml'
 import { EditorView } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import { createTheme } from '@uiw/codemirror-themes'
@@ -13,7 +15,7 @@ import type { Diagnostic } from '@codemirror/lint'
 interface CodeEditorProps {
   value: string
   onChange: (value: string) => void
-  language?: 'json' | 'xml' | 'html' | 'javascript' | 'text'
+  language?: 'json' | 'xml' | 'html' | 'javascript' | 'markdown' | 'yaml' | 'text'
   readOnly?: boolean
   autoFocus?: boolean
   wordWrap?: boolean
@@ -85,6 +87,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         })
       )
       exts.push(lintGutter())
+    }
+    if (language === 'markdown') {
+      exts.push(markdown())
+    }
+    if (language === 'yaml') {
+      exts.push(yaml())
     }
     if (language === 'javascript') {
       exts.push(javascript())

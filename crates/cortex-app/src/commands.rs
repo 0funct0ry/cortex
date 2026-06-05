@@ -3803,3 +3803,69 @@ pub async fn extract_collection_bundle(
     .await
     .map_err(|e| e.to_string())?
 }
+
+// ── Documentation Generation ──────────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn generate_docs_html(
+    collection_path: String,
+    options: crate::docs_generator::HtmlDocOptions,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || match options.theme {
+        crate::docs_generator::HtmlTheme::Cortex => {
+            crate::docs_generator::generate_html_cortex(&collection_path, options)
+        }
+        crate::docs_generator::HtmlTheme::Scalar => {
+            crate::docs_generator::generate_html_scalar(&collection_path, options)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn generate_docs_markdown(
+    collection_path: String,
+    options: crate::docs_generator::MarkdownDocOptions,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::docs_generator::generate_markdown(&collection_path, options)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn generate_docs_openapi(
+    collection_path: String,
+    options: crate::docs_generator::OpenApiDocOptions,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::docs_generator::generate_openapi(&collection_path, options)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn generate_docs_api_blueprint(collection_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::docs_generator::generate_api_blueprint(&collection_path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn generate_docs_postman(collection_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::docs_generator::generate_postman(&collection_path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

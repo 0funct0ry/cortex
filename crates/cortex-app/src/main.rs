@@ -2,6 +2,7 @@
 
 mod cli;
 mod commands;
+mod docs_generator;
 mod state;
 
 use clap::Parser;
@@ -116,6 +117,11 @@ fn main() {
             commands::preview_import_bundle,
             commands::extract_collection_zip,
             commands::extract_collection_bundle,
+            commands::generate_docs_html,
+            commands::generate_docs_markdown,
+            commands::generate_docs_openapi,
+            commands::generate_docs_api_blueprint,
+            commands::generate_docs_postman,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -210,6 +216,11 @@ mod tests {
                 commands::preview_import_bundle,
                 commands::extract_collection_zip,
                 commands::extract_collection_bundle,
+                commands::generate_docs_html,
+                commands::generate_docs_markdown,
+                commands::generate_docs_openapi,
+                commands::generate_docs_api_blueprint,
+                commands::generate_docs_postman,
             ]);
 
         builder

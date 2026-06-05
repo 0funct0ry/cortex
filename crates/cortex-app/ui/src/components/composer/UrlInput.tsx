@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 
 interface UrlInputProps {
   value: string
@@ -25,60 +25,21 @@ interface UrlInputProps {
  * used by Postman and Insomnia.
  */
 const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
-  const [isFocused, setIsFocused] = useState(false)
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       onEnter?.()
     }
   }
 
-  // Detect {{variable}} tokens for the preview strip
-  const hasVariables = /\{\{[^{}]+\}\}/.test(value)
-
-  const renderPreviewStrip = () => {
-    const parts = value.split(/(\{\{[^{}]*\}\})/)
-    return parts.map((part, i) => {
-      if (part.startsWith('{{') && part.endsWith('}}')) {
-        // Treat as dynamic if it starts with $
-        const inner = part.slice(2, -2).trim()
-        const isDynamic = inner.startsWith('$')
-        return (
-          <span
-            key={i}
-            className={
-              isDynamic
-                ? 'text-[color:var(--color-method-post)] font-semibold'
-                : 'text-warning font-semibold'
-            }
-          >
-            {part}
-          </span>
-        )
-      }
-      return (
-        <span key={i} className="text-text-secondary">
-          {part}
-        </span>
-      )
-    })
-  }
-
   return (
-    <div className="flex-1 flex flex-col justify-center gap-0 min-w-0">
-      {/* The single native input – text is fully visible, cursor works natively */}
-      <div
-        className={`relative flex items-center h-[30px] bg-bg-surface border rounded-md transition-all duration-150 ${
-          isFocused ? 'border-border-strong ring-2 ring-accent/20' : 'border-border-default'
-        }`}
-      >
+    <div className="flex-1 flex flex-col justify-center min-w-0">
+      {/* Single native input — correct caret hit-testing, native keyboard shortcuts */}
+      <div className="relative flex items-center h-[30px] bg-bg-surface border border-border-default rounded-md transition-all duration-150 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-accent/20">
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
           placeholder="Enter URL or paste text"
           className="w-full h-full bg-transparent border-none outline-none px-3 font-mono text-sm text-text-primary caret-accent placeholder:text-text-muted"
           autoCapitalize="none"
@@ -86,13 +47,6 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
           spellCheck={false}
         />
       </div>
-
-      {/* Variable preview strip – only visible when focused and URL has {{tokens}} */}
-      {isFocused && hasVariables && (
-        <div className="px-3 pt-0.5 font-mono text-xs whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none select-none leading-none">
-          {renderPreviewStrip()}
-        </div>
-      )}
     </div>
   )
 }

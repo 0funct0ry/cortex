@@ -106,8 +106,13 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   } = useCollectionStore()
   const { activeWorkspacePath, loadWorkspace } = useWorkspaceStore()
   const { tabs, updateTab, closeTabsWhere, openTab } = useTabs()
-  const { openNewRequestDialog, openNewTransientDialog, openImportFolderDialog, openShareModal } =
-    useUIStore()
+  const {
+    openNewRequestDialog,
+    openNewTransientDialog,
+    openImportFolderDialog,
+    openShareModal,
+    openGenerateDocsModal,
+  } = useUIStore()
 
   React.useEffect(() => {
     if (renamingPath === path) {
@@ -438,7 +443,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         { label: 'Share', onClick: () => openShareModal(path, label) },
         {
           label: 'Generate Docs',
-          onClick: () => toast.info('Documentation generation is coming in a future release'),
+          onClick: () => openGenerateDocsModal(path, label),
         },
         {
           label: 'Collapse',
@@ -546,6 +551,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     label,
     collectionPath,
     openShareModal,
+    openGenerateDocsModal,
   ])
 
   const highlightMatch = (text: string, query: string) => {
