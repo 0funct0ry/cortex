@@ -113,6 +113,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     openShareModal,
     openGenerateDocsModal,
     openGenerateCodeModal,
+    openCreateExampleModal,
   } = useUIStore()
 
   React.useEffect(() => {
@@ -164,6 +165,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   }
 
   const handleRename = async (newName: string) => {
+    if (type === 'example') {
+      await handleRenameExample(newName)
+      return
+    }
     setIsRenaming(false)
     if (newName === label) return
 
@@ -192,11 +197,68 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   }
 
   const handleDelete = async () => {
+    if (type === 'example') {
+      await handleDeleteExample()
+      return
+    }
     try {
       const res = await commands.deleteItem(path)
       if (res.status === 'ok') {
         if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
         closeTabsWhere((t) => t.requestPath !== null && t.requestPath.startsWith(path))
+      }
+    } catch (err) {
+      toast.error(`Delete failed: ${String(err)}`)
+    }
+  }
+
+  // Example-specific helpers — path is "<requestPath>#<exampleId>"
+  const exampleRequestPath = type === 'example' ? path.split('#')[0] : null
+  const exampleId = type === 'example' ? path.split('#').slice(1).join('#') : null
+
+  const handleRenameExample = async (newName: string) => {
+    setIsRenaming(false)
+    if (!exampleRequestPath || !exampleId || newName === label) return
+    try {
+      const content = await commands.loadRequest(exampleRequestPath)
+      if (content.status !== 'ok') return
+      const rf = content.data.content
+      if (!rf) return
+      const example = rf.examples?.find((e) => e.id === exampleId)
+      if (!example) return
+      const res = await commands.updateExample(exampleRequestPath, { ...example, name: newName })
+      if (res.status === 'ok') {
+        if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
+        // Update open example tab name
+        const matchingTab = tabs.find(
+          (t) =>
+            t.type === 'example' &&
+            t.requestPath === exampleRequestPath &&
+            t.exampleId === exampleId
+        )
+        if (matchingTab) updateTab(matchingTab.id, { name: newName })
+      } else {
+        toast.error(`Rename failed: ${res.error}`)
+      }
+    } catch (err) {
+      toast.error(`Rename failed: ${String(err)}`)
+    }
+  }
+
+  const handleDeleteExample = async () => {
+    if (!exampleRequestPath || !exampleId) return
+    try {
+      const res = await commands.deleteExample(exampleRequestPath, exampleId)
+      if (res.status === 'ok') {
+        if (resolvedCollectionPath) await loadCollection(resolvedCollectionPath)
+        closeTabsWhere(
+          (t) =>
+            t.type === 'example' &&
+            t.requestPath === exampleRequestPath &&
+            t.exampleId === exampleId
+        )
+      } else {
+        toast.error(`Delete failed: ${res.error}`)
       }
     } catch (err) {
       toast.error(`Delete failed: ${String(err)}`)
@@ -407,6 +469,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           : ''
       return `This will permanently delete the folder "${label}".${countText} This action cannot be undone.`
     }
+    if (type === 'example') {
+      return `This will permanently delete the example "${label}". This action cannot be undone.`
+    }
     return `This will permanently delete the request "${label}". This action cannot be undone.`
   }, [type, label, folderItemCount, folderFolderCount])
 
@@ -501,6 +566,15 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       ]
     }
 
+    // Example node context menu
+    if (type === 'example') {
+      return [
+        { label: 'Rename', onClick: () => setIsRenaming(true) },
+        { label: '', separator: true },
+        { label: 'Delete', danger: true, onClick: handleShowDeleteConfirm },
+      ]
+    }
+
     // Request
     return [
       { label: 'Move Up', shortcut: '⌥↑', disabled: !canMoveUp, onClick: handleMoveUp },
@@ -516,7 +590,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       },
       {
         label: 'Create Example',
-        onClick: () => toast.info('Example creation is coming in a future release'),
+        onClick: () => openCreateExampleModal(path),
       },
       {
         label: isMac ? 'Reveal in Finder' : 'Reveal in Explorer',
@@ -554,6 +628,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     openShareModal,
     openGenerateDocsModal,
     openGenerateCodeModal,
+    openCreateExampleModal,
   ])
 
   const highlightMatch = (text: string, query: string) => {
@@ -588,6 +663,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         return <Icons.Folder size={12} className="text-text-muted" />
       case 'request':
         return method ? <MethodBadge method={method} /> : null
+      case 'example':
+        return (
+          <span className="inline-flex items-center justify-center w-[24px] h-[16px] rounded text-[9px] font-semibold bg-bg-muted text-text-muted border border-border-subtle leading-none">
+            E
+          </span>
+        )
       default:
         return null
     }
@@ -619,7 +700,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         }}
         onClick={() => {
           setSelectedPath(path)
-          if (type === 'request') {
+          if (type === 'request' || type === 'example') {
             onClick?.()
           } else {
             onToggle?.()
@@ -633,7 +714,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           }
         }}
       >
-        {(type === 'collection' || type === 'folder') && (
+        {(type === 'collection' ||
+          type === 'folder' ||
+          (type === 'request' && onToggle !== undefined)) && (
           <div
             className={`w-3 h-3 flex items-center justify-center transition-transform duration-150 ${
               isExpanded ? 'rotate-0' : '-rotate-90'
@@ -765,7 +848,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDelete}
-        title={`Delete ${type === 'request' ? 'Request' : 'Folder'}?`}
+        title={`Delete ${type === 'request' ? 'Request' : type === 'example' ? 'Example' : 'Folder'}?`}
         description={deleteDescription}
         confirmLabel="Delete"
         variant="danger"

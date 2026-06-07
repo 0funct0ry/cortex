@@ -73,6 +73,9 @@ interface UIState {
   generateCodeModal: GenerateCodeModalState
   openGenerateCodeModal: (requestPath: string, requestName: string) => void
   closeGenerateCodeModal: () => void
+  createExampleModal: { isOpen: boolean; requestPath: string | null; resetKey: number }
+  openCreateExampleModal: (requestPath: string) => void
+  closeCreateExampleModal: () => void
   layout: 'horizontal' | 'vertical'
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
@@ -168,6 +171,19 @@ export const useUIStore = create<UIState>((set) => {
       set({ generateCodeModal: { isOpen: true, requestPath, requestName } }),
     closeGenerateCodeModal: () =>
       set({ generateCodeModal: { isOpen: false, requestPath: null, requestName: null } }),
+    createExampleModal: { isOpen: false, requestPath: null, resetKey: 0 },
+    openCreateExampleModal: (requestPath) =>
+      set((state) => ({
+        createExampleModal: {
+          isOpen: true,
+          requestPath,
+          resetKey: state.createExampleModal.resetKey + 1,
+        },
+      })),
+    closeCreateExampleModal: () =>
+      set((state) => ({
+        createExampleModal: { ...state.createExampleModal, isOpen: false, requestPath: null },
+      })),
     layout: initialLayout,
     toggleLayout: () =>
       set((state) => {

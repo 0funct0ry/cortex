@@ -1,4 +1,4 @@
-export type TreeNodeType = 'collection' | 'folder' | 'request'
+export type TreeNodeType = 'collection' | 'folder' | 'request' | 'example'
 
 export function computeDropPositionFromCoords(
   clientY: number,

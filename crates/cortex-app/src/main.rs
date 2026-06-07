@@ -122,6 +122,9 @@ fn main() {
             commands::generate_docs_openapi,
             commands::generate_docs_api_blueprint,
             commands::generate_docs_postman,
+            commands::create_example,
+            commands::update_example,
+            commands::delete_example,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -221,6 +224,9 @@ mod tests {
                 commands::generate_docs_openapi,
                 commands::generate_docs_api_blueprint,
                 commands::generate_docs_postman,
+                commands::create_example,
+                commands::update_example,
+                commands::delete_example,
             ]);
 
         builder

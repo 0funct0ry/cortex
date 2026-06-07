@@ -2,6 +2,43 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeMap;
 
+/// A single header entry in a saved example.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct ExampleHeader {
+    pub key: String,
+    pub value: String,
+    pub enabled: bool,
+}
+
+/// The response snapshot captured in a saved example.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct ExampleResponse {
+    pub status: u16,
+    pub status_text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+}
+
+/// A saved request/response example attached to a request file.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
+pub struct RequestExample {
+    /// Stable UUID identifier.
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub method: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<Vec<ExampleHeader>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<RequestBody>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<ExampleResponse>,
+}
+
 /// Represents the structure of a `.crx` request file.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 #[serde(deny_unknown_fields)]
@@ -38,6 +75,9 @@ pub struct RequestFile {
     /// Per-request settings
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<Settings>,
+    /// Saved request/response examples.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub examples: Option<Vec<RequestExample>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
@@ -156,6 +196,7 @@ impl RequestFile {
             tests: None,
             tags: None,
             settings: None,
+            examples: None,
         }
     }
 
@@ -352,6 +393,53 @@ unknown_field: \"should fail\"
         let yaml = req.to_yaml().unwrap();
         let decoded: RequestFile = RequestFile::from_yaml(&yaml).unwrap();
         assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_examples_roundtrip() {
+        let mut req = RequestFile::new(
+            "Example Request".to_string(),
+            "POST".to_string(),
+            "https://api.example.com/items".to_string(),
+        );
+        req.examples = Some(vec![RequestExample {
+            id: "ex-001".to_string(),
+            name: "Example 1".to_string(),
+            description: Some("A basic success example".to_string()),
+            method: "POST".to_string(),
+            url: "https://api.example.com/items".to_string(),
+            headers: Some(vec![ExampleHeader {
+                key: "Content-Type".to_string(),
+                value: "application/json".to_string(),
+                enabled: true,
+            }]),
+            body: Some(RequestBody {
+                active_type: Some("raw_text".to_string()),
+                raw_text: Some("{\"name\": \"widget\"}".to_string()),
+                ..Default::default()
+            }),
+            response: Some(ExampleResponse {
+                status: 201,
+                status_text: "Created".to_string(),
+                headers: {
+                    let mut m = BTreeMap::new();
+                    m.insert("content-type".to_string(), "application/json".to_string());
+                    Some(m)
+                },
+                body: Some("{\"id\": 1, \"name\": \"widget\"}".to_string()),
+            }),
+        }]);
+
+        let yaml = req.to_yaml().unwrap();
+        assert!(yaml.contains("examples:"));
+        assert!(yaml.contains("Example 1"));
+        assert!(yaml.contains("status: 201"));
+
+        let decoded = RequestFile::from_yaml(&yaml).unwrap();
+        assert_eq!(req, decoded);
+        let examples = decoded.examples.unwrap();
+        assert_eq!(examples.len(), 1);
+        assert_eq!(examples[0].response.as_ref().unwrap().status, 201);
     }
 
     #[test]

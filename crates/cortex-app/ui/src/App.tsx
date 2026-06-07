@@ -14,6 +14,7 @@ import ShareCollectionModal from './components/ui/ShareCollectionModal'
 import ImportCollectionDialog from './components/ui/ImportCollectionDialog'
 import GenerateDocsModal from './components/ui/GenerateDocsModal'
 import GenerateCodeModal from './components/ui/GenerateCodeModal'
+import CreateExampleModal from './components/ui/CreateExampleModal'
 
 function App() {
   const { setResponse } = useResponseStore()
@@ -54,6 +55,7 @@ function App() {
       <ImportCollectionDialog />
       <GenerateDocsModal />
       <GenerateCodeModal />
+      <CreateExampleModal />
     </TabsProvider>
   )
 }

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
-export type TabType = 'request' | 'environments' | 'collection' | 'folder'
+export type TabType = 'request' | 'environments' | 'collection' | 'folder' | 'example'
 
 export interface Tab {
   id: string
@@ -9,6 +9,7 @@ export interface Tab {
   collectionId: string | null
   collectionPath: string | null // absolute disk path, singleton key for collection tabs
   folderPath: string | null // absolute disk path, singleton key for folder settings tabs
+  exampleId?: string | null // stable example UUID, used for example tabs
   method: string
   name: string
   isDirty: boolean
@@ -47,6 +48,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...t,
           collectionPath: t.collectionPath ?? null,
           folderPath: t.folderPath ?? null,
+          exampleId: t.exampleId ?? null,
         }))
       } catch (e) {
         console.error('Failed to load tabs from localStorage', e)
@@ -118,10 +120,25 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      // Example tabs are singleton per requestPath + exampleId
+      if (tabData.type === 'example' && tabData.requestPath && tabData.exampleId) {
+        const existingTab = tabs.find(
+          (t) =>
+            t.type === 'example' &&
+            t.requestPath === tabData.requestPath &&
+            t.exampleId === tabData.exampleId
+        )
+        if (existingTab) {
+          activateTab(existingTab.id)
+          return existingTab.id
+        }
+      }
+
       const newTab: Tab = {
         ...tabData,
         id: crypto.randomUUID(),
         isDirty: false,
+        exampleId: tabData.exampleId ?? null,
       }
 
       setTabs((prev) => [...prev, newTab])

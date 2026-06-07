@@ -1,6 +1,6 @@
 use base64::Engine as _;
 use cortex_core::collection::{Collection, CollectionItem};
-use cortex_core::request::RequestBody;
+use cortex_core::request::{RequestBody, RequestExample};
 use cortex_core::variables::Variable;
 use pulldown_cmark::{html as cmark_html, Options, Parser};
 use serde::{Deserialize, Serialize};
@@ -86,6 +86,7 @@ struct DocRequest {
     tags: Vec<String>,
     pre_script: Option<String>,
     post_script: Option<String>,
+    examples: Vec<RequestExample>,
 }
 
 struct BodyDoc {
@@ -365,6 +366,7 @@ fn collect_items(
                     rf.name.clone()
                 };
 
+                let examples = rf.examples.clone().unwrap_or_default();
                 result.push(DocItem::Request(Box::new(DocRequest {
                     name: display_name,
                     method: rf.method.clone(),
@@ -377,6 +379,7 @@ fn collect_items(
                     tags,
                     pre_script,
                     post_script,
+                    examples,
                 })));
             }
         }
@@ -652,6 +655,78 @@ fn write_md_items(
                                 "```javascript\n{}\n```\n\n</details>\n\n",
                                 post
                             ));
+                        }
+                    }
+                }
+
+                if !req.examples.is_empty() {
+                    out.push_str("**Examples**\n\n");
+                    for example in &req.examples {
+                        if opts.collapse_examples {
+                            out.push_str(&format!(
+                                "<details>\n<summary>{}</summary>\n\n",
+                                example.name
+                            ));
+                        } else {
+                            out.push_str(&format!("*{}*\n\n", example.name));
+                        }
+                        if let Some(desc) = &example.description {
+                            if !desc.is_empty() {
+                                out.push_str(&format!("{}\n\n", desc));
+                            }
+                        }
+                        // Request body
+                        if let Some(body) = &example.body {
+                            let text = body
+                                .raw_text
+                                .as_deref()
+                                .or(body.json.as_deref())
+                                .or(body.text.as_deref())
+                                .unwrap_or("");
+                            if !text.is_empty() {
+                                let lang = if body.active_type.as_deref() == Some("json")
+                                    || body.json.is_some()
+                                {
+                                    "json"
+                                } else {
+                                    "text"
+                                };
+                                out.push_str(&format!(
+                                    "Request body:\n\n```{}\n{}\n```\n\n",
+                                    lang, text
+                                ));
+                            }
+                        }
+                        // Response
+                        if let Some(resp) = &example.response {
+                            out.push_str(&format!(
+                                "Response: **{} {}**\n\n",
+                                resp.status, resp.status_text
+                            ));
+                            if let Some(body) = &resp.body {
+                                if !body.is_empty() {
+                                    let lang = resp
+                                        .headers
+                                        .as_ref()
+                                        .and_then(|h| {
+                                            h.get("content-type").or_else(|| h.get("Content-Type"))
+                                        })
+                                        .map(|ct| {
+                                            if ct.contains("json") {
+                                                "json"
+                                            } else if ct.contains("xml") {
+                                                "xml"
+                                            } else {
+                                                "text"
+                                            }
+                                        })
+                                        .unwrap_or("text");
+                                    out.push_str(&format!("```{}\n{}\n```\n\n", lang, body));
+                                }
+                            }
+                        }
+                        if opts.collapse_examples {
+                            out.push_str("</details>\n\n");
                         }
                     }
                 }
@@ -1105,6 +1180,58 @@ fn build_items_html(items: &[DocItem], out: &mut String, opts: &HtmlDocOptions, 
                         html_escape(&body.content_type)
                     ));
                     out.push_str(&format!("<pre>{}</pre>", html_escape(&body.content)));
+                    out.push_str("</div>\n");
+                }
+
+                if !req.examples.is_empty() {
+                    out.push_str(r#"<div class="ep-section"><h4>Examples</h4>"#);
+                    for example in &req.examples {
+                        out.push_str(&format!(
+                            r#"<details class="example-block"><summary><strong>{}</strong></summary>"#,
+                            html_escape(&example.name)
+                        ));
+                        if let Some(desc) = &example.description {
+                            if !desc.is_empty() {
+                                out.push_str(&format!(
+                                    "<p class=\"example-desc\">{}</p>",
+                                    html_escape(desc)
+                                ));
+                            }
+                        }
+                        if let Some(body) = &example.body {
+                            let text = body
+                                .raw_text
+                                .as_deref()
+                                .or(body.json.as_deref())
+                                .or(body.text.as_deref())
+                                .unwrap_or("");
+                            if !text.is_empty() {
+                                out.push_str("<p><em>Request body:</em></p>");
+                                out.push_str(&format!("<pre>{}</pre>", html_escape(text)));
+                            }
+                        }
+                        if let Some(resp) = &example.response {
+                            let status_class = if resp.status >= 200 && resp.status < 300 {
+                                "status-2xx"
+                            } else if resp.status >= 300 && resp.status < 400 {
+                                "status-3xx"
+                            } else {
+                                "status-err"
+                            };
+                            out.push_str(&format!(
+                                r#"<p>Response: <span class="{}">{} {}</span></p>"#,
+                                status_class,
+                                resp.status,
+                                html_escape(&resp.status_text)
+                            ));
+                            if let Some(body) = &resp.body {
+                                if !body.is_empty() {
+                                    out.push_str(&format!("<pre>{}</pre>", html_escape(body)));
+                                }
+                            }
+                        }
+                        out.push_str("</details>\n");
+                    }
                     out.push_str("</div>\n");
                 }
 

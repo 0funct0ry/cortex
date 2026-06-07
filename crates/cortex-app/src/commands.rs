@@ -1,6 +1,6 @@
 use crate::state::{AppSettings, EphemeralStore, HistoryStore, RecentWorkspace};
 use cortex_core::collection::{Collection, TagDefinition};
-use cortex_core::request::{AuthRef, RequestFile, RequestHistoryEntry};
+use cortex_core::request::{AuthRef, RequestExample, RequestFile, RequestHistoryEntry};
 use cortex_core::variables::Variable;
 use cortex_core::workspace::{Workspace, WorkspaceManifest};
 use serde::{Deserialize, Serialize};
@@ -121,7 +121,87 @@ pub async fn load_request(
 #[specta::specta]
 pub async fn save_request(request: RequestFile, path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        Collection::save_request(&request, &PathBuf::from(path)).map_err(|e| e.to_string())
+        let path_buf = PathBuf::from(&path);
+        // The frontend RequestData model has no examples field. Preserve any examples
+        // already on disk so that saving a request (e.g. changing its method) never
+        // silently deletes its examples.
+        let mut rf = request;
+        if rf.examples.is_none() && path_buf.exists() {
+            if let Ok(content) = std::fs::read_to_string(&path_buf) {
+                if let Ok(existing) = RequestFile::from_yaml(&content) {
+                    rf.examples = existing.examples;
+                }
+            }
+        }
+        Collection::save_request(&rf, &path_buf).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_example(
+    request_path: String,
+    example: RequestExample,
+) -> Result<RequestFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::fs;
+        let content = fs::read_to_string(&request_path).map_err(|e| e.to_string())?;
+        let mut rf = RequestFile::from_yaml(&content).map_err(|e| e.to_string())?;
+        let examples = rf.examples.get_or_insert_with(Vec::new);
+        examples.push(example);
+        Collection::save_request(&rf, &PathBuf::from(&request_path)).map_err(|e| e.to_string())?;
+        Ok(rf)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_example(
+    request_path: String,
+    example: RequestExample,
+) -> Result<RequestFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::fs;
+        let content = fs::read_to_string(&request_path).map_err(|e| e.to_string())?;
+        let mut rf = RequestFile::from_yaml(&content).map_err(|e| e.to_string())?;
+        if let Some(examples) = &mut rf.examples {
+            if let Some(existing) = examples.iter_mut().find(|e| e.id == example.id) {
+                *existing = example;
+            } else {
+                return Err(format!("Example {} not found", example.id));
+            }
+        } else {
+            return Err(format!("Example {} not found", example.id));
+        }
+        Collection::save_request(&rf, &PathBuf::from(&request_path)).map_err(|e| e.to_string())?;
+        Ok(rf)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_example(
+    request_path: String,
+    example_id: String,
+) -> Result<RequestFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::fs;
+        let content = fs::read_to_string(&request_path).map_err(|e| e.to_string())?;
+        let mut rf = RequestFile::from_yaml(&content).map_err(|e| e.to_string())?;
+        if let Some(examples) = &mut rf.examples {
+            examples.retain(|e| e.id != example_id);
+            if examples.is_empty() {
+                rf.examples = None;
+            }
+        }
+        Collection::save_request(&rf, &PathBuf::from(&request_path)).map_err(|e| e.to_string())?;
+        Ok(rf)
     })
     .await
     .map_err(|e| e.to_string())?

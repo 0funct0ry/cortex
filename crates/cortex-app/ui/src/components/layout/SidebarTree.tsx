@@ -878,38 +878,78 @@ const SidebarTree: React.FC = () => {
         )
       } else {
         const request = item.data
+        const examples = request.content?.examples ?? []
+        const hasExamples = examples.length > 0
+        const examplesExpandKey = `${request.path}#examples`
+        const examplesExpanded = hasExamples ? (expansionState[examplesExpandKey] ?? true) : false
         return (
-          <TreeNode
-            key={request.path}
-            label={request.name}
-            depth={depth}
-            type="request"
-            path={request.path}
-            method={request.content?.method || 'GET'}
-            error={request.error}
-            isActive={activeTab?.requestPath === request.path}
-            requestTags={request.content?.tags ?? []}
-            collectionPath={collectionPath}
-            siblings={siblingPaths}
-            onClick={() => {
-              const tabId = openTab({
-                type: 'request',
-                requestPath: request.path,
-                collectionId: collectionPath,
-                collectionPath: null,
-                folderPath: null,
-                name: request.name,
-                method: request.content?.method || 'GET',
-              })
-              if (request.content) {
-                useRequestStore.getState().populateRequest(tabId, request.content)
-              }
-            }}
-            parentPath={getParentDirectory(request.path)}
-            dropIndicator={dropIndicator}
-            isDragSource={draggingPath === request.path}
-            onNodeMouseDown={handleNodeMouseDown}
-          />
+          <React.Fragment key={request.path}>
+            <TreeNode
+              label={request.name}
+              depth={depth}
+              type="request"
+              path={request.path}
+              method={request.content?.method || 'GET'}
+              error={request.error}
+              isActive={activeTab?.requestPath === request.path && activeTab?.type === 'request'}
+              requestTags={request.content?.tags ?? []}
+              collectionPath={collectionPath}
+              siblings={siblingPaths}
+              isExpanded={hasExamples ? examplesExpanded : undefined}
+              onToggle={hasExamples ? () => toggleExpansion(examplesExpandKey) : undefined}
+              onClick={() => {
+                const tabId = openTab({
+                  type: 'request',
+                  requestPath: request.path,
+                  collectionId: collectionPath,
+                  collectionPath: null,
+                  folderPath: null,
+                  name: request.name,
+                  method: request.content?.method || 'GET',
+                })
+                if (request.content) {
+                  useRequestStore.getState().populateRequest(tabId, request.content)
+                }
+              }}
+              parentPath={getParentDirectory(request.path)}
+              dropIndicator={dropIndicator}
+              isDragSource={draggingPath === request.path}
+              onNodeMouseDown={handleNodeMouseDown}
+            />
+            {hasExamples &&
+              examplesExpanded &&
+              examples.map((example) => (
+                <TreeNode
+                  key={`${request.path}#${example.id}`}
+                  label={example.name}
+                  depth={depth + 1}
+                  type="example"
+                  path={`${request.path}#${example.id}`}
+                  method=""
+                  collectionPath={collectionPath}
+                  siblings={[]}
+                  isActive={
+                    activeTab?.type === 'example' &&
+                    activeTab?.requestPath === request.path &&
+                    activeTab?.exampleId === example.id
+                  }
+                  onClick={() => {
+                    openTab({
+                      type: 'example',
+                      requestPath: request.path,
+                      collectionId: collectionPath,
+                      collectionPath: null,
+                      folderPath: null,
+                      exampleId: example.id,
+                      name: example.name,
+                      method: example.method,
+                    })
+                  }}
+                  parentPath={request.path}
+                  onNodeMouseDown={handleNodeMouseDown}
+                />
+              ))}
+          </React.Fragment>
         )
       }
     })

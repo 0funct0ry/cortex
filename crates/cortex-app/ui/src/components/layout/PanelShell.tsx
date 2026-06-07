@@ -8,6 +8,7 @@ import WorkspaceHome from './WorkspaceHome'
 import Composer from '../composer/Composer'
 import CollectionView from '../collection/CollectionView'
 import FolderView from '../collection/FolderView'
+import ExampleView from '../composer/ExampleView'
 import NewRequestDialog from '../ui/NewRequestDialog'
 import NewTransientRequestDialog from '../ui/NewTransientRequestDialog'
 import SaveToCollectionDialog from '../ui/SaveToCollectionDialog'
@@ -229,6 +230,11 @@ const PanelShell: React.FC = () => {
                     />
                   ) : activeTab?.type === 'environments' ? (
                     <EnvironmentsTab />
+                  ) : activeTab?.type === 'example' ? (
+                    <ExampleView
+                      requestPath={activeTab.requestPath!}
+                      exampleId={activeTab.exampleId!}
+                    />
                   ) : (
                     <PanelGroup key={layout} direction={layout} onLayout={onEditorLayout}>
                       {/* COMPOSER */}
