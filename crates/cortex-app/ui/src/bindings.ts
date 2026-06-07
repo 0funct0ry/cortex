@@ -697,6 +697,30 @@ async generateDocsPostman(collectionPath: string) : Promise<Result<string, strin
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async createExample(requestPath: string, example: RequestExample) : Promise<Result<RequestFile, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_example", { requestPath, example }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateExample(requestPath: string, example: RequestExample) : Promise<Result<RequestFile, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_example", { requestPath, example }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteExample(requestPath: string, exampleId: string) : Promise<Result<RequestFile, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_example", { requestPath, exampleId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -802,6 +826,14 @@ name: string;
  * List of environment variables
  */
 variables: Variable[] }
+/**
+ * A single header entry in a saved example.
+ */
+export type ExampleHeader = { key: string; value: string; enabled: boolean }
+/**
+ * The response snapshot captured in a saved example.
+ */
+export type ExampleResponse = { status: number; status_text: string; headers?: { [key in string]: string } | null; body?: string | null }
 export type Folder = { name: string; path: string; relative_path: string; manifest?: FolderManifest | null; items: CollectionItem[] }
 /**
  * Represents the optional `folder.yaml` configuration inside a folder directory.
@@ -836,6 +868,14 @@ export type RecentWorkspace = { name: string; path: string }
 export type RedirectHop = { method: string; url: string; status_code: number }
 export type RenderedHeader = { key: string; value: string }
 export type RequestBody = { text?: string | null; json?: string | null; form?: { [key in string]: string } | null; active_type?: string | null; raw_text?: string | null; raw_subtype?: string | null; form_data?: FormEntry[] | null; url_encoded?: UrlEncodedEntry[] | null; file_path?: string | null; file_filter?: string | null }
+/**
+ * A saved request/response example attached to a request file.
+ */
+export type RequestExample = { 
+/**
+ * Stable UUID identifier.
+ */
+id: string; name: string; description?: string | null; method: string; url: string; headers?: ExampleHeader[] | null; body?: RequestBody | null; response?: ExampleResponse | null }
 /**
  * Represents the structure of a `.crx` request file.
  */
@@ -887,7 +927,11 @@ tags?: string[] | null;
 /**
  * Per-request settings
  */
-settings?: Settings | null }
+settings?: Settings | null; 
+/**
+ * Saved request/response examples.
+ */
+examples?: RequestExample[] | null }
 export type RequestFileWrapper = { name: string; path: string; relative_path: string; content: RequestFile | null; error: string | null }
 /**
  * Represents an executed request log entry captured in history.
