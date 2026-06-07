@@ -458,6 +458,10 @@ pub struct ItemInfo {
     pub modified: Option<String>,
     pub item_count: Option<u32>,
     pub folder_count: Option<u32>,
+    pub direct_request_count: Option<u32>,
+    pub direct_folder_count: Option<u32>,
+    pub method: Option<String>,
+    pub url: Option<String>,
 }
 
 #[tauri::command]
@@ -467,6 +471,7 @@ pub fn get_item_info(path: String) -> Result<ItemInfo, String> {
     if !p.exists() {
         return Err(format!("Path does not exist: {path}"));
     }
+    let p = std::fs::canonicalize(&p).unwrap_or(p);
 
     let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
 
@@ -482,14 +487,40 @@ pub fn get_item_info(path: String) -> Result<ItemInfo, String> {
         format_unix_timestamp(secs)
     });
 
-    let (item_count, folder_count) = if p.is_dir() {
+    let (item_count, folder_count, direct_request_count, direct_folder_count) = if p.is_dir() {
         let (requests, folders) = count_folder_items(&p);
-        (Some(requests), Some(folders))
+        let (direct_req, direct_fol) = count_direct_folder_items(&p);
+        (Some(requests), Some(folders), Some(direct_req), Some(direct_fol))
+    } else {
+        (None, None, None, None)
+    };
+
+    let (method, url) = if p.is_file() && p.extension().is_some_and(|e| e == "crx") {
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            if let Ok(rf) = RequestFile::from_yaml(&content) {
+                (Some(rf.method), Some(rf.url))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        }
     } else {
         (None, None)
     };
 
-    Ok(ItemInfo { path, size_bytes, created, modified, item_count, folder_count })
+    Ok(ItemInfo {
+        path: p.to_string_lossy().into_owned(),
+        size_bytes,
+        created,
+        modified,
+        item_count,
+        folder_count,
+        direct_request_count,
+        direct_folder_count,
+        method,
+        url,
+    })
 }
 
 fn dir_size(path: &std::path::Path) -> std::io::Result<u64> {
@@ -504,6 +535,22 @@ fn dir_size(path: &std::path::Path) -> std::io::Result<u64> {
         }
     }
     Ok(total)
+}
+
+fn count_direct_folder_items(path: &std::path::Path) -> (u32, u32) {
+    let mut requests = 0u32;
+    let mut folders = 0u32;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                folders += 1;
+            } else if p.extension().is_some_and(|e| e == "crx") {
+                requests += 1;
+            }
+        }
+    }
+    (requests, folders)
 }
 
 fn count_folder_items(path: &std::path::Path) -> (u32, u32) {
@@ -558,7 +605,7 @@ fn format_unix_timestamp(secs: u64) -> String {
         month += 1;
     }
     let day = days + 1;
-    format!("{year:04}-{month:02}-{day:02} {hh:02}:{mm:02}:{ss:02} UTC")
+    format!("{year:04}-{month:02}-{day:02}T{hh:02}:{mm:02}:{ss:02}Z")
 }
 
 fn is_leap(year: u64) -> bool {

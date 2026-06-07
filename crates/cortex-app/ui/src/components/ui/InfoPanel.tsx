@@ -17,6 +17,10 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
 }
 
+function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
 const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, path, type }) => {
   const [info, setInfo] = useState<ItemInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -54,9 +58,19 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, path, type }) =>
     ? [
         { label: 'Path', value: info.path },
         { label: 'Size', value: formatBytes(info.size_bytes) },
-        ...(info.created ? [{ label: 'Created', value: info.created }] : []),
-        ...(info.modified ? [{ label: 'Modified', value: info.modified }] : []),
-        ...(info.item_count != null ? [{ label: 'Requests', value: String(info.item_count) }] : []),
+        ...(info.created ? [{ label: 'Created', value: formatTimestamp(info.created) }] : []),
+        ...(info.modified ? [{ label: 'Modified', value: formatTimestamp(info.modified) }] : []),
+        ...(info.method != null ? [{ label: 'Method', value: info.method }] : []),
+        ...(info.url != null ? [{ label: 'URL', value: info.url }] : []),
+        ...(info.direct_request_count != null
+          ? [{ label: 'Direct requests', value: String(info.direct_request_count) }]
+          : []),
+        ...(info.direct_folder_count != null
+          ? [{ label: 'Subfolders', value: String(info.direct_folder_count) }]
+          : []),
+        ...(info.item_count != null
+          ? [{ label: 'Total requests', value: String(info.item_count) }]
+          : []),
       ]
     : []
 
