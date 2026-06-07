@@ -112,6 +112,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     openImportFolderDialog,
     openShareModal,
     openGenerateDocsModal,
+    openGenerateCodeModal,
   } = useUIStore()
 
   React.useEffect(() => {
@@ -511,7 +512,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       { label: 'Manage Tags', onClick: () => setShowTagManager(true) },
       {
         label: 'Generate Code',
-        onClick: () => toast.info('Code generation is coming in a future release'),
+        onClick: () => openGenerateCodeModal(path, label),
       },
       {
         label: 'Create Example',
@@ -552,6 +553,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     collectionPath,
     openShareModal,
     openGenerateDocsModal,
+    openGenerateCodeModal,
   ])
 
   const highlightMatch = (text: string, query: string) => {

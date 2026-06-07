@@ -192,7 +192,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
       {/* Highlighting Overlay (absolutely positioned behind/underneath transparent text) */}
       <div
         ref={overlayRef}
-        className={`absolute inset-x-0 bottom-0 top-0 flex items-center px-3 font-mono text-sm pointer-events-none overflow-hidden whitespace-nowrap select-none ${
+        className={`absolute inset-x-0 bottom-0 top-0 flex items-center px-3 font-mono text-sm pointer-events-none overflow-hidden whitespace-pre select-none ${
           !value ? 'text-text-muted' : 'text-text-primary'
         }`}
       >

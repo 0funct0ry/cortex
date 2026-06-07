@@ -30,6 +30,12 @@ interface GenerateDocsModalState {
   collectionName: string | null
 }
 
+interface GenerateCodeModalState {
+  isOpen: boolean
+  requestPath: string | null
+  requestName: string | null
+}
+
 interface UIState {
   sidebarCollapsed: boolean
   toggleSidebar: () => void
@@ -64,6 +70,9 @@ interface UIState {
   generateDocsModal: GenerateDocsModalState
   openGenerateDocsModal: (collectionPath: string, collectionName: string) => void
   closeGenerateDocsModal: () => void
+  generateCodeModal: GenerateCodeModalState
+  openGenerateCodeModal: (requestPath: string, requestName: string) => void
+  closeGenerateCodeModal: () => void
   layout: 'horizontal' | 'vertical'
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
@@ -154,6 +163,11 @@ export const useUIStore = create<UIState>((set) => {
       set({ generateDocsModal: { isOpen: true, collectionPath, collectionName } }),
     closeGenerateDocsModal: () =>
       set({ generateDocsModal: { isOpen: false, collectionPath: null, collectionName: null } }),
+    generateCodeModal: { isOpen: false, requestPath: null, requestName: null },
+    openGenerateCodeModal: (requestPath, requestName) =>
+      set({ generateCodeModal: { isOpen: true, requestPath, requestName } }),
+    closeGenerateCodeModal: () =>
+      set({ generateCodeModal: { isOpen: false, requestPath: null, requestName: null } }),
     layout: initialLayout,
     toggleLayout: () =>
       set((state) => {

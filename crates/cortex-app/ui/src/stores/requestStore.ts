@@ -235,7 +235,7 @@ export const useRequestStore = create<RequestState>((set, get) => ({
         data.params !== undefined &&
         JSON.stringify(data.params) !== JSON.stringify(current.params)
       ) {
-        const syncedUrl = syncUrlFromParams(current.url, data.params)
+        const syncedUrl = syncUrlFromParams(updated.url, data.params)
         if (syncedUrl !== current.url) {
           updated.url = syncedUrl
         }

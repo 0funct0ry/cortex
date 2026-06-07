@@ -13,6 +13,7 @@ import CollectionRunnerPanel from './components/collection-runner/CollectionRunn
 import ShareCollectionModal from './components/ui/ShareCollectionModal'
 import ImportCollectionDialog from './components/ui/ImportCollectionDialog'
 import GenerateDocsModal from './components/ui/GenerateDocsModal'
+import GenerateCodeModal from './components/ui/GenerateCodeModal'
 
 function App() {
   const { setResponse } = useResponseStore()
@@ -52,6 +53,7 @@ function App() {
       <ShareCollectionModal />
       <ImportCollectionDialog />
       <GenerateDocsModal />
+      <GenerateCodeModal />
     </TabsProvider>
   )
 }
