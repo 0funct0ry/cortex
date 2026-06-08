@@ -348,6 +348,20 @@ pub fn duplicate_request(path: String) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Open the webview developer tools (dev console).
+///
+/// `open_devtools` only exists when devtools are compiled in — that's automatic
+/// in debug builds (`debug_assertions`) and otherwise requires the `devtools`
+/// Cargo feature. In a release build without that feature this is a no-op.
+#[tauri::command]
+#[specta::specta]
+pub fn open_devtools(window: tauri::WebviewWindow) {
+    #[cfg(any(debug_assertions, feature = "devtools"))]
+    window.open_devtools();
+    #[cfg(not(any(debug_assertions, feature = "devtools")))]
+    let _ = window;
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn open_in_explorer(path: String) -> Result<(), String> {

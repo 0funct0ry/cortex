@@ -58,6 +58,7 @@ const PanelShell: React.FC = () => {
     layout,
     toggleLayout,
     openCommandPalette,
+    openCommandMode,
   } = useUIStore()
   const { tabs, activeTab, openTab } = useTabs()
 
@@ -179,6 +180,19 @@ const PanelShell: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [openCommandPalette])
+
+  // Keyboard shortcut Cmd+Shift+P / Ctrl+Shift+P — Command palette (command mode)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        openCommandMode()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openCommandMode])
 
   const onMainLayout = (sizes: number[]) => {
     setMainLayout(sizes)

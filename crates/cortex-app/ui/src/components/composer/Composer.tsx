@@ -56,6 +56,19 @@ const Composer: React.FC = () => {
     }
   }, [requestData, activeTabId, setDirty, activeTab])
 
+  // Command-palette "Save Request" action — save immediately on demand
+  React.useEffect(() => {
+    const onSave = () => {
+      if (activeTabId && activeTab?.requestPath && activeTab.type === 'request') {
+        saveRequest(activeTabId, activeTab.requestPath).then(() => {
+          setDirty(activeTabId, false)
+        })
+      }
+    }
+    window.addEventListener('cortex:save-request', onSave)
+    return () => window.removeEventListener('cortex:save-request', onSave)
+  }, [activeTabId, activeTab, saveRequest, setDirty])
+
   // Auto-save logic
   React.useEffect(() => {
     if (

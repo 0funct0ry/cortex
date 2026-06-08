@@ -80,7 +80,9 @@ interface UIState {
   toggleLayout: () => void
   setLayout: (layout: 'horizontal' | 'vertical') => void
   isCommandPaletteOpen: boolean
+  commandPaletteMode: 'search' | 'command'
   openCommandPalette: () => void
+  openCommandMode: () => void
   closeCommandPalette: () => void
 }
 
@@ -196,7 +198,9 @@ export const useUIStore = create<UIState>((set) => {
       set({ layout })
     },
     isCommandPaletteOpen: false,
-    openCommandPalette: () => set({ isCommandPaletteOpen: true }),
+    commandPaletteMode: 'search',
+    openCommandPalette: () => set({ isCommandPaletteOpen: true, commandPaletteMode: 'search' }),
+    openCommandMode: () => set({ isCommandPaletteOpen: true, commandPaletteMode: 'command' }),
     closeCommandPalette: () => set({ isCommandPaletteOpen: false }),
   }
 })

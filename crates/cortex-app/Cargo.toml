@@ -25,5 +25,10 @@ serde_yaml = { workspace = true }
 reqwest = { version = "0.12", features = ["json"] }
 pulldown-cmark = "0.11"
 
+[features]
+# Compile the webview developer tools into release builds. Debug builds always
+# have them (via `debug_assertions`); enable this to also ship them in release.
+devtools = ["tauri/devtools"]
+
 [build-dependencies]
 tauri-build = { workspace = true, features = [] }

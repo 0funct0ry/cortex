@@ -201,7 +201,7 @@ const UrlBar: React.FC = () => {
     }
   }
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts + command-palette "Send Request" action
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -209,8 +209,13 @@ const UrlBar: React.FC = () => {
         handleSend()
       }
     }
+    const handleSendEvent = () => handleSend()
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('cortex:send-request', handleSendEvent)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('cortex:send-request', handleSendEvent)
+    }
   }, [handleSend])
 
   if (!activeTabId || !tabState) return null

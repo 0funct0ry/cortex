@@ -96,6 +96,16 @@ async openInExplorer(path: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Open the webview developer tools (dev console).
+ * 
+ * `open_devtools` only exists when devtools are compiled in — that's automatic
+ * in debug builds (`debug_assertions`) and otherwise requires the `devtools`
+ * Cargo feature. In a release build without that feature this is a no-op.
+ */
+async openDevtools() : Promise<void> {
+    await TAURI_INVOKE("open_devtools");
+},
 async loadWorkspace(path: string) : Promise<Result<WorkspaceResponse, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_workspace", { path }) };

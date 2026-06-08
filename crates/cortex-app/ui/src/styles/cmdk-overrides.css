@@ -1,0 +1,135 @@
+/* ─── react-cmdk color and layout overrides ─────────────────────────────────
+   Maps hardcoded Tailwind colors → project CSS custom properties so all 14
+   themes work automatically. The selector specificity matches the library's
+   own classes; !important resolves any remaining cascade conflicts. */
+
+/* Position palette at top (VS Code style) instead of vertically centered */
+.command-palette .fixed.inset-0.overflow-y-auto {
+  align-items: flex-start !important;
+  padding-top: 15vh !important;
+}
+
+/* Convert fixed 450px height wrapper → responsive */
+.command-palette .h-\[450px\] {
+  height: auto !important;
+  max-height: 65vh !important;
+}
+
+/* Widen panel to match app design language */
+.command-palette .max-w-xl {
+  max-width: 640px !important;
+}
+
+/* Rounder panel corners */
+.command-palette .rounded-lg {
+  border-radius: 0.75rem !important;
+}
+
+/* Panel shadow */
+.command-palette .shadow-lg {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ── Backdrop ────────────────────────────────────────────────────────────── */
+.command-palette .bg-gray-900.bg-opacity-80 {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  --tw-bg-opacity: 1 !important;
+}
+
+/* ── Panel background ────────────────────────────────────────────────────── */
+.command-palette .bg-white,
+.command-palette .bg-gray-900:not(.bg-opacity-80) {
+  background-color: var(--color-bg-overlay) !important;
+}
+
+/* ── Panel dividers ──────────────────────────────────────────────────────── */
+.command-palette .divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--color-border-subtle) !important;
+}
+
+/* ── Selected / highlighted list item ────────────────────────────────────── */
+.command-palette .bg-gray-200\/50 {
+  background-color: var(--color-bg-highlight) !important;
+}
+
+/* ── Hovered list item ───────────────────────────────────────────────────── */
+.command-palette .hover\:bg-gray-100:hover {
+  background-color: var(--color-bg-highlight) !important;
+}
+
+/* ── Focus ring on list items ────────────────────────────────────────────── */
+.command-palette .focus\:ring-gray-300:focus {
+  --tw-ring-color: var(--color-border-default) !important;
+}
+
+/* ── Accent border (search input focus) ─────────────────────────────────── */
+.command-palette .border-indigo-500 {
+  border-color: var(--color-accent) !important;
+}
+
+/* ── Primary text ────────────────────────────────────────────────────────── */
+.command-palette .text-white {
+  color: var(--color-text-primary) !important;
+}
+.command-palette .text-white\/80 {
+  color: var(--color-text-secondary) !important;
+}
+
+/* ── Muted / secondary text ──────────────────────────────────────────────── */
+.command-palette .text-gray-400,
+.command-palette .text-gray-500 {
+  color: var(--color-text-muted) !important;
+}
+.command-palette .text-gray-300 {
+  color: var(--color-text-secondary) !important;
+}
+.command-palette .hover\:text-gray-500:hover {
+  color: var(--color-text-muted) !important;
+}
+
+/* ── Placeholder ─────────────────────────────────────────────────────────── */
+.command-palette .placeholder-gray-500::-moz-placeholder {
+  color: var(--color-text-muted) !important;
+}
+.command-palette .placeholder-gray-500::placeholder {
+  color: var(--color-text-muted) !important;
+}
+.command-palette input::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* ── List heading ────────────────────────────────────────────────────────── */
+.command-palette h4.px-3\.5 {
+  color: var(--color-text-muted) !important;
+  font-size: 0.625rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* ── Suppress prefers-color-scheme dark overrides ───────────────────────── */
+/* These fire on OS-level preference, not our [data-theme] selector.
+   Remap to tokens so they stay coherent with whichever theme is active. */
+@media (prefers-color-scheme: dark) {
+  .command-palette .dark\:divide-gray-800 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--color-border-subtle) !important;
+  }
+  .command-palette .dark\:bg-gray-900 {
+    background-color: var(--color-bg-overlay) !important;
+  }
+  .command-palette .dark\:bg-gray-800 {
+    background-color: var(--color-bg-highlight) !important;
+  }
+  .command-palette .dark\:text-white {
+    color: var(--color-text-primary) !important;
+  }
+  .command-palette .dark\:text-gray-600 {
+    color: var(--color-text-muted) !important;
+  }
+  .command-palette .dark\:hover\:bg-gray-800:hover {
+    background-color: var(--color-bg-highlight) !important;
+  }
+  .command-palette .dark\:hover\:text-gray-300:hover {
+    color: var(--color-text-secondary) !important;
+  }
+}
