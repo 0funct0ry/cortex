@@ -160,6 +160,7 @@ const GLOBAL_KEY = '__global__'
 
 interface EnvironmentEditorProps {
   name: string
+  envKey: string
   variables: Variable[]
   isGlobal?: boolean
   readOnly?: boolean
@@ -171,6 +172,7 @@ interface EnvironmentEditorProps {
 
 const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   name,
+  envKey,
   variables,
   isGlobal = false,
   readOnly = false,
@@ -179,6 +181,10 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   onRename,
   onDirtyChange,
 }) => {
+  const { varSearchQueries, setVarSearchQuery } = useEnvironmentStore()
+  const varSearch = varSearchQueries[envKey] ?? ''
+  const setVarSearch = (q: string) => setVarSearchQuery(envKey, q)
+
   const [localVariables, setLocalVariables] = useState<Variable[]>(variables)
   const [isDirty, setIsDirty] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -293,6 +299,36 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
         )}
       </div>
 
+      {/* Variable search bar */}
+      <div className="px-3 py-2 border-b border-border-subtle shrink-0">
+        <div className="relative">
+          <Icons.Search
+            size={11}
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+          />
+          <input
+            type="text"
+            placeholder="Search variables…"
+            value={varSearch}
+            onChange={(e) => setVarSearch(e.target.value)}
+            className="w-full h-7 pl-7 pr-7 bg-bg-surface border border-border-default rounded text-xs focus:border-accent focus:outline-none transition-colors placeholder:text-text-muted"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          {varSearch && (
+            <button
+              onClick={() => setVarSearch('')}
+              tabIndex={-1}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text-primary rounded transition-colors"
+              title="Clear search"
+            >
+              <Icons.X size={11} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Variable Table */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <VariableEditor
@@ -300,6 +336,7 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
           onChange={handleVariablesChange}
           title=""
           readOnly={readOnly}
+          searchQuery={varSearch}
         />
       </div>
 
@@ -530,6 +567,7 @@ const EnvironmentsTab: React.FC = () => {
         <EnvironmentEditor
           key="__global__"
           name="Global"
+          envKey={GLOBAL_KEY}
           variables={globalEnvironment?.variables ?? []}
           isGlobal
           onSave={handleSaveGlobal}
@@ -541,10 +579,12 @@ const EnvironmentsTab: React.FC = () => {
     // Check if a dot-env file is being viewed
     const dotEnvEntry = dotEnvFiles.find((d) => `__dotenv__${d.path}` === editingEnvironmentName)
     if (dotEnvEntry) {
+      const dotEnvKey = `__dotenv__${dotEnvEntry.path}`
       return (
         <EnvironmentEditor
           key={dotEnvEntry.path}
           name={dotEnvEntry.path.split('/').pop() ?? dotEnvEntry.path}
+          envKey={dotEnvKey}
           variables={dotEnvEntry.variables}
           readOnly
           onSave={async () => {}}
@@ -558,6 +598,7 @@ const EnvironmentsTab: React.FC = () => {
         <EnvironmentEditor
           key={selectedEnv.name}
           name={selectedEnv.name}
+          envKey={selectedEnv.name}
           variables={selectedEnv.variables}
           onSave={handleSave}
           onDelete={handleDelete}

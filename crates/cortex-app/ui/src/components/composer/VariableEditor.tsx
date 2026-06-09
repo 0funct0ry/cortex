@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import * as Icons from '../ui/Icons'
 import type { Variable } from '../../bindings'
 
@@ -7,6 +7,23 @@ interface VariableEditorProps {
   onChange: (variables: Variable[]) => void
   title?: string
   readOnly?: boolean
+  searchQuery?: string
+}
+
+// Highlights the first occurrence of `query` within `text`
+const Highlight: React.FC<{ text: string; query: string }> = ({ text, query }) => {
+  if (!query) return <>{text}</>
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-300/40 dark:bg-yellow-400/25 rounded-sm px-0.5 not-italic">
+        {text.slice(idx, idx + query.length)}
+      </mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
 }
 
 const VariableEditor: React.FC<VariableEditorProps> = ({
@@ -14,9 +31,20 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
   onChange,
   title = 'Variables',
   readOnly = false,
+  searchQuery = '',
 }) => {
   // Tracks which secret-flagged rows are temporarily revealed
   const [revealedRows, setRevealedRows] = useState<Set<number>>(new Set())
+
+  // Filtered rows mapped back to original indices
+  const filteredRows = useMemo(() => {
+    const rows = variables.map((v, i) => ({ v, i }))
+    if (!searchQuery) return rows
+    const q = searchQuery.toLowerCase()
+    return rows.filter(
+      ({ v }) => v.name.toLowerCase().includes(q) || String(v.value).toLowerCase().includes(q)
+    )
+  }, [variables, searchQuery])
 
   const handleVariableChange = (index: number, updates: Partial<Variable>) => {
     if (readOnly) return
@@ -97,14 +125,20 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
             </tr>
           </thead>
           <tbody>
-            {variables.map((variable, index) => {
+            {filteredRows.map(({ v: variable, i: index }) => {
               const isRevealed = revealedRows.has(index)
               const showAsPassword = variable.secret && !isRevealed
 
               return (
                 <tr
                   key={index}
-                  className={`group border-b border-border-subtle h-[32px] transition-colors ${
+                  tabIndex={readOnly ? undefined : 0}
+                  onKeyDown={(e) => {
+                    if (!readOnly && e.key === 'Delete' && e.target === e.currentTarget) {
+                      handleDelete(index)
+                    }
+                  }}
+                  className={`group border-b border-border-subtle h-[32px] transition-colors focus:outline-none focus:bg-accent/5 ${
                     readOnly
                       ? 'opacity-60 cursor-default bg-bg-muted/20'
                       : !variable.enabled
@@ -129,7 +163,7 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                   <td className="border-r border-border-subtle px-0">
                     {readOnly ? (
                       <span className="block w-full px-3 text-sm font-mono truncate text-text-secondary">
-                        {variable.name}
+                        <Highlight text={variable.name} query={searchQuery} />
                       </span>
                     ) : (
                       <input
@@ -150,7 +184,11 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                     <div className="relative flex items-center h-full">
                       {readOnly ? (
                         <span className="block w-full px-3 text-sm font-mono truncate text-text-secondary">
-                          {showAsPassword ? '••••••••' : String(variable.value)}
+                          {showAsPassword ? (
+                            '••••••••'
+                          ) : (
+                            <Highlight text={String(variable.value)} query={searchQuery} />
+                          )}
                         </span>
                       ) : (
                         <input
@@ -213,6 +251,14 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                 </tr>
               )
             })}
+            {/* Empty states */}
+            {filteredRows.length === 0 && searchQuery && (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-xs text-text-muted text-center">
+                  No variables match &ldquo;{searchQuery}&rdquo;
+                </td>
+              </tr>
+            )}
             {!readOnly && (
               <tr className="h-[32px]">
                 <td colSpan={5} className="p-0">
@@ -226,7 +272,7 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                 </td>
               </tr>
             )}
-            {readOnly && variables.length === 0 && (
+            {readOnly && variables.length === 0 && !searchQuery && (
               <tr className="h-[32px]">
                 <td colSpan={5} className="px-4 py-2 text-xs text-text-muted text-center">
                   No variables defined

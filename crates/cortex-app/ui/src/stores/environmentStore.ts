@@ -12,6 +12,7 @@ interface EnvironmentState {
   activeEnvironmentName: string | null
   editingEnvironmentName: string | null
   dirtyEnvironments: Record<string, boolean>
+  varSearchQueries: Record<string, string>
   dotEnvFiles: DotEnvFile[]
   globalEnvironment: EnvironmentFile | null
   isLoading: boolean
@@ -22,6 +23,7 @@ interface EnvironmentState {
   setActiveEnvironment: (name: string | null) => void
   setEditingEnvironment: (name: string | null) => void
   setDirty: (name: string, dirty: boolean) => void
+  setVarSearchQuery: (envKey: string, query: string) => void
   saveEnvironment: (environment: EnvironmentFile) => Promise<void>
   deleteEnvironment: (name: string) => Promise<void>
   updateVariables: (name: string, variables: Variable[]) => Promise<void>
@@ -51,6 +53,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
     activeEnvironmentName: null,
     editingEnvironmentName: null,
     dirtyEnvironments: {},
+    varSearchQueries: {},
     dotEnvFiles: [],
     globalEnvironment: null,
     isLoading: false,
@@ -118,6 +121,11 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
     },
 
     setEditingEnvironment: (name) => set({ editingEnvironmentName: name }),
+
+    setVarSearchQuery: (envKey, query) =>
+      set((state) => ({
+        varSearchQueries: { ...state.varSearchQueries, [envKey]: query },
+      })),
 
     setDirty: (name, dirty) =>
       set((state) => {
