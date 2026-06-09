@@ -8,6 +8,7 @@ import { commands } from '../../bindings'
 import VariableEditor from '../composer/VariableEditor'
 import Dialog from '../ui/Dialog'
 import type { Variable } from '../../bindings'
+import { TAG_COLORS, getTagColor } from '../../utils/tagColors'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CreateEnvironmentModal
@@ -162,11 +163,13 @@ interface EnvironmentEditorProps {
   name: string
   envKey: string
   variables: Variable[]
+  color?: string | null
   isGlobal?: boolean
   readOnly?: boolean
   onSave: (variables: Variable[]) => Promise<void>
   onDelete?: (name: string) => Promise<void>
   onRename?: (newName: string) => Promise<void>
+  onColorChange?: (color: string | null) => void
   onDirtyChange: (dirty: boolean) => void
 }
 
@@ -174,11 +177,13 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   name,
   envKey,
   variables,
+  color = null,
   isGlobal = false,
   readOnly = false,
   onSave,
   onDelete,
   onRename,
+  onColorChange,
   onDirtyChange,
 }) => {
   const { varSearchQueries, setVarSearchQuery } = useEnvironmentStore()
@@ -189,6 +194,8 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   const [isDirty, setIsDirty] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(name)
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  const colorPickerRef = useRef<HTMLDivElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   // Propagate dirty state upward whenever it changes.
@@ -204,6 +211,18 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   useEffect(() => {
     if (isRenaming) renameInputRef.current?.select()
   }, [isRenaming])
+
+  // Close color picker on outside click
+  useEffect(() => {
+    if (!colorPickerOpen) return
+    const handler = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setColorPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [colorPickerOpen])
 
   const handleSave = async () => {
     try {
@@ -273,6 +292,44 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
             />
           ) : (
             <>
+              {/* Color picker trigger */}
+              {onColorChange && (
+                <div className="relative shrink-0" ref={colorPickerRef}>
+                  <button
+                    onClick={() => setColorPickerOpen((v) => !v)}
+                    title="Set environment color"
+                    className="w-4 h-4 rounded-full border-2 border-border-default hover:border-accent transition-colors focus:outline-none"
+                    style={
+                      color
+                        ? {
+                            backgroundColor: getTagColor(color).bg,
+                            borderColor: getTagColor(color).bg,
+                          }
+                        : {}
+                    }
+                  />
+                  {colorPickerOpen && (
+                    <div className="absolute left-0 top-full mt-1 z-50 bg-bg-overlay border border-border-subtle rounded-md shadow-lg p-2 flex flex-wrap gap-1.5 w-[152px]">
+                      {TAG_COLORS.map((tc) => (
+                        <button
+                          key={tc.name}
+                          title={tc.name}
+                          onClick={() => {
+                            onColorChange(color === tc.name ? null : tc.name)
+                            setColorPickerOpen(false)
+                          }}
+                          className="w-5 h-5 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                          style={{
+                            backgroundColor: tc.bg,
+                            outline: color === tc.name ? `2px solid ${tc.bg}` : undefined,
+                            outlineOffset: color === tc.name ? '2px' : undefined,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <span className="text-sm font-semibold text-text-primary truncate">{name}</span>
               {onRename && (
                 <button
@@ -384,6 +441,8 @@ const EnvironmentsTab: React.FC = () => {
     setActiveEnvironment,
     dirtyEnvironments,
     setDirty,
+    envColors,
+    setEnvironmentColor,
     updateVariables,
     deleteEnvironment,
     renameEnvironment,
@@ -600,9 +659,11 @@ const EnvironmentsTab: React.FC = () => {
           name={selectedEnv.name}
           envKey={selectedEnv.name}
           variables={selectedEnv.variables}
+          color={envColors[selectedEnv.name] ?? null}
           onSave={handleSave}
           onDelete={handleDelete}
           onRename={handleRename}
+          onColorChange={(c) => setEnvironmentColor(selectedEnv.name, c)}
           onDirtyChange={(dirty) => setDirty(selectedEnv.name, dirty)}
         />
       )
@@ -701,50 +762,60 @@ const EnvironmentsTab: React.FC = () => {
 
         {/* Environment list */}
         <div className="flex-1 overflow-y-auto py-1 min-h-0">
-          {filteredEnvironments.map((env) => (
-            <div
-              key={env.name}
-              onClick={() => setEditingEnvironment(env.name)}
-              className={`group flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors ${
-                editingEnvironmentName === env.name ? 'bg-bg-muted' : 'hover:bg-bg-muted/50'
-              }`}
-            >
-              <span
-                className={`text-sm truncate flex-1 min-w-0 ${
-                  editingEnvironmentName === env.name
-                    ? 'text-text-primary font-medium'
-                    : 'text-text-secondary'
+          {filteredEnvironments.map((env) => {
+            const envColorBg = envColors[env.name] ? getTagColor(envColors[env.name]).bg : null
+            return (
+              <div
+                key={env.name}
+                onClick={() => setEditingEnvironment(env.name)}
+                className={`group flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors ${
+                  editingEnvironmentName === env.name ? 'bg-bg-muted' : 'hover:bg-bg-muted/50'
                 }`}
               >
-                {env.name}
-              </span>
-              <div className="flex items-center gap-1 shrink-0 ml-1">
-                {/* Dirty indicator */}
-                {dirtyEnvironments[env.name] && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Unsaved changes" />
-                )}
-                {/* Active checkmark */}
-                {activeEnvironmentName === env.name && (
-                  <Icons.Check size={13} className="text-success" />
-                )}
-                {/* Activate on click (separate from row select) */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setActiveEnvironment(activeEnvironmentName === env.name ? null : env.name)
-                  }}
-                  className={`p-0.5 opacity-0 group-hover:opacity-100 transition-all rounded text-text-muted hover:text-success`}
-                  title={
-                    activeEnvironmentName === env.name
-                      ? 'Deactivate environment'
-                      : 'Set as active environment'
-                  }
-                >
-                  <Icons.Check size={11} />
-                </button>
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {envColorBg ? (
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: envColorBg }}
+                    />
+                  ) : (
+                    <div className="w-2 shrink-0" />
+                  )}
+                  <span
+                    className={`text-sm truncate flex-1 min-w-0 ${
+                      editingEnvironmentName === env.name
+                        ? 'text-text-primary font-medium'
+                        : 'text-text-secondary'
+                    }`}
+                  >
+                    {env.name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-1">
+                  {dirtyEnvironments[env.name] && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Unsaved changes" />
+                  )}
+                  {activeEnvironmentName === env.name && (
+                    <Icons.Check size={13} className="text-success" />
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveEnvironment(activeEnvironmentName === env.name ? null : env.name)
+                    }}
+                    className="p-0.5 opacity-0 group-hover:opacity-100 transition-all rounded text-text-muted hover:text-success"
+                    title={
+                      activeEnvironmentName === env.name
+                        ? 'Deactivate environment'
+                        : 'Set as active environment'
+                    }
+                  >
+                    <Icons.Check size={11} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
           {filteredEnvironments.length === 0 && (
             <div className="px-3 py-6 text-center text-xs text-text-muted">
               {searchQuery ? 'No matches' : 'No environments yet'}

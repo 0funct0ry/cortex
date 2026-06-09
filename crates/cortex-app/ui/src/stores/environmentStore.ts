@@ -13,6 +13,7 @@ interface EnvironmentState {
   editingEnvironmentName: string | null
   dirtyEnvironments: Record<string, boolean>
   varSearchQueries: Record<string, string>
+  envColors: Record<string, string>
   dotEnvFiles: DotEnvFile[]
   globalEnvironment: EnvironmentFile | null
   isLoading: boolean
@@ -24,6 +25,7 @@ interface EnvironmentState {
   setEditingEnvironment: (name: string | null) => void
   setDirty: (name: string, dirty: boolean) => void
   setVarSearchQuery: (envKey: string, query: string) => void
+  setEnvironmentColor: (name: string, color: string | null) => void
   saveEnvironment: (environment: EnvironmentFile) => Promise<void>
   deleteEnvironment: (name: string) => Promise<void>
   updateVariables: (name: string, variables: Variable[]) => Promise<void>
@@ -38,6 +40,10 @@ function getActiveEnvKey(workspacePath: string | null): string {
   return workspacePath ? `cortex.active-environment.${workspacePath}` : 'cortex.active-environment'
 }
 
+function getEnvColorsKey(workspacePath: string | null): string {
+  return workspacePath ? `cortex.env-colors.${workspacePath}` : 'cortex.env-colors'
+}
+
 function readActiveEnv(workspacePath: string | null): string | null {
   // Try workspace-scoped key first, fall back to legacy global key
   if (workspacePath) {
@@ -47,6 +53,15 @@ function readActiveEnv(workspacePath: string | null): string | null {
   return localStorage.getItem('cortex.active-environment')
 }
 
+function readEnvColors(workspacePath: string | null): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(getEnvColorsKey(workspacePath))
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
+
 export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
   return {
     environments: [],
@@ -54,6 +69,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
     editingEnvironmentName: null,
     dirtyEnvironments: {},
     varSearchQueries: {},
+    envColors: {},
     dotEnvFiles: [],
     globalEnvironment: null,
     isLoading: false,
@@ -62,8 +78,9 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
     loadEnvironments: (environments, envFilePaths) => {
       const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
       const savedActive = readActiveEnv(workspacePath)
+      const savedColors = readEnvColors(workspacePath)
 
-      set({ environments })
+      set({ environments, envColors: savedColors })
 
       // Ensure active environment still exists after reload
       const active =
@@ -127,6 +144,20 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
         varSearchQueries: { ...state.varSearchQueries, [envKey]: query },
       })),
 
+    setEnvironmentColor: (name, color) => {
+      const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
+      set((state) => {
+        const next = { ...state.envColors }
+        if (color) {
+          next[name] = color
+        } else {
+          delete next[name]
+        }
+        localStorage.setItem(getEnvColorsKey(workspacePath), JSON.stringify(next))
+        return { envColors: next }
+      })
+    },
+
     setDirty: (name, dirty) =>
       set((state) => {
         // Guard against no-op updates to prevent infinite re-render loops:
@@ -173,15 +204,22 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
         const newDirty = { ...get().dirtyEnvironments }
         delete newDirty[name]
 
-        set((state) => ({
-          environments: state.environments.filter((e) => e.name !== name),
-          activeEnvironmentName:
-            state.activeEnvironmentName === name ? null : state.activeEnvironmentName,
-          editingEnvironmentName:
-            state.editingEnvironmentName === name ? null : state.editingEnvironmentName,
-          dirtyEnvironments: newDirty,
-          isLoading: false,
-        }))
+        set((state) => {
+          const newColors = { ...state.envColors }
+          delete newColors[name]
+          const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
+          localStorage.setItem(getEnvColorsKey(workspacePath), JSON.stringify(newColors))
+          return {
+            environments: state.environments.filter((e) => e.name !== name),
+            activeEnvironmentName:
+              state.activeEnvironmentName === name ? null : state.activeEnvironmentName,
+            editingEnvironmentName:
+              state.editingEnvironmentName === name ? null : state.editingEnvironmentName,
+            dirtyEnvironments: newDirty,
+            envColors: newColors,
+            isLoading: false,
+          }
+        })
 
         if (get().activeEnvironmentName === null) {
           const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
@@ -231,17 +269,27 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
         const newDirty = { ...get().dirtyEnvironments }
         delete newDirty[oldName]
 
-        set((state) => ({
-          environments: state.environments.map((e) =>
-            e.name === oldName ? { ...e, name: newName } : e
-          ),
-          activeEnvironmentName:
-            state.activeEnvironmentName === oldName ? newName : state.activeEnvironmentName,
-          editingEnvironmentName:
-            state.editingEnvironmentName === oldName ? newName : state.editingEnvironmentName,
-          dirtyEnvironments: { ...newDirty, [newName]: oldDirty },
-          isLoading: false,
-        }))
+        set((state) => {
+          const newColors = { ...state.envColors }
+          if (newColors[oldName]) {
+            newColors[newName] = newColors[oldName]
+            delete newColors[oldName]
+          }
+          const wp = useWorkspaceStore.getState().activeWorkspacePath
+          localStorage.setItem(getEnvColorsKey(wp), JSON.stringify(newColors))
+          return {
+            environments: state.environments.map((e) =>
+              e.name === oldName ? { ...e, name: newName } : e
+            ),
+            activeEnvironmentName:
+              state.activeEnvironmentName === oldName ? newName : state.activeEnvironmentName,
+            editingEnvironmentName:
+              state.editingEnvironmentName === oldName ? newName : state.editingEnvironmentName,
+            dirtyEnvironments: { ...newDirty, [newName]: oldDirty },
+            envColors: newColors,
+            isLoading: false,
+          }
+        })
 
         // Update scoped active env key if needed
         if (get().activeEnvironmentName === newName) {

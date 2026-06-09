@@ -3,6 +3,7 @@ import * as Icons from '../ui/Icons'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
+import { getTagColor } from '../../utils/tagColors'
 
 interface EnvironmentDropdownProps {
   onClose: () => void
@@ -15,6 +16,7 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
     setActiveEnvironment,
     setEditingEnvironment,
     updateVariables,
+    envColors,
   } = useEnvironmentStore()
   const { openTab } = useTabs()
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -34,7 +36,10 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
     onClose()
   }
 
-  const openEnvironmentsTab = () => {
+  const openEnvironmentsTab = (focusGlobal = false) => {
+    if (focusGlobal) {
+      setEditingEnvironment('__global__')
+    }
     openTab({
       type: 'environments',
       name: 'Environments',
@@ -96,39 +101,64 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
         </div>
       </button>
 
-      {environments.map((env) => (
-        <div
-          key={env.name}
-          className="w-full flex items-center justify-between hover:bg-bg-highlight transition-colors group"
-        >
-          <button
-            onClick={() => handleSelect(env.name)}
-            className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm text-left"
+      {environments.map((env) => {
+        const colorName = envColors[env.name] ?? null
+        const colorBg = colorName ? getTagColor(colorName).bg : null
+        return (
+          <div
+            key={env.name}
+            className="w-full flex items-center justify-between hover:bg-bg-highlight transition-colors group"
           >
-            {activeEnvironmentName === env.name ? (
-              <Icons.Check size={14} className="text-accent" />
-            ) : (
-              <div className="w-[14px]" />
-            )}
-            <span
-              className={
-                activeEnvironmentName === env.name
-                  ? 'text-text-primary font-medium'
-                  : 'text-text-secondary'
-              }
+            <button
+              onClick={() => handleSelect(env.name)}
+              className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm text-left"
             >
-              {env.name}
-            </span>
-          </button>
-          <button
-            onClick={() => handleEdit(env.name)}
-            className="p-1.5 mr-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
-            title="Edit environment"
-          >
-            <Icons.Sliders size={14} />
-          </button>
-        </div>
-      ))}
+              {activeEnvironmentName === env.name ? (
+                <Icons.Check size={14} className="text-accent" />
+              ) : (
+                <div className="w-[14px]" />
+              )}
+              {colorBg ? (
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: colorBg }}
+                />
+              ) : (
+                <div className="w-2.5" />
+              )}
+              <span
+                className={
+                  activeEnvironmentName === env.name
+                    ? 'text-text-primary font-medium'
+                    : 'text-text-secondary'
+                }
+              >
+                {env.name}
+              </span>
+            </button>
+            <button
+              onClick={() => handleEdit(env.name)}
+              className="p-1.5 mr-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
+              title="Edit environment"
+            >
+              <Icons.Sliders size={14} />
+            </button>
+          </div>
+        )
+      })}
+
+      <div className="h-[1px] bg-border-subtle my-1" />
+
+      <button
+        onClick={() => {
+          openEnvironmentsTab(true)
+          onClose()
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-highlight transition-colors"
+      >
+        <Icons.Globe size={14} />
+        <span>Global Environment</span>
+      </button>
 
       <div className="h-[1px] bg-border-subtle my-1" />
 
