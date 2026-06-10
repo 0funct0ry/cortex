@@ -35,6 +35,8 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
 }) => {
   // Tracks which secret-flagged rows are temporarily revealed
   const [revealedRows, setRevealedRows] = useState<Set<number>>(new Set())
+  // Tracks which row just had its value copied (for brief check-icon feedback)
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
   // Filtered rows mapped back to original indices
   const filteredRows = useMemo(() => {
@@ -79,6 +81,16 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
   const handleAdd = () => {
     if (readOnly) return
     onChange([...variables, { name: '', value: '', enabled: true, secret: false }])
+  }
+
+  const handleCopyValue = async (index: number, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedIndex(index)
+      setTimeout(() => setCopiedIndex(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy variable value', err)
+    }
   }
 
   const toggleReveal = (index: number) => {
@@ -197,26 +209,40 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                           onChange={(e) => handleVariableChange(index, { value: e.target.value })}
                           onKeyDown={(e) => handleValueKeyDown(e, index)}
                           placeholder={variable.secret ? '••••••••' : 'Value'}
-                          className="w-full h-full bg-transparent px-3 pr-8 text-sm font-mono focus:bg-bg-highlight focus:outline-none placeholder:text-text-muted/40"
+                          className={`w-full h-full bg-transparent px-3 text-sm font-mono focus:bg-bg-highlight focus:outline-none placeholder:text-text-muted/40 ${variable.secret ? 'pr-16' : 'pr-8'}`}
                           autoCapitalize="none"
                           autoCorrect="off"
                           spellCheck={false}
                         />
                       )}
-                      {/* Temporary reveal button — only shown when secret=true */}
+                      {/* Copy + reveal buttons — only shown when secret=true */}
                       {variable.secret && !readOnly && (
-                        <button
-                          onClick={() => toggleReveal(index)}
-                          tabIndex={-1}
-                          className={`absolute right-1 p-1 rounded transition-colors ${
-                            isRevealed
-                              ? 'text-accent bg-accent/10 hover:bg-accent/20'
-                              : 'text-text-muted hover:text-text-primary hover:bg-bg-muted'
-                          }`}
-                          title={isRevealed ? 'Hide value' : 'Reveal value temporarily'}
-                        >
-                          {isRevealed ? <Icons.EyeOff size={12} /> : <Icons.Eye size={12} />}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleCopyValue(index, String(variable.value))}
+                            tabIndex={-1}
+                            className="absolute right-7 p-1 rounded transition-colors text-text-muted hover:text-text-primary hover:bg-bg-muted"
+                            title="Copy value to clipboard"
+                          >
+                            {copiedIndex === index ? (
+                              <Icons.Check size={12} className="text-success" />
+                            ) : (
+                              <Icons.Copy size={12} />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => toggleReveal(index)}
+                            tabIndex={-1}
+                            className={`absolute right-1 p-1 rounded transition-colors ${
+                              isRevealed
+                                ? 'text-accent bg-accent/10 hover:bg-accent/20'
+                                : 'text-text-muted hover:text-text-primary hover:bg-bg-muted'
+                            }`}
+                            title={isRevealed ? 'Hide value' : 'Reveal value temporarily'}
+                          >
+                            {isRevealed ? <Icons.EyeOff size={12} /> : <Icons.Eye size={12} />}
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
