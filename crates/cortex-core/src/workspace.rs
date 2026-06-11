@@ -1,6 +1,8 @@
 use crate::collection::{Collection, CollectionError};
+use crate::environment::DecryptFailure;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -67,21 +69,31 @@ impl WorkspaceManifest {
     }
 
     /// Decrypts all variables marked as secrets.
-    pub fn decrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), crate::crypto::CryptoError> {
-        if let Some(vars) = &mut self.variables {
-            for var in vars {
-                if var.secret {
-                    if let serde_json::Value::String(s) = &var.value {
-                        if s.starts_with(crate::crypto::PREFIX) {
-                            let decrypted = crate::crypto::decrypt(s, key)?;
-                            var.value = serde_json::from_str(&decrypted)
-                                .unwrap_or(serde_json::Value::String(decrypted));
+    /// Returns a list of variables that failed decryption (e.g. due to tampering).
+    pub fn decrypt_secrets(&mut self, key: &[u8; 32]) -> Vec<DecryptFailure> {
+        let Some(vars) = &mut self.variables else { return Vec::new() };
+        let mut failures = Vec::new();
+        for var in vars {
+            if var.secret {
+                if let serde_json::Value::String(s) = &var.value {
+                    if s.starts_with(crate::crypto::PREFIX) {
+                        match crate::crypto::decrypt(s, key) {
+                            Ok(decrypted) => {
+                                var.value = serde_json::from_str(&decrypted)
+                                    .unwrap_or(serde_json::Value::String(decrypted));
+                            }
+                            Err(_) => {
+                                failures.push(DecryptFailure {
+                                    variable_name: var.name.clone(),
+                                    message: "Decryption failed — this value may have been tampered with.".to_string(),
+                                });
+                            }
                         }
                     }
                 }
             }
         }
-        Ok(())
+        failures
     }
 
     /// Saves the manifest to a file.
@@ -129,6 +141,8 @@ pub struct Workspace {
     pub collections: Vec<(String, Result<Collection, CollectionError>)>,
     /// Loaded environments
     pub environments: Vec<crate::environment::EnvironmentFile>,
+    /// Per-environment decrypt failures: env name → list of failed variables
+    pub environment_decrypt_failures: HashMap<String, Vec<DecryptFailure>>,
 }
 
 impl Workspace {
@@ -169,6 +183,7 @@ impl Workspace {
 
         // Load environments
         let mut environments = Vec::new();
+        let mut environment_decrypt_failures: HashMap<String, Vec<DecryptFailure>> = HashMap::new();
         let env_dir = workspace_dir.join("environments");
         if env_dir.exists() && env_dir.is_dir() {
             if let Ok(entries) = fs::read_dir(env_dir) {
@@ -181,9 +196,11 @@ impl Workspace {
                             if let Ok(mut env) =
                                 crate::environment::EnvironmentFile::from_yaml(&content)
                             {
-                                // Decrypt secrets
                                 let key = crate::crypto::get_app_key();
-                                let _ = env.decrypt_secrets(&key);
+                                let failures = env.decrypt_secrets(&key);
+                                if !failures.is_empty() {
+                                    environment_decrypt_failures.insert(env.name.clone(), failures);
+                                }
                                 environments.push(env);
                             }
                         }
@@ -193,7 +210,13 @@ impl Workspace {
         }
         environments.sort_by(|a, b| a.name.cmp(&b.name));
 
-        Ok(Self { path: absolute_path, manifest, collections, environments })
+        Ok(Self {
+            path: absolute_path,
+            manifest,
+            collections,
+            environments,
+            environment_decrypt_failures,
+        })
     }
 
     /// Loads only the workspace manifest, skipping the collections.
@@ -216,6 +239,7 @@ impl Workspace {
 
         // Load environments
         let mut environments = Vec::new();
+        let mut environment_decrypt_failures: HashMap<String, Vec<DecryptFailure>> = HashMap::new();
         let env_dir = absolute_path.parent().unwrap_or(Path::new(".")).join("environments");
         if env_dir.exists() && env_dir.is_dir() {
             if let Ok(entries) = fs::read_dir(env_dir) {
@@ -228,9 +252,11 @@ impl Workspace {
                             if let Ok(mut env) =
                                 crate::environment::EnvironmentFile::from_yaml(&content)
                             {
-                                // Decrypt secrets
                                 let key = crate::crypto::get_app_key();
-                                let _ = env.decrypt_secrets(&key);
+                                let failures = env.decrypt_secrets(&key);
+                                if !failures.is_empty() {
+                                    environment_decrypt_failures.insert(env.name.clone(), failures);
+                                }
                                 environments.push(env);
                             }
                         }
@@ -240,7 +266,13 @@ impl Workspace {
         }
         environments.sort_by(|a, b| a.name.cmp(&b.name));
 
-        Ok(Self { path: absolute_path, manifest, collections: Vec::new(), environments })
+        Ok(Self {
+            path: absolute_path,
+            manifest,
+            collections: Vec::new(),
+            environments,
+            environment_decrypt_failures,
+        })
     }
 }
 

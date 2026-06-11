@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { commands, type EnvironmentFile, type Variable } from '../bindings'
+import { commands, type DecryptFailure, type EnvironmentFile, type Variable } from '../bindings'
 import { useWorkspaceStore } from './workspaceStore'
 
 export interface DotEnvFile {
@@ -18,9 +18,15 @@ interface EnvironmentState {
   globalEnvironment: EnvironmentFile | null
   isLoading: boolean
   error: string | null
+  /** Per-environment decrypt failures: env name → variable name → error message */
+  decryptFailures: Record<string, Record<string, string>>
 
   // Actions
-  loadEnvironments: (environments: EnvironmentFile[], envFilePaths?: string[]) => void
+  loadEnvironments: (
+    environments: EnvironmentFile[],
+    envFilePaths?: string[],
+    decryptFailures?: Record<string, DecryptFailure[]>
+  ) => void
   setActiveEnvironment: (name: string | null) => void
   setEditingEnvironment: (name: string | null) => void
   setDirty: (name: string, dirty: boolean) => void
@@ -74,13 +80,23 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
     globalEnvironment: null,
     isLoading: false,
     error: null,
+    decryptFailures: {},
 
-    loadEnvironments: (environments, envFilePaths) => {
+    loadEnvironments: (environments, envFilePaths, decryptFailuresMap) => {
       const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
       const savedActive = readActiveEnv(workspacePath)
       const savedColors = readEnvColors(workspacePath)
 
-      set({ environments, envColors: savedColors })
+      // Convert DecryptFailure[] per env → Record<varName, message> for quick lookup
+      const decryptFailures: Record<string, Record<string, string>> = {}
+      if (decryptFailuresMap) {
+        for (const [envName, failures] of Object.entries(decryptFailuresMap)) {
+          decryptFailures[envName] = Object.fromEntries(
+            failures.map((f) => [f.variable_name, f.message])
+          )
+        }
+      }
+      set({ environments, envColors: savedColors, decryptFailures })
 
       // Ensure active environment still exists after reload
       const active =

@@ -43,7 +43,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         // Load environments into environment store (pass env_files paths for re-parsing)
         useEnvironmentStore
           .getState()
-          .loadEnvironments(result.data.environments, result.data.env_files)
+          .loadEnvironments(
+            result.data.environments,
+            result.data.env_files,
+            result.data.decrypt_failures
+          )
 
         // Also load the app-level global environment
         useEnvironmentStore.getState().loadGlobalEnvironment()

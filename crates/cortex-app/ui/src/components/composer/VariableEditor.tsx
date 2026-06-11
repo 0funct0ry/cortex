@@ -8,6 +8,8 @@ interface VariableEditorProps {
   title?: string
   readOnly?: boolean
   searchQuery?: string
+  /** Variable name → error message for variables whose encrypted value could not be decrypted */
+  tamperedVariables?: Record<string, string>
 }
 
 // Highlights the first occurrence of `query` within `text`
@@ -32,6 +34,7 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
   title = 'Variables',
   readOnly = false,
   searchQuery = '',
+  tamperedVariables = {},
 }) => {
   // Tracks which secret-flagged rows are temporarily revealed
   const [revealedRows, setRevealedRows] = useState<Set<number>>(new Set())
@@ -140,6 +143,13 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
             {filteredRows.map(({ v: variable, i: index }) => {
               const isRevealed = revealedRows.has(index)
               const showAsPassword = variable.secret && !isRevealed
+              const tamperMessage = tamperedVariables[variable.name]
+              // Only flag as tampered when the value still looks like an encrypted blob.
+              // A freshly-added or re-entered row with a plain value should never show the error.
+              const isTampered =
+                Boolean(tamperMessage) &&
+                typeof variable.value === 'string' &&
+                variable.value.startsWith('ENC(v1:')
 
               return (
                 <tr
@@ -151,11 +161,13 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                     }
                   }}
                   className={`group border-b border-border-subtle h-[32px] transition-colors focus:outline-none focus:bg-accent/5 ${
-                    readOnly
-                      ? 'opacity-60 cursor-default bg-bg-muted/20'
-                      : !variable.enabled
-                        ? 'bg-bg-muted text-text-muted opacity-60 hover:bg-bg-muted/80'
-                        : 'hover:bg-bg-muted/30'
+                    isTampered
+                      ? 'bg-error/5'
+                      : readOnly
+                        ? 'opacity-60 cursor-default bg-bg-muted/20'
+                        : !variable.enabled
+                          ? 'bg-bg-muted text-text-muted opacity-60 hover:bg-bg-muted/80'
+                          : 'hover:bg-bg-muted/30'
                   }`}
                 >
                   {/* Enabled checkbox */}
@@ -194,7 +206,15 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                   {/* Value — with optional eye reveal button overlay */}
                   <td className="border-r border-border-subtle px-0">
                     <div className="relative flex items-center h-full">
-                      {readOnly ? (
+                      {isTampered ? (
+                        <span
+                          className="flex items-center gap-1.5 w-full px-3 text-xs font-mono text-error truncate"
+                          title={tamperMessage}
+                        >
+                          <Icons.AlertTriangle size={12} className="shrink-0" />
+                          Decryption failed — value may be tampered
+                        </span>
+                      ) : readOnly ? (
                         <span className="block w-full px-3 text-sm font-mono truncate text-text-secondary">
                           {showAsPassword ? (
                             '••••••••'
@@ -215,8 +235,8 @@ const VariableEditor: React.FC<VariableEditorProps> = ({
                           spellCheck={false}
                         />
                       )}
-                      {/* Copy + reveal buttons — only shown when secret=true */}
-                      {variable.secret && !readOnly && (
+                      {/* Copy + reveal buttons — only shown when secret=true and not tampered */}
+                      {variable.secret && !readOnly && !isTampered && (
                         <>
                           <button
                             onClick={() => handleCopyValue(index, String(variable.value))}

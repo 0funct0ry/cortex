@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("--- Step 3: Decrypt Secrets ---");
     let mut decoded = EnvironmentFile::from_yaml(&encrypted_yaml)?;
-    decoded.decrypt_secrets(&key)?;
+    decoded.decrypt_secrets(&key);
     println!("Decrypted Environment:\n{}", decoded.to_yaml()?);
 
     Ok(())

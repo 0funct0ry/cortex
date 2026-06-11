@@ -186,7 +186,8 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   onColorChange,
   onDirtyChange,
 }) => {
-  const { varSearchQueries, setVarSearchQuery } = useEnvironmentStore()
+  const { varSearchQueries, setVarSearchQuery, decryptFailures, editingEnvironmentName } =
+    useEnvironmentStore()
   const varSearch = varSearchQueries[envKey] ?? ''
   const setVarSearch = (q: string) => setVarSearchQuery(envKey, q)
 
@@ -394,6 +395,9 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
           title=""
           readOnly={readOnly}
           searchQuery={varSearch}
+          tamperedVariables={
+            editingEnvironmentName ? (decryptFailures[editingEnvironmentName] ?? {}) : {}
+          }
         />
       </div>
 

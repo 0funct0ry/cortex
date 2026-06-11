@@ -823,6 +823,10 @@ export type CollectionProtoFile = { file: string; path: string }
 export type CollectionProtobuf = { proto_files?: CollectionProtoFile[] | null; import_paths?: CollectionImportPath[] | null }
 export type CollectionProxy = { enabled: boolean; url: string; bypass_list?: string | null; username?: string | null; password?: string | null }
 export type CollectionSavePayload = { name: string; description: string | null; headers: { [key in string]: string } | null; variables: Variable[]; auth: AuthRef | null; scripts: Scripts | null; tests: string | null; presets: CollectionPreset[] | null; proxy: CollectionProxy | null; client_certificates: CollectionClientCertificate[] | null; protobuf: CollectionProtobuf | null }
+/**
+ * Records a variable whose encrypted value could not be decrypted (e.g. due to tampering).
+ */
+export type DecryptFailure = { variable_name: string; message: string }
 export type EnvironmentFile = { 
 /**
  * Schema version (e.g., "1")
@@ -991,7 +995,12 @@ prompt?: boolean;
 description?: string | null }
 export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
-export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; env_files: string[]; active_environment: string | null }
+export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; env_files: string[]; active_environment: string | null; 
+/**
+ * Per-environment decrypt failures: env name → failed variable names and messages.
+ * Only populated when a secret variable could not be decrypted (e.g. file was tampered with).
+ */
+decrypt_failures: { [key in string]: DecryptFailure[] } }
 
 /** tauri-specta globals **/
 

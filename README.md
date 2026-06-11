@@ -406,8 +406,10 @@ Cortex is undergoing a complete GUI revamp (Epic 03a) to implement a high-perfor
 
 - Mark a variable as `secret: true` in any scope (Global, Collection, or Environment).
 - Cortex encrypts the value using **AES-GCM-256** before saving to disk.
-- Encrypted values are stored as `ENC(v1:...)` blobs.
+- Encrypted values are stored as `ENC(v1:...)` blobs — opening the YAML in a text editor never reveals the plaintext.
 - Values are automatically decrypted in memory for execution and when explicitly revealed in the UI.
+- Re-saving an environment after editing a non-secret variable never alters unchanged secret values (encryption is idempotent).
+- **Tamper detection**: If an `ENC(v1:...)` value has been modified outside Cortex (e.g., manually edited in a text editor), AES-GCM authentication will fail on load. Cortex surfaces a clear per-variable error in the Environment Editor — a red warning row with the message *"Decryption failed — value may be tampered"* — without silently corrupting or discarding the variable. The raw encrypted string is preserved on disk until the user explicitly re-enters a new value.
 
 ### 📂 Collection Filesystem Layer
 Cortex uses a direct filesystem-to-UI mapping for collections.

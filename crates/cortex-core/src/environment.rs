@@ -2,6 +2,13 @@ use crate::crypto::{self, CryptoError};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+/// Records a variable whose encrypted value could not be decrypted (e.g. due to tampering).
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DecryptFailure {
+    pub variable_name: String,
+    pub message: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Type)]
 #[serde(deny_unknown_fields)]
 pub struct EnvironmentFile {
@@ -46,19 +53,31 @@ impl EnvironmentFile {
     }
 
     /// Decrypts all variables marked as secrets.
-    pub fn decrypt_secrets(&mut self, key: &[u8; 32]) -> Result<(), CryptoError> {
+    /// Returns a list of variables that failed decryption (e.g. due to tampering).
+    /// Failed variables retain their raw encrypted string so re-saving preserves them unchanged.
+    pub fn decrypt_secrets(&mut self, key: &[u8; 32]) -> Vec<DecryptFailure> {
+        let mut failures = Vec::new();
         for var in &mut self.variables {
             if var.secret {
                 if let serde_json::Value::String(s) = &var.value {
                     if s.starts_with(crypto::PREFIX) {
-                        let decrypted = crypto::decrypt(s, key)?;
-                        var.value = serde_json::from_str(&decrypted)
-                            .unwrap_or(serde_json::Value::String(decrypted));
+                        match crypto::decrypt(s, key) {
+                            Ok(decrypted) => {
+                                var.value = serde_json::from_str(&decrypted)
+                                    .unwrap_or(serde_json::Value::String(decrypted));
+                            }
+                            Err(_) => {
+                                failures.push(DecryptFailure {
+                                    variable_name: var.name.clone(),
+                                    message: "Decryption failed — this value may have been tampered with.".to_string(),
+                                });
+                            }
+                        }
                     }
                 }
             }
         }
-        Ok(())
+        failures
     }
 }
 
@@ -120,7 +139,8 @@ mod tests {
         let mut decoded = EnvironmentFile::from_yaml(&yaml).unwrap();
 
         // Decrypt
-        decoded.decrypt_secrets(&key).unwrap();
+        let failures = decoded.decrypt_secrets(&key);
+        assert!(failures.is_empty());
         assert_eq!(decoded.variables[0].value, serde_json::json!("mypassword"));
     }
 
@@ -157,5 +177,43 @@ mod tests {
         let yaml = env.to_yaml().unwrap();
         assert!(yaml.contains("public_val"));
         assert!(!yaml.contains("private_val"));
+    }
+
+    #[test]
+    fn test_tampered_secret_returns_failure() {
+        let key = [0u8; 32];
+        let mut env = EnvironmentFile::new("tamper-test".to_string());
+        // A syntactically valid ENC prefix but corrupted base64 payload
+        env.variables.push(crate::variables::Variable {
+            name: "BAD_SECRET".to_string(),
+            value: serde_json::json!("ENC(v1:aGVsbG8tdGhpcy1pcy10YW1wZXJlZA==)"),
+            secret: true,
+            enabled: true,
+            prompt: false,
+            description: None,
+        });
+        env.variables.push(crate::variables::Variable {
+            name: "GOOD_VAR".to_string(),
+            value: serde_json::json!("not-a-secret"),
+            secret: false,
+            enabled: true,
+            prompt: false,
+            description: None,
+        });
+
+        let failures = env.decrypt_secrets(&key);
+
+        // One failure for the tampered variable
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].variable_name, "BAD_SECRET");
+
+        // Tampered variable retains raw encrypted string (not modified)
+        assert_eq!(
+            env.variables[0].value,
+            serde_json::json!("ENC(v1:aGVsbG8tdGhpcy1pcy10YW1wZXJlZA==)")
+        );
+
+        // Non-secret variable is untouched
+        assert_eq!(env.variables[1].value, serde_json::json!("not-a-secret"));
     }
 }

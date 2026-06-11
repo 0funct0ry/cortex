@@ -156,7 +156,8 @@ fn test_environment_file_roundtrip_with_secrets() {
     }
 
     // 4. Decrypt secrets
-    decoded.decrypt_secrets(&key).expect("Decryption failed");
+    let failures = decoded.decrypt_secrets(&key);
+    assert!(failures.is_empty(), "Unexpected decrypt failures: {:?}", failures);
     assert_eq!(decoded.variables[0].value, serde_json::json!("https://api.production.com"));
     assert_eq!(decoded.variables[1].value, serde_json::json!(original_secret));
 }

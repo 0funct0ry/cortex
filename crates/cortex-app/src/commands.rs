@@ -28,6 +28,10 @@ pub struct WorkspaceResponse {
     pub environments: Vec<cortex_core::environment::EnvironmentFile>,
     pub env_files: Vec<String>,
     pub active_environment: Option<String>,
+    /// Per-environment decrypt failures: env name → failed variable names and messages.
+    /// Only populated when a secret variable could not be decrypted (e.g. file was tampered with).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub decrypt_failures: BTreeMap<String, Vec<cortex_core::environment::DecryptFailure>>,
 }
 
 #[derive(Serialize, Deserialize, Type)]
@@ -763,6 +767,9 @@ fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
         })
         .collect();
 
+    let decrypt_failures: BTreeMap<String, Vec<cortex_core::environment::DecryptFailure>> =
+        workspace.environment_decrypt_failures.into_iter().collect();
+
     Ok(WorkspaceResponse {
         name: workspace.manifest.name,
         collections,
@@ -770,6 +777,7 @@ fn load_workspace_blocking(path: String) -> Result<WorkspaceResponse, String> {
         environments: workspace.environments,
         env_files: workspace.manifest.env_files.unwrap_or_default(),
         active_environment: settings.active_environment,
+        decrypt_failures,
     })
 }
 
@@ -786,6 +794,9 @@ pub fn load_workspace_manifest(path: String) -> Result<WorkspaceResponse, String
         .map(|c| WorkspaceCollectionResult { path: c.clone(), name: None, error: None })
         .collect();
 
+    let decrypt_failures: BTreeMap<String, Vec<cortex_core::environment::DecryptFailure>> =
+        workspace.environment_decrypt_failures.into_iter().collect();
+
     Ok(WorkspaceResponse {
         name: workspace.manifest.name,
         collections,
@@ -793,6 +804,7 @@ pub fn load_workspace_manifest(path: String) -> Result<WorkspaceResponse, String
         environments: workspace.environments,
         env_files: workspace.manifest.env_files.unwrap_or_default(),
         active_environment: settings.active_environment,
+        decrypt_failures,
     })
 }
 
@@ -1278,7 +1290,7 @@ pub async fn read_environment_file(
         let mut env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
             .map_err(|e| format!("Failed to parse YAML: {e}"))?;
         let key = cortex_core::crypto::get_app_key();
-        env.decrypt_secrets(&key).map_err(|e| e.to_string())?;
+        env.decrypt_secrets(&key);
         Ok(env)
     })
     .await
@@ -1335,7 +1347,7 @@ pub async fn rename_environment(
 
         // Decrypt before re-encrypting under the new name
         let key = cortex_core::crypto::get_app_key();
-        env.decrypt_secrets(&key).map_err(|e| e.to_string())?;
+        env.decrypt_secrets(&key);
         env.name = new_name;
         env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
 
@@ -1479,7 +1491,7 @@ pub async fn load_global_environment() -> Result<cortex_core::environment::Envir
         let mut env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
             .map_err(|e| e.to_string())?;
         let key = cortex_core::crypto::get_app_key();
-        env.decrypt_secrets(&key).map_err(|e| e.to_string())?;
+        env.decrypt_secrets(&key);
         Ok(env)
     })
     .await
