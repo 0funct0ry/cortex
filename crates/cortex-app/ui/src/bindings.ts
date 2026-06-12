@@ -390,6 +390,51 @@ async saveGlobalEnvironment(variables: Variable[]) : Promise<Result<null, string
 }
 },
 /**
+ * Loads and decrypts all environment files from a collection's `environments/` subdirectory.
+ * Returns an empty list (not an error) if the directory does not exist.
+ */
+async loadCollectionEnvironments(collectionPath: string) : Promise<Result<EnvironmentFile[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_collection_environments", { collectionPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Creates or updates a collection-scoped environment YAML file, encrypting secret variables.
+ */
+async updateCollectionEnvironmentVariables(collectionPath: string, environmentName: string, variables: Variable[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_collection_environment_variables", { collectionPath, environmentName, variables }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Deletes a collection-scoped environment file.
+ */
+async deleteCollectionEnvironment(collectionPath: string, environmentName: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_collection_environment", { collectionPath, environmentName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Atomically renames a collection-scoped environment file.
+ */
+async renameCollectionEnvironment(collectionPath: string, oldName: string, newName: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_collection_environment", { collectionPath, oldName, newName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Reads the full text content of a file at the given path.
  */
 async readTextFile(path: string) : Promise<Result<string, string>> {
@@ -411,17 +456,17 @@ async writeTextFile(path: string, content: string) : Promise<Result<null, string
     else return { status: "error", error: e  as any };
 }
 },
-async getResolvedVariables(workspacePath: string | null, collectionPath: string | null, environmentName: string | null) : Promise<Result<{ [key in string]: ResolvedVariable }, string>> {
+async getResolvedVariables(workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null) : Promise<Result<{ [key in string]: ResolvedVariable }, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_resolved_variables", { workspacePath, collectionPath, environmentName }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_resolved_variables", { workspacePath, collectionPath, environmentName, collectionEnvironmentName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async previewTemplate(text: string, workspacePath: string | null, collectionPath: string | null, environmentName: string | null) : Promise<Result<PreviewResponse, string>> {
+async previewTemplate(text: string, workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null) : Promise<Result<PreviewResponse, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("preview_template", { text, workspacePath, collectionPath, environmentName }) };
+    return { status: "ok", data: await TAURI_INVOKE("preview_template", { text, workspacePath, collectionPath, environmentName, collectionEnvironmentName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -500,17 +545,17 @@ async getRequestHistory() : Promise<RequestHistoryEntry[]> {
 async clearRequestHistory() : Promise<void> {
     await TAURI_INVOKE("clear_request_history");
 },
-async previewRequestHeaders(headers: HeaderEntry[], workspacePath: string | null, collectionPath: string | null, environmentName: string | null, requestPath: string | null) : Promise<Result<PreviewHeadersResponse, string>> {
+async previewRequestHeaders(headers: HeaderEntry[], workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null, requestPath: string | null) : Promise<Result<PreviewHeadersResponse, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("preview_request_headers", { headers, workspacePath, collectionPath, environmentName, requestPath }) };
+    return { status: "ok", data: await TAURI_INVOKE("preview_request_headers", { headers, workspacePath, collectionPath, environmentName, collectionEnvironmentName, requestPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async introspectGraphql(payload: IntrospectionPayload, workspacePath: string | null, collectionPath: string | null, environmentName: string | null, requestPath: string | null) : Promise<Result<RequestHistoryEntry, string>> {
+async introspectGraphql(payload: IntrospectionPayload, workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null, requestPath: string | null) : Promise<Result<RequestHistoryEntry, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("introspect_graphql", { payload, workspacePath, collectionPath, environmentName, requestPath }) };
+    return { status: "ok", data: await TAURI_INVOKE("introspect_graphql", { payload, workspacePath, collectionPath, environmentName, collectionEnvironmentName, requestPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -872,8 +917,8 @@ export type IntrospectionPayload = { endpoint_url: string; headers: HeaderEntry[
 export type ItemInfo = { path: string; size_bytes: number; created: string | null; modified: string | null; item_count: number | null; folder_count: number | null; direct_request_count: number | null; direct_folder_count: number | null; method: string | null; url: string | null }
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
 export type MarkdownDocOptions = { resolveNonSecretVars: boolean; collapseExamples: boolean; includeScripts: boolean; includeTags: boolean; headingOffset: number }
-export type OAuth2FetchPayload = { grantType: string; tokenEndpoint: string | null; authEndpoint: string | null; clientId: string | null; clientSecret: string | null; scope: string | null; username: string | null; password: string | null; additionalParams: string | null; redirectUriMode: string | null; customRedirectUri: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null }
-export type OAuth2RefreshPayload = { refreshToken: string; tokenEndpoint: string; clientId: string; clientSecret: string | null; additionalParams: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null }
+export type OAuth2FetchPayload = { grantType: string; tokenEndpoint: string | null; authEndpoint: string | null; clientId: string | null; clientSecret: string | null; scope: string | null; username: string | null; password: string | null; additionalParams: string | null; redirectUriMode: string | null; customRedirectUri: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null; collectionEnvironmentName: string | null }
+export type OAuth2RefreshPayload = { refreshToken: string; tokenEndpoint: string; clientId: string; clientSecret: string | null; additionalParams: string | null; workspacePath: string | null; collectionPath: string | null; environmentName: string | null; collectionEnvironmentName: string | null }
 export type OpenApiDocOptions = { format: OpenApiFormat }
 export type OpenApiFormat = "yaml" | "json"
 export type PreviewHeadersResponse = { headers: RenderedHeader[]; warnings: string[] }
@@ -955,7 +1000,7 @@ export type RequestHistoryEntry = { id: string; request_name: string; method: st
  * Variables resolved and captured during execution/rendering
  */
 captured_variables: { [key in string]: string }; executed_at: string; duration_ms: number | null; status_code: number | null; status_text: string | null; response_body: string | null; headers?: { [key in string]: string }; error: string | null; warnings?: string[]; redirect_chain?: RedirectHop[] }
-export type RequestMetadata = { workspace_path: string | null; collection_path: string | null; environment_name: string | null; request_path: string | null }
+export type RequestMetadata = { workspace_path: string | null; collection_path: string | null; environment_name: string | null; collection_environment_name: string | null; request_path: string | null }
 export type ResolvedVariable = { value: JsonValue; scope: VariableScope; secret: boolean; description?: string | null }
 export type ScanResult = { files: ImportFileEntry[]; skipped_non_crx: number }
 export type Scripts = { pre?: string | null; post?: string | null }

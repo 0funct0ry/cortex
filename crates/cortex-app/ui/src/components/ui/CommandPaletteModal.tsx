@@ -450,7 +450,7 @@ const CommandPaletteContent: React.FC = () => {
     setCommandAction('env.edit', () => {
       openTab({
         type: 'environments',
-        name: 'Environments',
+        name: 'Global Environments',
         requestPath: null,
         collectionId: null,
         collectionPath: null,
@@ -570,7 +570,7 @@ const CommandPaletteContent: React.FC = () => {
     setCommandAction('env.new', () => {
       openTab({
         type: 'environments',
-        name: 'Environments',
+        name: 'Global Environments',
         requestPath: null,
         collectionId: null,
         collectionPath: null,

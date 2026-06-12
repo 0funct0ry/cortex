@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import * as Icons from '../ui/Icons'
 import { useEnvironmentStore } from '../../stores/environmentStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { toast } from '../../stores/toastStore'
 import { getTagColor } from '../../utils/tagColors'
@@ -18,8 +19,30 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
     updateVariables,
     envColors,
   } = useEnvironmentStore()
-  const { openTab } = useTabs()
+  const {
+    collectionEnvironments,
+    activeCollectionEnvName,
+    loadCollectionEnvironments,
+    setActiveCollectionEnvironment,
+    setEditingCollectionEnvironment,
+  } = useCollectionEnvironmentStore()
+
+  const { openTab, activeTab } = useTabs()
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Determine the active collection from the current tab
+  const collectionPath = activeTab?.collectionId ?? null
+  const collectionEnvs = collectionPath ? (collectionEnvironments[collectionPath] ?? []) : []
+  const activeCollEnvName = collectionPath
+    ? (activeCollectionEnvName[collectionPath] ?? null)
+    : null
+
+  // Load collection environments when the dropdown opens for a collection tab
+  useEffect(() => {
+    if (collectionPath) {
+      loadCollectionEnvironments(collectionPath)
+    }
+  }, [collectionPath, loadCollectionEnvironments])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -42,7 +65,7 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
     }
     openTab({
       type: 'environments',
-      name: 'Environments',
+      name: 'Global Environments',
       requestPath: null,
       collectionId: null,
       collectionPath: null,
@@ -51,9 +74,30 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
     })
   }
 
+  const openCollectionEnvsTab = (focusEnv?: string) => {
+    if (!collectionPath) return
+    if (focusEnv) {
+      setEditingCollectionEnvironment(collectionPath, focusEnv)
+    }
+    openTab({
+      type: 'collection-environments',
+      name: 'Environments',
+      collectionPath,
+      collectionId: collectionPath,
+      requestPath: null,
+      folderPath: null,
+      method: '',
+    })
+  }
+
   const handleEdit = (name: string) => {
     setEditingEnvironment(name)
     openEnvironmentsTab()
+    onClose()
+  }
+
+  const handleEditCollectionEnv = (name: string) => {
+    openCollectionEnvsTab(name)
     onClose()
   }
 
@@ -69,6 +113,11 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
       openEnvironmentsTab()
       setActiveEnvironment(name)
     }
+    onClose()
+  }
+
+  const handleCreateCollectionEnv = () => {
+    openCollectionEnvsTab()
     onClose()
   }
 
@@ -146,6 +195,88 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
           </div>
         )
       })}
+
+      {/* Collection section — only when a collection tab is active */}
+      {collectionPath && (
+        <>
+          <div className="h-[1px] bg-border-subtle my-1" />
+          <div className="px-3 py-1.5 text-[11px] font-bold text-text-muted uppercase tracking-wider">
+            Collection
+          </div>
+
+          {/* Deselect collection env */}
+          <button
+            onClick={() => {
+              setActiveCollectionEnvironment(collectionPath, null)
+              onClose()
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg-highlight transition-colors"
+          >
+            {!activeCollEnvName ? (
+              <Icons.Check size={14} className="text-accent" />
+            ) : (
+              <div className="w-[14px]" />
+            )}
+            <span
+              className={
+                !activeCollEnvName ? 'text-text-primary font-medium' : 'text-text-secondary'
+              }
+            >
+              None
+            </span>
+          </button>
+
+          {collectionEnvs.map((env) => (
+            <div
+              key={env.name}
+              className="w-full flex items-center justify-between hover:bg-bg-highlight transition-colors group"
+            >
+              <button
+                onClick={() => {
+                  setActiveCollectionEnvironment(collectionPath, env.name)
+                  onClose()
+                }}
+                className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm text-left"
+              >
+                {activeCollEnvName === env.name ? (
+                  <Icons.Check size={14} className="text-accent" />
+                ) : (
+                  <div className="w-[14px]" />
+                )}
+                <span
+                  className={
+                    activeCollEnvName === env.name
+                      ? 'text-text-primary font-medium'
+                      : 'text-text-secondary'
+                  }
+                >
+                  {env.name}
+                </span>
+              </button>
+              <button
+                onClick={() => handleEditCollectionEnv(env.name)}
+                className="p-1.5 mr-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
+                title="Edit environment"
+              >
+                <Icons.Sliders size={14} />
+              </button>
+            </div>
+          ))}
+
+          {collectionEnvs.length === 0 && (
+            <div className="px-3 py-1.5 flex items-center gap-2 text-xs text-text-muted">
+              <span>No environments</span>
+              <span className="text-border-subtle">·</span>
+              <button
+                onClick={handleCreateCollectionEnv}
+                className="text-accent hover:text-accent-hover transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       <div className="h-[1px] bg-border-subtle my-1" />
 

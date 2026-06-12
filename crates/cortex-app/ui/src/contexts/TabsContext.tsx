@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
-export type TabType = 'request' | 'environments' | 'collection' | 'folder' | 'example'
+export type TabType =
+  | 'request'
+  | 'environments'
+  | 'collection-environments'
+  | 'collection'
+  | 'folder'
+  | 'example'
 
 export interface Tab {
   id: string
@@ -93,6 +99,17 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (tabData.type === 'collection' && tabData.collectionPath) {
         const existingTab = tabs.find(
           (t) => t.type === 'collection' && t.collectionPath === tabData.collectionPath
+        )
+        if (existingTab) {
+          activateTab(existingTab.id)
+          return existingTab.id
+        }
+      }
+
+      // Collection environments tabs are singleton per collection path
+      if (tabData.type === 'collection-environments' && tabData.collectionPath) {
+        const existingTab = tabs.find(
+          (t) => t.type === 'collection-environments' && t.collectionPath === tabData.collectionPath
         )
         if (existingTab) {
           activateTab(existingTab.id)

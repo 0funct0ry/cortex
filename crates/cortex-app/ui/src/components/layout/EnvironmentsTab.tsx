@@ -21,7 +21,7 @@ interface CreateEnvironmentModalProps {
   onCreate: (name: string) => Promise<void>
 }
 
-const CreateEnvironmentModal: React.FC<CreateEnvironmentModalProps> = ({
+export const CreateEnvironmentModal: React.FC<CreateEnvironmentModalProps> = ({
   isOpen,
   existingNames,
   onClose,
@@ -166,6 +166,10 @@ interface EnvironmentEditorProps {
   color?: string | null
   isGlobal?: boolean
   readOnly?: boolean
+  /** Override the tampered-variable map (decrypt failures). When omitted the
+   *  workspace-level decryptFailures for the current editingEnvironmentName
+   *  are used. Pass `{}` for collection-scoped environments. */
+  tamperedVariables?: Record<string, string>
   onSave: (variables: Variable[]) => Promise<void>
   onDelete?: (name: string) => Promise<void>
   onRename?: (newName: string) => Promise<void>
@@ -173,13 +177,14 @@ interface EnvironmentEditorProps {
   onDirtyChange: (dirty: boolean) => void
 }
 
-const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
+export const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   name,
   envKey,
   variables,
   color = null,
   isGlobal = false,
   readOnly = false,
+  tamperedVariables: tamperedVariablesProp,
   onSave,
   onDelete,
   onRename,
@@ -396,7 +401,11 @@ const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
           readOnly={readOnly}
           searchQuery={varSearch}
           tamperedVariables={
-            editingEnvironmentName ? (decryptFailures[editingEnvironmentName] ?? {}) : {}
+            tamperedVariablesProp !== undefined
+              ? tamperedVariablesProp
+              : editingEnvironmentName
+                ? (decryptFailures[editingEnvironmentName] ?? {})
+                : {}
           }
         />
       </div>
@@ -700,7 +709,7 @@ const EnvironmentsTab: React.FC = () => {
         {/* Section header */}
         <div className="h-10 px-3 flex items-center justify-between border-b border-border-subtle shrink-0">
           <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
-            Environments
+            Global Environments
           </span>
           <div className="flex items-center gap-0.5">
             <button

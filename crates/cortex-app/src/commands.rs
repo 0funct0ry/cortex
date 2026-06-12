@@ -1337,7 +1337,10 @@ pub async fn rename_environment(
         if !old_path.exists() {
             return Err(format!("Environment '{}' not found", old_name));
         }
-        if new_path.exists() {
+        // On case-insensitive filesystems (macOS), a case-only rename means old and new paths
+        // resolve to the same inode — allow it, but block true collisions.
+        let same_file = old_path.canonicalize().ok() == new_path.canonicalize().ok();
+        if new_path.exists() && !same_file {
             return Err(format!("Environment '{}' already exists", new_name));
         }
 
@@ -1348,12 +1351,163 @@ pub async fn rename_environment(
         // Decrypt before re-encrypting under the new name
         let key = cortex_core::crypto::get_app_key();
         env.decrypt_secrets(&key);
-        env.name = new_name;
+        env.name = new_name.clone();
         env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
 
         let yaml = env.to_yaml().map_err(|e| e.to_string())?;
-        std::fs::write(&new_path, yaml).map_err(|e| e.to_string())?;
-        std::fs::remove_file(&old_path).map_err(|e| e.to_string())?;
+        if same_file {
+            // Case-only rename: write to a temp file first, then swap to avoid self-deletion.
+            let tmp_path = env_dir.join(format!("{}.yaml.tmp", new_name));
+            std::fs::write(&tmp_path, yaml).map_err(|e| e.to_string())?;
+            std::fs::remove_file(&old_path).map_err(|e| e.to_string())?;
+            std::fs::rename(&tmp_path, &new_path).map_err(|e| e.to_string())?;
+        } else {
+            std::fs::write(&new_path, yaml).map_err(|e| e.to_string())?;
+            std::fs::remove_file(&old_path).map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Loads and decrypts all environment files from a collection's `environments/` subdirectory.
+/// Returns an empty list (not an error) if the directory does not exist.
+#[tauri::command]
+#[specta::specta]
+pub async fn load_collection_environments(
+    collection_path: String,
+) -> Result<Vec<cortex_core::environment::EnvironmentFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let env_dir = std::path::PathBuf::from(&collection_path).join("environments");
+        if !env_dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let key = cortex_core::crypto::get_app_key();
+        let mut envs: Vec<cortex_core::environment::EnvironmentFile> = Vec::new();
+
+        let entries = std::fs::read_dir(&env_dir).map_err(|e| e.to_string())?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
+                continue;
+            }
+            let content = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let mut env = match cortex_core::environment::EnvironmentFile::from_yaml(&content) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            env.decrypt_secrets(&key);
+            envs.push(env);
+        }
+
+        envs.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(envs)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Creates or updates a collection-scoped environment YAML file, encrypting secret variables.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_collection_environment_variables(
+    collection_path: String,
+    environment_name: String,
+    variables: Vec<cortex_core::variables::Variable>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let env_dir = std::path::PathBuf::from(&collection_path).join("environments");
+        if !env_dir.exists() {
+            std::fs::create_dir_all(&env_dir).map_err(|e| e.to_string())?;
+        }
+
+        let env_path = env_dir.join(format!("{}.yaml", environment_name));
+        let mut env = cortex_core::environment::EnvironmentFile {
+            version: "1".to_string(),
+            name: environment_name,
+            variables,
+        };
+
+        let key = cortex_core::crypto::get_app_key();
+        env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
+
+        let yaml = env.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(env_path, yaml).map_err(|e| e.to_string())?;
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Deletes a collection-scoped environment file.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_collection_environment(
+    collection_path: String,
+    environment_name: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let env_dir = std::path::PathBuf::from(&collection_path).join("environments");
+        let env_path = env_dir.join(format!("{}.yaml", environment_name));
+
+        if env_path.exists() {
+            std::fs::remove_file(env_path).map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Atomically renames a collection-scoped environment file.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_collection_environment(
+    collection_path: String,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let env_dir = std::path::PathBuf::from(&collection_path).join("environments");
+
+        let old_path = env_dir.join(format!("{}.yaml", old_name));
+        let new_path = env_dir.join(format!("{}.yaml", new_name));
+
+        if !old_path.exists() {
+            return Err(format!("Environment '{}' not found", old_name));
+        }
+        let same_file = old_path.canonicalize().ok() == new_path.canonicalize().ok();
+        if new_path.exists() && !same_file {
+            return Err(format!("Environment '{}' already exists", new_name));
+        }
+
+        let content = std::fs::read_to_string(&old_path).map_err(|e| e.to_string())?;
+        let mut env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
+            .map_err(|e| e.to_string())?;
+
+        let key = cortex_core::crypto::get_app_key();
+        env.decrypt_secrets(&key);
+        env.name = new_name.clone();
+        env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
+
+        let yaml = env.to_yaml().map_err(|e| e.to_string())?;
+        if same_file {
+            let tmp_path = env_dir.join(format!("{}.yaml.tmp", new_name));
+            std::fs::write(&tmp_path, yaml).map_err(|e| e.to_string())?;
+            std::fs::remove_file(&old_path).map_err(|e| e.to_string())?;
+            std::fs::rename(&tmp_path, &new_path).map_err(|e| e.to_string())?;
+        } else {
+            std::fs::write(&new_path, yaml).map_err(|e| e.to_string())?;
+            std::fs::remove_file(&old_path).map_err(|e| e.to_string())?;
+        }
 
         Ok(())
     })
@@ -1617,6 +1771,7 @@ fn populate_resolver(
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    collection_environment_name: Option<String>,
     ephemeral_vars: Vec<Variable>,
 ) -> Result<(), String> {
     // 1. Global (Workspace)
@@ -1647,6 +1802,21 @@ fn populate_resolver(
         }
     }
 
+    // 1.3 Collection-scoped environment — inserted after workspace env so same-named vars
+    // override the workspace env, remaining at the env_vars precedence level.
+    if let (Some(ref cp), Some(ref cen)) = (&collection_path, &collection_environment_name) {
+        let col_env_path = PathBuf::from(cp).join("environments").join(format!("{}.yaml", cen));
+        if col_env_path.exists() {
+            let content = std::fs::read_to_string(&col_env_path).map_err(|e| e.to_string())?;
+            let mut col_env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
+                .map_err(|e| e.to_string())?;
+            col_env.decrypt_secrets(&cortex_core::crypto::get_app_key());
+            for var in col_env.variables {
+                resolver.env_vars.insert(var.name.clone(), var);
+            }
+        }
+    }
+
     // 2. Collection
     if let Some(cp) = collection_path {
         if let Ok(collection) = Collection::load_manifest(&cp) {
@@ -1673,6 +1843,7 @@ pub async fn get_resolved_variables(
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    collection_environment_name: Option<String>,
     store: tauri::State<'_, EphemeralStore>,
 ) -> Result<std::collections::BTreeMap<String, cortex_core::variables::ResolvedVariable>, String> {
     // Snapshot the ephemeral store before entering spawn_blocking (State is not Send).
@@ -1684,6 +1855,7 @@ pub async fn get_resolved_variables(
             workspace_path,
             collection_path,
             environment_name,
+            collection_environment_name,
             ephemeral_vars,
         )?;
         Ok(resolver.get_all_resolved())
@@ -1699,6 +1871,7 @@ pub async fn preview_template(
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    collection_environment_name: Option<String>,
     store: tauri::State<'_, EphemeralStore>,
 ) -> Result<PreviewResponse, String> {
     // Snapshot the ephemeral store before entering spawn_blocking (State is not Send).
@@ -1710,6 +1883,7 @@ pub async fn preview_template(
             workspace_path,
             collection_path,
             environment_name,
+            collection_environment_name,
             ephemeral_vars,
         )?;
         let result = resolver.render_masked(&text);
@@ -1857,6 +2031,7 @@ pub async fn preview_request_headers(
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    collection_environment_name: Option<String>,
     request_path: Option<String>,
     store: tauri::State<'_, EphemeralStore>,
 ) -> Result<PreviewHeadersResponse, String> {
@@ -1868,6 +2043,7 @@ pub async fn preview_request_headers(
             workspace_path,
             collection_path.clone(),
             environment_name,
+            collection_environment_name,
             ephemeral_vars,
         )?;
 
@@ -1890,6 +2066,7 @@ pub struct RequestMetadata {
     pub workspace_path: Option<String>,
     pub collection_path: Option<String>,
     pub environment_name: Option<String>,
+    pub collection_environment_name: Option<String>,
     pub request_path: Option<String>,
 }
 
@@ -2077,6 +2254,7 @@ pub async fn send_request(
                 metadata.workspace_path,
                 metadata.collection_path.clone(),
                 metadata.environment_name,
+                metadata.collection_environment_name,
                 ephemeral_vars,
             )?;
 
@@ -2621,11 +2799,13 @@ pub struct IntrospectionPayload {
 
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn introspect_graphql(
     payload: IntrospectionPayload,
     workspace_path: Option<String>,
     collection_path: Option<String>,
     environment_name: Option<String>,
+    collection_environment_name: Option<String>,
     request_path: Option<String>,
     ephemeral_store: tauri::State<'_, EphemeralStore>,
     history_store: tauri::State<'_, HistoryStore>,
@@ -2640,6 +2820,7 @@ pub async fn introspect_graphql(
             workspace_path,
             collection_path.clone(),
             environment_name,
+            collection_environment_name,
             ephemeral_vars,
         )?;
 
@@ -2859,6 +3040,7 @@ pub struct OAuth2FetchPayload {
     pub workspace_path: Option<String>,
     pub collection_path: Option<String>,
     pub environment_name: Option<String>,
+    pub collection_environment_name: Option<String>,
 }
 
 #[tauri::command]
@@ -2889,6 +3071,7 @@ pub async fn oauth2_fetch_token(
             payload.workspace_path,
             payload.collection_path,
             payload.environment_name,
+            payload.collection_environment_name,
             ephemeral_vars,
         )?;
 
@@ -3278,6 +3461,7 @@ pub struct OAuth2RefreshPayload {
     pub workspace_path: Option<String>,
     pub collection_path: Option<String>,
     pub environment_name: Option<String>,
+    pub collection_environment_name: Option<String>,
 }
 
 #[tauri::command]
@@ -3297,6 +3481,7 @@ pub async fn oauth2_refresh_token(
                 payload.workspace_path,
                 payload.collection_path,
                 payload.environment_name,
+                payload.collection_environment_name,
                 ephemeral_vars,
             )?;
 

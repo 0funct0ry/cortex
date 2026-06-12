@@ -4,6 +4,7 @@ import RequestTabBar from './RequestTabBar'
 import Sidebar from './Sidebar'
 import ResponsePane from './ResponsePane'
 import EnvironmentsTab from './EnvironmentsTab'
+import CollectionEnvironmentsTab from './CollectionEnvironmentsTab'
 import WorkspaceHome from './WorkspaceHome'
 import Composer from '../composer/Composer'
 import CollectionView from '../collection/CollectionView'
@@ -244,6 +245,8 @@ const PanelShell: React.FC = () => {
                     />
                   ) : activeTab?.type === 'environments' ? (
                     <EnvironmentsTab />
+                  ) : activeTab?.type === 'collection-environments' ? (
+                    <CollectionEnvironmentsTab collectionPath={activeTab.collectionPath!} />
                   ) : activeTab?.type === 'example' ? (
                     <ExampleView
                       requestPath={activeTab.requestPath!}

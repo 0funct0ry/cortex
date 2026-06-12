@@ -5,6 +5,7 @@ import { useRequestStore } from '../../stores/requestStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { VariableInput } from './VariableInput'
 import * as Icons from '../ui/Icons'
@@ -303,6 +304,10 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
   const activeTab = useTabs().tabs.find((t) => t.id === requestId)
   const workspacePath = useWorkspaceStore.getState().activeWorkspacePath || null
   const activeEnvironment = useEnvironmentStore((state) => state.activeEnvironmentName)
+  const collectionEnvironmentName = activeTab?.collectionId
+    ? (useCollectionEnvironmentStore.getState().activeCollectionEnvName[activeTab.collectionId] ??
+      null)
+    : null
 
   // Derived oauth values
   const grantType = effectiveConfig.grantType || 'authorization_code'
@@ -340,6 +345,7 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
           ? useCollectionStore.getState().collections[activeTab.collectionId]?.path || null
           : null,
         environmentName: activeEnvironment || null,
+        collectionEnvironmentName,
       })
 
       if (res.status === 'error') {
@@ -382,6 +388,7 @@ const AuthTab: React.FC<AuthTabProps> = ({ requestId }) => {
           ? useCollectionStore.getState().collections[activeTab.collectionId]?.path || null
           : null,
         environmentName: activeEnvironment || null,
+        collectionEnvironmentName,
       })
 
       if (res.status === 'error') {

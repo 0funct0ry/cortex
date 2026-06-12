@@ -15,7 +15,7 @@ const EnvironmentSwitcher: React.FC = () => {
       setEditingEnvironment(activeEnvironmentName)
       openTab({
         type: 'environments',
-        name: 'Environments',
+        name: 'Global Environments',
         requestPath: null,
         collectionId: null,
         collectionPath: null,

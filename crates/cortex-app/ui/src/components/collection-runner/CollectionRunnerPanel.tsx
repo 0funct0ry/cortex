@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useCollectionRunnerStore, type RequestRunResult } from '../../stores/collectionRunnerStore'
 import { useEnvironmentStore } from '../../stores/environmentStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import MethodBadge from '../ui/MethodBadge'
 import * as Icons from '../ui/Icons'
 
@@ -95,6 +96,8 @@ const CollectionRunnerPanel: React.FC = () => {
   } = useCollectionRunnerStore()
 
   const { environments } = useEnvironmentStore()
+  const { collectionEnvironments } = useCollectionEnvironmentStore()
+  const collectionEnvs = scope ? (collectionEnvironments[scope.collectionPath] ?? []) : []
   const runRef = useRef(false)
 
   // Sync environment option when store opens
@@ -207,6 +210,22 @@ const CollectionRunnerPanel: React.FC = () => {
             >
               <option value="">None</option>
               {environments.map((env) => (
+                <option key={env.name} value={env.name}>
+                  {env.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <span>Collection Env</span>
+            <select
+              value={options.collectionEnvironmentName ?? ''}
+              onChange={(e) => setOption('collectionEnvironmentName', e.target.value || null)}
+              className="h-6 px-1.5 rounded border border-border-subtle bg-bg-input text-text-primary text-xs focus:outline-none focus:border-accent"
+              disabled={runStatus === 'running'}
+            >
+              <option value="">None</option>
+              {collectionEnvs.map((env) => (
                 <option key={env.name} value={env.name}>
                   {env.name}
                 </option>

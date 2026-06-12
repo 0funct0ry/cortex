@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { marked } from 'marked'
 import * as Icons from '../ui/Icons'
 import type { CollectionDraft } from '../../stores/collectionViewStore'
 import { useCollectionStore } from '../../stores/collectionStore'
-import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
+import { useTabs } from '../../contexts/TabsContext'
 import type { CollectionItem } from '../../bindings'
 
 interface CollectionOverviewTabProps {
@@ -27,12 +28,30 @@ const CollectionOverviewTab: React.FC<CollectionOverviewTabProps> = ({
 }) => {
   const [showPreview, setShowPreview] = useState(false)
   const { collections } = useCollectionStore()
-  const { activeWorkspace } = useWorkspaceStore()
   const { openShareModal, openGenerateDocsModal } = useUIStore()
+
+  const { openTab } = useTabs()
+  const { collectionEnvironments, loadCollectionEnvironments } = useCollectionEnvironmentStore()
 
   const colData = collections[collectionPath]
   const requestCount = useMemo(() => (colData ? countRequests(colData.items) : 0), [colData])
-  const envCount = activeWorkspace?.environments.length ?? 0
+  const collectionEnvs = collectionEnvironments[collectionPath] ?? []
+  const envCount = collectionEnvs.length
+
+  useEffect(() => {
+    loadCollectionEnvironments(collectionPath)
+  }, [collectionPath, loadCollectionEnvironments])
+
+  const openCollectionEnvsTab = () =>
+    openTab({
+      type: 'collection-environments',
+      name: 'Environments',
+      collectionPath,
+      collectionId: collectionPath,
+      requestPath: null,
+      folderPath: null,
+      method: '',
+    })
 
   const renderedMarkdown = useMemo(() => {
     if (!draft.description) return ''
@@ -74,10 +93,19 @@ const CollectionOverviewTab: React.FC<CollectionOverviewTabProps> = ({
             <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
               Environments
             </label>
-            <div className="flex items-center gap-2 h-9 bg-bg-muted rounded px-3 border border-border-subtle">
-              <Icons.Globe size={13} className="text-text-muted shrink-0" />
-              <span className="text-sm text-text-secondary">{envCount}</span>
-            </div>
+            <button
+              onClick={openCollectionEnvsTab}
+              className="w-full flex items-center gap-2 h-9 bg-bg-muted hover:bg-bg-highlight rounded px-3 border border-border-subtle hover:border-border-default transition-colors group"
+              title="Manage collection environments"
+            >
+              <Icons.Layers
+                size={13}
+                className="text-text-muted shrink-0 group-hover:text-accent transition-colors"
+              />
+              <span className="text-sm text-text-secondary group-hover:text-text-primary transition-colors">
+                {envCount}
+              </span>
+            </button>
           </div>
 
           {/* Requests */}
@@ -108,6 +136,14 @@ const CollectionOverviewTab: React.FC<CollectionOverviewTabProps> = ({
           >
             <Icons.FileText size={13} />
             Generate Docs
+          </button>
+          <span className="text-border-subtle">·</span>
+          <button
+            onClick={openCollectionEnvsTab}
+            className="flex items-center gap-1.5 text-xs text-accent hover:text-accent-hover font-medium transition-colors"
+          >
+            <Icons.Layers size={13} />
+            Manage Environments
           </button>
         </div>
 

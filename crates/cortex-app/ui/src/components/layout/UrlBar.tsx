@@ -11,6 +11,7 @@ import { useResponseStore, type ResponsePayload } from '../../stores/responseSto
 import { runPostResponseScript } from '../../utils/scriptRunner'
 import { commands } from '../../bindings'
 import { useEnvironmentStore } from '../../stores/environmentStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import { toast } from '../../stores/toastStore'
 import { useCollectionStore } from '../../stores/collectionStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -56,6 +57,11 @@ const UrlBar: React.FC = () => {
 
     try {
       const { activeEnvironmentName } = useEnvironmentStore.getState()
+      const collectionPathForEnv = activeTab.collectionId || null
+      const collectionEnvironmentName = collectionPathForEnv
+        ? (useCollectionEnvironmentStore.getState().activeCollectionEnvName[collectionPathForEnv] ??
+          null)
+        : null
       const requestId = crypto.randomUUID()
       setInFlight(activeTabId, true, requestId)
       clearVisualization(activeTabId)
@@ -127,6 +133,7 @@ const UrlBar: React.FC = () => {
         workspace_path: activeWorkspacePath,
         collection_path: activeTab.collectionId || null,
         environment_name: activeEnvironmentName,
+        collection_environment_name: collectionEnvironmentName,
         request_path: activeTab.requestPath,
       }
 

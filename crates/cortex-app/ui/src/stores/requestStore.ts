@@ -8,6 +8,7 @@ import {
 } from '../bindings'
 import { useWorkspaceStore } from './workspaceStore'
 import { useEnvironmentStore } from './environmentStore'
+import { useCollectionEnvironmentStore } from './collectionEnvironmentStore'
 import { useCollectionStore } from './collectionStore'
 
 export type ComposerTabId =
@@ -472,13 +473,17 @@ export const useRequestStore = create<RequestState>((set, get) => ({
   fetchResolvedVariables: async (tabId, collectionId) => {
     const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
     const environmentName = useEnvironmentStore.getState().activeEnvironmentName
+    const collectionEnvironmentName = collectionId
+      ? (useCollectionEnvironmentStore.getState().activeCollectionEnvName[collectionId] ?? null)
+      : null
     if (!workspacePath) return
 
     try {
       const result = await commands.getResolvedVariables(
         workspacePath,
         collectionId,
-        environmentName
+        environmentName,
+        collectionEnvironmentName
       )
       if (result.status === 'ok') {
         set((state) => ({

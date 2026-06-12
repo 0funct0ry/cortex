@@ -4,6 +4,7 @@ import type { CollectionItem, SendRequestPayload, RequestMetadata } from '../bin
 import { useCollectionStore } from './collectionStore'
 import { useWorkspaceStore } from './workspaceStore'
 import { useEnvironmentStore } from './environmentStore'
+import { useCollectionEnvironmentStore } from './collectionEnvironmentStore'
 
 export interface RunnerItem {
   path: string
@@ -37,6 +38,7 @@ interface CollectionRunnerState {
     iterations: number
     delayMs: number
     environmentName: string | null
+    collectionEnvironmentName: string | null
   }
   results: Record<string, RequestRunResult[]>
   runStatus: RunStatus
@@ -121,6 +123,7 @@ export const useCollectionRunnerStore = create<CollectionRunnerState>((set, get)
     iterations: 1,
     delayMs: 0,
     environmentName: useEnvironmentStore.getState().activeEnvironmentName,
+    collectionEnvironmentName: null,
   },
   results: {},
   runStatus: 'idle',
@@ -129,6 +132,8 @@ export const useCollectionRunnerStore = create<CollectionRunnerState>((set, get)
 
   open: (scope, items) => {
     const { activeEnvironmentName } = useEnvironmentStore.getState()
+    const collectionEnvironmentName =
+      useCollectionEnvironmentStore.getState().activeCollectionEnvName[scope.collectionPath] ?? null
     set({
       isOpen: true,
       scope,
@@ -138,6 +143,7 @@ export const useCollectionRunnerStore = create<CollectionRunnerState>((set, get)
         iterations: 1,
         delayMs: 0,
         environmentName: activeEnvironmentName,
+        collectionEnvironmentName,
       },
       results: {},
       runStatus: 'idle',
@@ -273,6 +279,7 @@ export const useCollectionRunnerStore = create<CollectionRunnerState>((set, get)
           workspace_path: activeWorkspacePath,
           collection_path: scope?.collectionPath ?? null,
           environment_name: options.environmentName,
+          collection_environment_name: options.collectionEnvironmentName,
           request_path: item.path,
         }
 
