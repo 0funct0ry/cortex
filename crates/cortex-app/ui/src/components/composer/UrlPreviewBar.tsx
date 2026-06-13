@@ -30,6 +30,37 @@ function resolveTemplateString(
   })
 }
 
+function renderUrlWithChips(url: string): React.ReactNode {
+  const parts = url.split(/(\{\{[^{}]+\}\})/g)
+  if (parts.length === 1) return url
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = part.match(/^\{\{([^{}]+)\}\}$/)
+        if (match) {
+          const varName = match[1].trim()
+          if (varName.startsWith('$')) {
+            return (
+              <span key={i} className="font-mono text-text-muted italic">
+                {part}
+              </span>
+            )
+          }
+          return (
+            <span
+              key={i}
+              className="inline-flex items-center px-1 mx-px rounded text-[10px] bg-warning/20 text-warning font-semibold border border-warning/30 not-italic"
+            >
+              {part}
+            </span>
+          )
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>
+      })}
+    </>
+  )
+}
+
 function hasSecretVariables(
   template: string,
   resolvedVars: Record<string, { value: unknown; secret?: boolean }> | undefined
@@ -137,8 +168,8 @@ const UrlPreviewBar: React.FC<UrlPreviewBarProps> = ({ requestId }) => {
         <span>Preview</span>
       </div>
 
-      <div className="flex-1 font-mono text-text-secondary truncate select-text pr-4 hover:text-text-primary transition-colors cursor-text">
-        {displayUrl}
+      <div className="flex-1 font-mono text-text-secondary overflow-hidden whitespace-nowrap select-text pr-4 hover:text-text-primary transition-colors cursor-text">
+        {renderUrlWithChips(displayUrl)}
       </div>
 
       {containsSecrets && (

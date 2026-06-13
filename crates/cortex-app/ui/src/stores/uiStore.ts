@@ -34,6 +34,7 @@ interface GenerateCodeModalState {
   isOpen: boolean
   requestPath: string | null
   requestName: string | null
+  collectionId: string | null
 }
 
 interface UIState {
@@ -71,7 +72,11 @@ interface UIState {
   openGenerateDocsModal: (collectionPath: string, collectionName: string) => void
   closeGenerateDocsModal: () => void
   generateCodeModal: GenerateCodeModalState
-  openGenerateCodeModal: (requestPath: string, requestName: string) => void
+  openGenerateCodeModal: (
+    requestPath: string,
+    requestName: string,
+    collectionId?: string | null
+  ) => void
   closeGenerateCodeModal: () => void
   createExampleModal: { isOpen: boolean; requestPath: string | null; resetKey: number }
   openCreateExampleModal: (requestPath: string) => void
@@ -168,11 +173,18 @@ export const useUIStore = create<UIState>((set) => {
       set({ generateDocsModal: { isOpen: true, collectionPath, collectionName } }),
     closeGenerateDocsModal: () =>
       set({ generateDocsModal: { isOpen: false, collectionPath: null, collectionName: null } }),
-    generateCodeModal: { isOpen: false, requestPath: null, requestName: null },
-    openGenerateCodeModal: (requestPath, requestName) =>
-      set({ generateCodeModal: { isOpen: true, requestPath, requestName } }),
+    generateCodeModal: { isOpen: false, requestPath: null, requestName: null, collectionId: null },
+    openGenerateCodeModal: (requestPath, requestName, collectionId = null) =>
+      set({ generateCodeModal: { isOpen: true, requestPath, requestName, collectionId } }),
     closeGenerateCodeModal: () =>
-      set({ generateCodeModal: { isOpen: false, requestPath: null, requestName: null } }),
+      set({
+        generateCodeModal: {
+          isOpen: false,
+          requestPath: null,
+          requestName: null,
+          collectionId: null,
+        },
+      }),
     createExampleModal: { isOpen: false, requestPath: null, resetKey: 0 },
     openCreateExampleModal: (requestPath) =>
       set((state) => ({

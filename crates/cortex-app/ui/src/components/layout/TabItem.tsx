@@ -114,6 +114,8 @@ const TabItem: React.FC<TabItemProps> = ({
         {/* Icon / Method Label */}
         {tab.type === 'environments' ? (
           <Icons.Globe size={14} className="text-accent shrink-0" />
+        ) : tab.type === 'collection-environments' ? (
+          <Icons.Layers size={14} className="text-accent shrink-0" />
         ) : tab.type === 'collection' ? (
           <Icons.Settings size={14} className="text-accent shrink-0" />
         ) : tab.type === 'folder' ? (
@@ -128,6 +130,7 @@ const TabItem: React.FC<TabItemProps> = ({
 
         {/* Name — italic + muted for transient (unsaved) tabs */}
         <span
+          title={tab.type === 'collection-environments' ? tab.name : undefined}
           className={`text-[12px] truncate flex-1 font-medium ${
             tab.type === 'request' && !tab.requestPath
               ? `italic ${active ? 'text-text-secondary' : 'text-text-muted'}`

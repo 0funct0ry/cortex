@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import * as Icons from '../ui/Icons'
 import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import { toast } from '../../stores/toastStore'
-import { EnvironmentEditor, CreateEnvironmentModal } from './EnvironmentsTab'
+import { EnvironmentEditor, CreateEnvironmentModal, HeaderMenu } from './EnvironmentsTab'
 import Dialog from '../ui/Dialog'
+import { commands } from '../../bindings'
 import type { Variable } from '../../bindings'
 
 interface CollectionEnvironmentsTabProps {
@@ -34,10 +35,57 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
   const activeEnvName = activeCollectionEnvName[collectionPath] ?? null
   const editingEnvName = editingCollectionEnvName[collectionPath] ?? null
 
+  const collectionName =
+    collectionPath
+      .split('/')
+      .pop()
+      ?.replace(/\.collection\.json$/i, '') ?? collectionPath
+
   const [searchQuery, setSearchQuery] = useState('')
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
+  const SIDEBAR_STORAGE_KEY = 'cortex:col-env-sidebar-width'
+  const SIDEBAR_DEFAULT = 315
+  const SIDEBAR_MIN = 180
+  const SIDEBAR_MAX = 480
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY)
+    return stored ? parseInt(stored, 10) : SIDEBAR_DEFAULT
+  })
+  const isResizing = useRef(false)
+
+  const startResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      isResizing.current = true
+      const startX = e.clientX
+      const startWidth = sidebarWidth
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!isResizing.current) return
+        const newWidth = Math.min(
+          SIDEBAR_MAX,
+          Math.max(SIDEBAR_MIN, startWidth + ev.clientX - startX)
+        )
+        setSidebarWidth(newWidth)
+      }
+      const onMouseUp = (ev: MouseEvent) => {
+        isResizing.current = false
+        const newWidth = Math.min(
+          SIDEBAR_MAX,
+          Math.max(SIDEBAR_MIN, startWidth + ev.clientX - startX)
+        )
+        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(newWidth))
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [sidebarWidth]
+  )
 
   useEffect(() => {
     loadCollectionEnvironments(collectionPath)
@@ -101,6 +149,60 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
     await renameCollectionEnv(collectionPath, editingEnvName, newName)
   }
 
+  const handleImport = async () => {
+    try {
+      const pathResult = await commands.pickFile('Import Environment', 'YAML', 'yaml')
+      if (pathResult.status === 'error' || !pathResult.data) return
+
+      const fileResult = await commands.readEnvironmentFile(pathResult.data)
+      if (fileResult.status === 'error') throw new Error(fileResult.error)
+
+      const rawName =
+        pathResult.data
+          .split('/')
+          .pop()
+          ?.replace(/\.ya?ml$/i, '') ?? 'imported'
+      const envName = envs.find((e) => e.name === rawName) ? `${rawName}-imported` : rawName
+
+      await updateCollectionEnvVariables(collectionPath, envName, fileResult.data.variables)
+      setEditingCollectionEnvironment(collectionPath, envName)
+      toast.success(`Imported "${envName}" with ${fileResult.data.variables.length} variable(s)`)
+    } catch (err) {
+      toast.error(`Import failed: ${String(err)}`)
+    }
+  }
+
+  const handleExport = async () => {
+    if (!selectedEnv) {
+      toast.error('Select an environment to export')
+      return
+    }
+    try {
+      const pathResult = await commands.saveFile(
+        'Export Environment',
+        'YAML',
+        'yaml',
+        selectedEnv.name
+      )
+      if (pathResult.status === 'error' || !pathResult.data) return
+
+      const varLines = selectedEnv.variables
+        .map(
+          (v) =>
+            `  - name: ${v.name}\n    value: ${JSON.stringify(v.value)}\n    secret: ${v.secret ?? false}\n    enabled: ${v.enabled ?? true}\n    prompt: ${v.prompt ?? false}`
+        )
+        .join('\n')
+      const yaml = `version: "1"\nname: ${selectedEnv.name}\nvariables:\n${varLines || '  []'}\n`
+
+      const writeResult = await commands.writeTextFile(pathResult.data, yaml)
+      if (writeResult.status === 'error') throw new Error(writeResult.error)
+
+      toast.success(`Exported to ${pathResult.data.split('/').pop()}`)
+    } catch (err) {
+      toast.error(`Export failed: ${String(err)}`)
+    }
+  }
+
   // ── Right panel ─────────────────────────────────────────────────────────────
 
   const renderRightPanel = () => {
@@ -111,6 +213,7 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
           name={selectedEnv.name}
           envKey={`col:${collectionPath}:${selectedEnv.name}`}
           variables={selectedEnv.variables}
+          collectionName={collectionName}
           tamperedVariables={{}}
           onSave={handleSave}
           onDelete={handleDelete}
@@ -125,6 +228,9 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
         <div className="text-text-muted opacity-10 mb-4">
           <Icons.Layers size={80} strokeWidth={1} />
         </div>
+        <p className="text-[11px] text-text-muted mb-4 font-medium tracking-wide uppercase">
+          {collectionName}
+        </p>
         {envs.length === 0 ? (
           <>
             <h3 className="text-text-secondary text-sm font-medium mb-1">
@@ -161,24 +267,35 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
   return (
     <div className="flex h-full bg-bg-base overflow-hidden">
       {/* ── Left sidebar ── */}
-      <div className="w-52 border-r border-border-subtle flex flex-col shrink-0 bg-bg-panel/50">
+      <div
+        className="border-r border-border-subtle flex flex-col shrink-0 bg-bg-panel/50 relative"
+        style={{ width: sidebarWidth }}
+      >
         {/* Section header */}
         <div className="h-10 px-3 flex items-center justify-between border-b border-border-subtle shrink-0">
-          <div className="flex flex-col justify-center">
-            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider leading-none">
-              Environments
-            </span>
-            <span className="text-[9px] text-text-muted leading-tight mt-0.5">
-              Scoped to this collection
-            </span>
-          </div>
-          <button
-            onClick={handleCreate}
-            className="p-1 hover:bg-bg-muted rounded text-text-muted hover:text-text-primary transition-colors"
-            title="New environment"
-          >
-            <Icons.Plus size={13} />
-          </button>
+          <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider truncate mr-1">
+            Collection Environments
+          </span>
+          <HeaderMenu
+            items={[
+              {
+                label: 'New Environment',
+                icon: <Icons.Plus size={13} />,
+                onClick: handleCreate,
+              },
+              {
+                label: 'Import',
+                icon: <Icons.Download size={13} />,
+                onClick: handleImport,
+              },
+              {
+                label: 'Export',
+                icon: <Icons.Upload size={13} />,
+                onClick: handleExport,
+                disabled: !selectedEnv,
+              },
+            ]}
+          />
         </div>
 
         {/* Search */}
@@ -260,6 +377,12 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
             </div>
           )}
         </div>
+
+        {/* Resize handle */}
+        <div
+          onMouseDown={startResize}
+          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10"
+        />
       </div>
 
       {/* ── Right panel ── */}

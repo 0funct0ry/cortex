@@ -45,7 +45,7 @@ const CollectionOverviewTab: React.FC<CollectionOverviewTabProps> = ({
   const openCollectionEnvsTab = () =>
     openTab({
       type: 'collection-environments',
-      name: 'Environments',
+      name: `Environments - ${draft.name}`,
       collectionPath,
       collectionId: collectionPath,
       requestPath: null,

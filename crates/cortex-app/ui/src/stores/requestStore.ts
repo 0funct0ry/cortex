@@ -69,12 +69,17 @@ interface RequestState {
   // tabId -> state
   requestStates: Record<string, RequestData>
   resolvedVariables: Record<string, Record<string, ResolvedVariable>>
+  /** Last (tabId, collectionId) passed to fetchResolvedVariables — used to re-resolve
+   * after a global change (e.g. toggling the global environment active state). */
+  _resolutionCtx: { tabId: string; collectionId: string | null } | null
   updateRequest: (tabId: string, data: Partial<RequestData>) => void
   setInFlight: (tabId: string, inFlight: boolean, requestId: string | null) => void
   getRequestState: (tabId: string) => RequestData
   saveRequest: (tabId: string, path: string) => Promise<void>
   populateRequest: (tabId: string, content: RequestFile) => void
   fetchResolvedVariables: (tabId: string, collectionId: string | null) => Promise<void>
+  /** Re-run resolution for the most recent context. Safe to call when none exists. */
+  refetchResolvedVariables: () => void
 }
 
 const DEFAULT_REQUEST_STATE: RequestData = {
@@ -217,6 +222,7 @@ function syncUrlFromParams(url: string, params: HeaderEntry[]): string {
 export const useRequestStore = create<RequestState>((set, get) => ({
   requestStates: {},
   resolvedVariables: {},
+  _resolutionCtx: null,
 
   updateRequest: (tabId, data) =>
     set((state) => {
@@ -471,6 +477,9 @@ export const useRequestStore = create<RequestState>((set, get) => ({
   },
 
   fetchResolvedVariables: async (tabId, collectionId) => {
+    // Remember the context so a global change (e.g. toggling the global env) can
+    // re-resolve without needing to know the active tab.
+    set({ _resolutionCtx: { tabId, collectionId } })
     const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
     const environmentName = useEnvironmentStore.getState().activeEnvironmentName
     const collectionEnvironmentName = collectionId
@@ -495,6 +504,13 @@ export const useRequestStore = create<RequestState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to fetch resolved variables', err)
+    }
+  },
+
+  refetchResolvedVariables: () => {
+    const ctx = get()._resolutionCtx
+    if (ctx) {
+      void get().fetchResolvedVariables(ctx.tabId, ctx.collectionId)
     }
   },
 }))

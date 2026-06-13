@@ -12,6 +12,7 @@ import CodeEditor from '../ui/CodeEditor'
 import { useTabs } from '../../contexts/TabsContext'
 import { useRequestStore } from '../../stores/requestStore'
 import { useEnvironmentStore } from '../../stores/environmentStore'
+import { useCollectionViewStore } from '../../stores/collectionViewStore'
 
 const Composer: React.FC = () => {
   const { activeTabId, activeTab, setDirty } = useTabs()
@@ -19,13 +20,25 @@ const Composer: React.FC = () => {
 
   const activeEnvironmentName = useEnvironmentStore((s) => s.activeEnvironmentName)
   const environments = useEnvironmentStore((s) => s.environments)
+  const globalEnvironment = useEnvironmentStore((s) => s.globalEnvironment)
   const collectionId = activeTab?.collectionId || null
+  const collectionSavedRevision = useCollectionViewStore((s) =>
+    collectionId ? s.savedRevisions[collectionId] : undefined
+  )
 
   React.useEffect(() => {
     if (activeTabId) {
       fetchResolvedVariables(activeTabId, collectionId)
     }
-  }, [activeTabId, collectionId, activeEnvironmentName, environments, fetchResolvedVariables])
+  }, [
+    activeTabId,
+    collectionId,
+    activeEnvironmentName,
+    environments,
+    globalEnvironment,
+    collectionSavedRevision,
+    fetchResolvedVariables,
+  ])
 
   const requestData = getRequestState(activeTabId || '')
   const activeComposerTab = requestData.activeComposerTab || 'params'

@@ -79,9 +79,14 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
     if (focusEnv) {
       setEditingCollectionEnvironment(collectionPath, focusEnv)
     }
+    const colName =
+      collectionPath
+        .split('/')
+        .pop()
+        ?.replace(/\.collection\.json$/i, '') ?? collectionPath
     openTab({
       type: 'collection-environments',
-      name: 'Environments',
+      name: `Environments - ${colName}`,
       collectionPath,
       collectionId: collectionPath,
       requestPath: null,

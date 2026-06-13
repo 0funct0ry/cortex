@@ -40,6 +40,8 @@ export interface CollectionDraft {
 
 interface CollectionViewState {
   drafts: Record<string, CollectionDraft>
+  /** Monotonically-increasing counter per collection path, incremented on each successful saveDraft(). */
+  savedRevisions: Record<string, number>
   initDraft: (collectionPath: string, collection: Collection) => void
   updateDraft: (collectionPath: string, updates: Partial<CollectionDraft>) => void
   saveDraft: (collectionPath: string) => Promise<void>
@@ -73,6 +75,7 @@ function authToRef(auth: CollectionDraft['auth']): Record<string, unknown> | nul
 
 export const useCollectionViewStore = create<CollectionViewState>((set, get) => ({
   drafts: {},
+  savedRevisions: {},
 
   initDraft: (collectionPath, collection) => {
     const existing = get().drafts[collectionPath]
@@ -152,6 +155,14 @@ export const useCollectionViewStore = create<CollectionViewState>((set, get) => 
 
     // Refresh the collection in the tree so sidebar reflects name/desc changes
     await useCollectionStore.getState().loadCollection(collectionPath)
+
+    // Bump the revision counter so Composer.tsx re-fetches resolved variables
+    set((state) => ({
+      savedRevisions: {
+        ...state.savedRevisions,
+        [collectionPath]: (state.savedRevisions[collectionPath] ?? 0) + 1,
+      },
+    }))
   },
 
   clearDraft: (collectionPath) => {

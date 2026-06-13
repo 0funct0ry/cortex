@@ -1828,6 +1828,21 @@ fn populate_resolver(
         }
     }
 
+    // 3. Global environment file — lowest-precedence named scope.
+    // Loaded fresh on every resolve so edits are reflected immediately without restart.
+    let path = global_environment_path();
+    if path.exists() {
+        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let mut global_env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
+            .map_err(|e| e.to_string())?;
+        global_env.decrypt_secrets(&cortex_core::crypto::get_app_key());
+        for var in global_env.variables {
+            if var.enabled {
+                resolver.global_env_vars.entry(var.name.clone()).or_insert(var);
+            }
+        }
+    }
+
     // 4. Ephemeral / Session — Runtime scope, highest precedence.
     // These are never read from disk; they come from the in-process EphemeralStore.
     for var in ephemeral_vars {
@@ -2026,6 +2041,7 @@ fn gather_and_render_headers(
 
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn preview_request_headers(
     headers: Vec<HeaderEntry>,
     workspace_path: Option<String>,

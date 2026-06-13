@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import * as Icons from './Icons'
 import { useUIStore } from '../../stores/uiStore'
 import { useEnvironmentStore } from '../../stores/environmentStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { commands } from '../../bindings'
 import CodeEditor from './CodeEditor'
 import {
@@ -29,7 +31,7 @@ function readLastLang(): CodeLang {
 
 const GenerateCodeModal: React.FC = () => {
   const { generateCodeModal, closeGenerateCodeModal } = useUIStore()
-  const { requestPath, requestName } = generateCodeModal
+  const { requestPath, requestName, collectionId } = generateCodeModal
 
   const [selectedLang, setSelectedLang] = useState<CodeLang>(readLastLang)
   const [resolvedReq, setResolvedReq] = useState<ResolvedRequest | null>(null)
@@ -47,7 +49,8 @@ const GenerateCodeModal: React.FC = () => {
     setCopied(false)
     setLoading(true)
 
-    commands.loadRequest(requestPath).then((res) => {
+    const load = async () => {
+      const res = await commands.loadRequest(requestPath)
       setLoading(false)
       if (res.status !== 'ok') {
         setLoadError(String(res.error))
@@ -64,15 +67,28 @@ const GenerateCodeModal: React.FC = () => {
         return
       }
 
-      // Build variable map from active environment (non-secret, enabled vars only)
+      // Build variable map using the same backend resolver used for request sending,
+      // so collection env overrides and the global environment all apply.
+      const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
       const envStore = useEnvironmentStore.getState()
-      const activeEnv = envStore.environments.find((e) => e.name === envStore.activeEnvironmentName)
+      const collEnvStore = useCollectionEnvironmentStore.getState()
+      const collEnvName = collectionId
+        ? (collEnvStore.activeCollectionEnvName[collectionId] ?? null)
+        : null
+
+      const resolvedVarsResult = await commands.getResolvedVariables(
+        workspacePath,
+        collectionId ?? null,
+        envStore.activeEnvironmentName,
+        collEnvName
+      )
+
       const varMap: Record<string, string> = {}
-      activeEnv?.variables
-        .filter((v) => v.enabled !== false && !v.secret)
-        .forEach((v) => {
-          varMap[v.name] = String(v.value ?? '')
-        })
+      if (resolvedVarsResult.status === 'ok') {
+        for (const [name, rv] of Object.entries(resolvedVarsResult.data)) {
+          varMap[name] = String(rv.value ?? '')
+        }
+      }
 
       const resolve = (s: string) => resolveVariables(s, varMap)
 
@@ -146,8 +162,13 @@ const GenerateCodeModal: React.FC = () => {
         urlEncodedFields,
         bodyFilePath,
       })
+    }
+
+    load().catch((err) => {
+      setLoading(false)
+      setLoadError(String(err))
     })
-  }, [generateCodeModal.isOpen, requestPath])
+  }, [generateCodeModal.isOpen, requestPath, collectionId])
 
   const generatedCode = useMemo(() => {
     if (!resolvedReq) return ''

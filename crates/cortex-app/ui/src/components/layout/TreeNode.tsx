@@ -586,7 +586,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       { label: 'Manage Tags', onClick: () => setShowTagManager(true) },
       {
         label: 'Generate Code',
-        onClick: () => openGenerateCodeModal(path, label),
+        onClick: () => openGenerateCodeModal(path, label, collectionPath ?? null),
       },
       {
         label: 'Create Example',

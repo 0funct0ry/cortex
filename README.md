@@ -419,7 +419,7 @@ Cortex uses a direct filesystem-to-UI mapping for collections.
 - **Trash Integration**: Deleting a request moves the file to the OS Trash.
 - **Validation**: Invalid YAML or schema violations are flagged in the UI with detailed error messages.
 - **Auto-generated `.gitignore`**: When a new collection or workspace is created, Cortex automatically initializes a `.gitignore` file with sensible defaults (like ignoring `.env` and `.cortex-ai.yaml`) to prevent accidental commits of local secrets and configuration.
-- **Variable Precedence**: Variables from different scopes resolve in a predictable order: **Runtime → Environment → Collection → Global (Workspace)**. Highest precedence always wins; no merging occurs.
+- **Variable Precedence**: Variables from different scopes resolve in a predictable order: **Runtime → Environment → Collection → Global (Workspace) → Global Environment**. Highest precedence always wins; no merging occurs.
 
 ### 🧩 Variable & Template Engine
 Cortex includes a powerful variable resolution pipeline and template engine.
@@ -427,9 +427,10 @@ Cortex includes a powerful variable resolution pipeline and template engine.
 - **Header Key Interpolation**: Variable placeholders are completely evaluated inside HTTP header keys (supporting exact precedence matching and full uppercase names like `{{AUTH_HEADER}}`). Headers whose final resolved keys evaluate to empty strings are automatically stripped from outgoing requests, displaying distinct warnings in the live preview panel and run logs.
 - **Precedence Model**:
     1. **Session (Ephemeral / Runtime)**: In-memory variables that live only for the current app session — never written to disk (highest).
-    2. **Environment**: Variables defined in the active environment file.
+    2. **Environment**: Variables defined in the active environment file (workspace or collection-scoped).
     3. **Collection**: Shared variables defined in the collection's `cortex.yaml`.
-    4. **Global**: Workspace-wide variables defined in `cortex-workspace.yaml` (lowest).
+    4. **Global (Workspace)**: Workspace-wide variables defined in `cortex-workspace.yaml`.
+    5. **Global Environment**: App-level variables defined in `~/Library/Application Support/cortex/global-environment.yaml` (lowest). These fill in any name not resolved by a higher-precedence scope and are injected on every request without restarting the app.
 - **Unified Management**: A dedicated "Variables" panel accessible from the sidebar and environment switcher provides a central place to manage variables at all scopes, including the **Session** tab (⚡ amber accent).
 - **Secret Masking**: Support for marking any variable as a secret. Secret values are masked in the UI with `********` across the editor, request previews, and reports. Masked values can be toggled for visibility in the Variable Management panel. All secrets are stored with **AES-GCM-256** encryption at rest.
 - **Enabled Toggles**: Easily enable or disable variables without deleting them to test different scenarios.
@@ -662,7 +663,7 @@ Cortex includes a dedicated **Environments** screen accessible from the workspac
 | **Secret masking** | Check the **Secret** checkbox to encrypt a variable at rest. The value is displayed as `••••••••`; click the 👁 eye button for temporary in-session reveal without changing the secret flag. |
 | **Save / Reset** | **Save** persists changes to `environments/<name>.yaml` immediately. **Reset** reverts unsaved changes. A dot (●) in the sidebar and a highlight on the Save button indicate unsaved edits. |
 | **Active environment** | Hover a row and click the ✓ to activate it for request execution. The active selection is persisted per workspace and restored on next launch. |
-| **Global environment** | A fixed **Global** entry at the top of the sidebar holds app-level variables available in every workspace (stored in `~/Library/Application Support/cortex/global-environment.yaml`). |
+| **Global environment** | A fixed **Global** entry at the top of the sidebar holds app-level variables available in every workspace (stored in `~/Library/Application Support/cortex/global-environment.yaml`). These variables are injected into the resolver at the lowest precedence — any collection, environment, or workspace variable with the same name overrides the global value. Changes take effect on the next request with no restart required. Use the ⏻ power button on the Global row to activate or deactivate the global environment per workspace; the state is remembered across launches. |
 | **Import / Export** | Use the ↓/↑ icons in the sidebar header to import an environment from a YAML file or export the selected environment to disk. |
 | **.env file support** | The `.ENV FILES` section at the bottom of the sidebar lets you attach `.env` files. Their variables appear as **read-only** rows in the editor and are available for `{{variable}}` interpolation. A ⚠ badge appears if any key conflicts with the currently selected environment. |
 | **Search** | The search box in the sidebar filters environments by name in real time. |
@@ -671,7 +672,8 @@ Cortex includes a dedicated **Environments** screen accessible from the workspac
 - Each environment is stored as `<workspace-dir>/environments/<name>.yaml`.
 - Secret values are AES-256 encrypted before being written to disk (prefix: `enc:AES256:`).
 - `.env` file references are stored in the `env_files` field of `cortex-workspace.yaml`.
-- The active environment is persisted per-workspace in browser localStorage and restored automatically on next launch.
+- The active environment is persisted per-workspace in browser localStorage (`cortex.active-environment.<path>`) and restored automatically on next launch.
+- Whether the global environment is active is persisted per-workspace (`cortex.global-env-active.<path>`, default: active) and restored on next launch.
 
 Example `cortex-workspace.yaml` with environment file references:
 

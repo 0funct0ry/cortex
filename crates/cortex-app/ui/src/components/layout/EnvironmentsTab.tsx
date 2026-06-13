@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import * as Icons from '../ui/Icons'
 import { useEnvironmentStore } from '../../stores/environmentStore'
@@ -156,6 +156,75 @@ export const CreateEnvironmentModal: React.FC<CreateEnvironmentModalProps> = ({
 const GLOBAL_KEY = '__global__'
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HeaderMenu — vertical-dots dropdown for sidebar headers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HeaderMenuItem {
+  label: string
+  icon: React.ReactNode
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+  separator?: boolean
+}
+
+export const HeaderMenu: React.FC<{ items: HeaderMenuItem[] }> = ({ items }) => {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="p-1 hover:bg-bg-muted rounded text-text-muted hover:text-text-primary transition-colors"
+        title="More actions"
+      >
+        <Icons.MoreVertical size={13} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-0.5 z-50 min-w-[168px] py-1 bg-bg-overlay border border-border-subtle rounded-md shadow-lg">
+          {items.map((item, i) =>
+            item.separator ? (
+              <div key={i} className="my-1 border-t border-border-subtle" />
+            ) : (
+              <button
+                key={i}
+                onClick={() => {
+                  if (!item.disabled) {
+                    item.onClick()
+                    setOpen(false)
+                  }
+                }}
+                disabled={item.disabled}
+                className={`w-full flex items-center gap-2 px-3 h-8 text-xs transition-colors ${
+                  item.disabled
+                    ? 'text-text-muted cursor-not-allowed opacity-50'
+                    : item.danger
+                      ? 'text-error hover:bg-bg-highlight'
+                      : 'text-text-primary hover:bg-bg-highlight'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EnvironmentEditor — right panel
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -166,6 +235,8 @@ interface EnvironmentEditorProps {
   color?: string | null
   isGlobal?: boolean
   readOnly?: boolean
+  /** When set, shows a "Collection: <name>" subtitle in the toolbar. */
+  collectionName?: string
   /** Override the tampered-variable map (decrypt failures). When omitted the
    *  workspace-level decryptFailures for the current editingEnvironmentName
    *  are used. Pass `{}` for collection-scoped environments. */
@@ -184,6 +255,7 @@ export const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   color = null,
   isGlobal = false,
   readOnly = false,
+  collectionName,
   tamperedVariables: tamperedVariablesProp,
   onSave,
   onDelete,
@@ -277,7 +349,9 @@ export const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-bg-surface">
       {/* Toolbar */}
-      <div className="h-10 px-4 flex items-center justify-between border-b border-border-subtle shrink-0 bg-bg-base/30">
+      <div
+        className={`px-4 flex items-center justify-between border-b border-border-subtle shrink-0 bg-bg-base/30 ${collectionName ? 'min-h-[40px] py-1.5' : 'h-10'}`}
+      >
         <div className="flex items-center gap-2 min-w-0">
           {isGlobal ? (
             <div className="flex items-center gap-1.5 text-text-primary">
@@ -336,16 +410,25 @@ export const EnvironmentEditor: React.FC<EnvironmentEditorProps> = ({
                   )}
                 </div>
               )}
-              <span className="text-sm font-semibold text-text-primary truncate">{name}</span>
-              {onRename && (
-                <button
-                  onClick={() => setIsRenaming(true)}
-                  className="p-0.5 text-text-muted hover:text-text-primary transition-colors shrink-0"
-                  title="Rename environment"
-                >
-                  <Icons.Edit size={12} />
-                </button>
-              )}
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm font-semibold text-text-primary truncate">{name}</span>
+                  {onRename && (
+                    <button
+                      onClick={() => setIsRenaming(true)}
+                      className="p-0.5 text-text-muted hover:text-text-primary transition-colors shrink-0"
+                      title="Rename environment"
+                    >
+                      <Icons.Edit size={12} />
+                    </button>
+                  )}
+                </div>
+                {collectionName && (
+                  <span className="text-[10px] text-text-muted leading-tight">
+                    {collectionName}
+                  </span>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -473,6 +556,47 @@ const EnvironmentsTab: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
+  const SIDEBAR_STORAGE_KEY = 'cortex:env-sidebar-width'
+  const SIDEBAR_DEFAULT = 315
+  const SIDEBAR_MIN = 180
+  const SIDEBAR_MAX = 480
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY)
+    return stored ? parseInt(stored, 10) : SIDEBAR_DEFAULT
+  })
+  const isResizing = useRef(false)
+
+  const startResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      isResizing.current = true
+      const startX = e.clientX
+      const startWidth = sidebarWidth
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!isResizing.current) return
+        const newWidth = Math.min(
+          SIDEBAR_MAX,
+          Math.max(SIDEBAR_MIN, startWidth + ev.clientX - startX)
+        )
+        setSidebarWidth(newWidth)
+      }
+      const onMouseUp = (ev: MouseEvent) => {
+        isResizing.current = false
+        const newWidth = Math.min(
+          SIDEBAR_MAX,
+          Math.max(SIDEBAR_MIN, startWidth + ev.clientX - startX)
+        )
+        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(newWidth))
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [sidebarWidth]
+  )
 
   const selectedEnv = useMemo(() => {
     if (editingEnvironmentName === GLOBAL_KEY) return null
@@ -634,20 +758,6 @@ const EnvironmentsTab: React.FC = () => {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const renderRightPanel = () => {
-    if (isEditingGlobal) {
-      return (
-        <EnvironmentEditor
-          key="__global__"
-          name="Global"
-          envKey={GLOBAL_KEY}
-          variables={globalEnvironment?.variables ?? []}
-          isGlobal
-          onSave={handleSaveGlobal}
-          onDirtyChange={(dirty) => setDirty(GLOBAL_KEY, dirty)}
-        />
-      )
-    }
-
     // Check if a dot-env file is being viewed
     const dotEnvEntry = dotEnvFiles.find((d) => `__dotenv__${d.path}` === editingEnvironmentName)
     if (dotEnvEntry) {
@@ -682,78 +792,54 @@ const EnvironmentsTab: React.FC = () => {
       )
     }
 
+    // Default: always show the global environment editor
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center select-none p-8">
-        <div className="text-text-muted opacity-10 mb-4">
-          <Icons.Globe size={80} strokeWidth={1} />
-        </div>
-        <h3 className="text-text-secondary text-sm font-medium mb-1">No environment selected</h3>
-        <p className="text-text-muted text-xs max-w-[240px]">
-          Select an environment from the sidebar or create a new one to manage variables.
-        </p>
-        <button
-          onClick={handleCreate}
-          className="mt-6 h-8 px-4 flex items-center gap-2 bg-accent hover:bg-accent-hover text-accent-fg text-sm font-medium rounded-md transition-colors shadow-sm"
-        >
-          <Icons.Plus size={14} />
-          Create environment
-        </button>
-      </div>
+      <EnvironmentEditor
+        key="__global__"
+        name="Global"
+        envKey={GLOBAL_KEY}
+        variables={globalEnvironment?.variables ?? []}
+        isGlobal
+        onSave={handleSaveGlobal}
+        onDirtyChange={(dirty) => setDirty(GLOBAL_KEY, dirty)}
+      />
     )
   }
 
   return (
     <div className="flex h-full bg-bg-base overflow-hidden">
       {/* ── Left sidebar ── */}
-      <div className="w-52 border-r border-border-subtle flex flex-col shrink-0 bg-bg-panel/50">
+      <div
+        className="border-r border-border-subtle flex flex-col shrink-0 bg-bg-panel/50 relative"
+        style={{ width: sidebarWidth }}
+      >
         {/* Section header */}
         <div className="h-10 px-3 flex items-center justify-between border-b border-border-subtle shrink-0">
-          <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
-            Global Environments
-          </span>
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={handleCreate}
-              className="p-1 hover:bg-bg-muted rounded text-text-muted hover:text-text-primary transition-colors"
-              title="New environment"
-            >
-              <Icons.Plus size={13} />
-            </button>
-            <button
-              onClick={handleImport}
-              className="p-1 hover:bg-bg-muted rounded text-text-muted hover:text-text-primary transition-colors"
-              title="Import environment"
-            >
-              <Icons.Download size={13} />
-            </button>
-            <button
-              onClick={handleExport}
-              className="p-1 hover:bg-bg-muted rounded text-text-muted hover:text-text-primary transition-colors"
-              title="Export selected environment"
-            >
-              <Icons.Upload size={13} />
-            </button>
+          <div className="flex items-center gap-1.5 min-w-0 mr-1">
+            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider truncate">
+              Global Environments
+            </span>
           </div>
-        </div>
-
-        {/* Global Environment fixed entry */}
-        <div
-          onClick={() => setEditingEnvironment(GLOBAL_KEY)}
-          className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors border-b border-border-subtle shrink-0 ${
-            isEditingGlobal ? 'bg-bg-muted' : 'hover:bg-bg-muted/50'
-          }`}
-        >
-          <Icons.Globe size={13} className={isEditingGlobal ? 'text-accent' : 'text-text-muted'} />
-          <span
-            className={`text-sm flex-1 truncate ${
-              isEditingGlobal ? 'text-text-primary font-medium' : 'text-text-secondary'
-            }`}
-          >
-            Global
-          </span>
-          {dirtyEnvironments[GLOBAL_KEY] && (
-            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="Unsaved changes" />
-          )}
+          <HeaderMenu
+            items={[
+              {
+                label: 'New Environment',
+                icon: <Icons.Plus size={13} />,
+                onClick: handleCreate,
+              },
+              {
+                label: 'Import',
+                icon: <Icons.Download size={13} />,
+                onClick: handleImport,
+              },
+              {
+                label: 'Export',
+                icon: <Icons.Upload size={13} />,
+                onClick: handleExport,
+                disabled: !selectedEnv,
+              },
+            ]}
+          />
         </div>
 
         {/* Search */}
@@ -912,6 +998,12 @@ const EnvironmentsTab: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Resize handle */}
+        <div
+          onMouseDown={startResize}
+          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10"
+        />
       </div>
 
       {/* ── Right panel ── */}

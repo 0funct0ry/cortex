@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { useRequestStore } from '../../stores/requestStore'
 import { useTabs } from '../../contexts/TabsContext'
-
 import type { ResolvedVariable } from '../../bindings'
 
 interface VariableInputProps {

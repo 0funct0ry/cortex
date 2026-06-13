@@ -1038,7 +1038,7 @@ prompt?: boolean;
  * Optional hint shown beneath the input in the prompt dialog.
  */
 description?: string | null }
-export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
+export type VariableScope = "globalenv" | "global" | "collection" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
 export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; env_files: string[]; active_environment: string | null; 
 /**

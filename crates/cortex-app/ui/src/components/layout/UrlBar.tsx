@@ -19,7 +19,7 @@ import { getEffectiveAuth } from '../composer/AuthTab'
 
 const UrlBar: React.FC = () => {
   const { tabs, activeTab, activeTabId, updateTab } = useTabs()
-  const { openSaveToCollectionDialog } = useUIStore()
+  const { openSaveToCollectionDialog, openGenerateCodeModal } = useUIStore()
   const { activeWorkspacePath } = useWorkspaceStore()
   const { updateRequest, setInFlight } = useRequestStore()
   const { setResponse, setVisualization, clearVisualization } = useResponseStore()
@@ -256,7 +256,14 @@ const UrlBar: React.FC = () => {
         )}
         <Tooltip content="Generate code snippet">
           <button
-            onClick={() => {}} // Story 03a.14
+            onClick={() =>
+              activeTab?.requestPath &&
+              openGenerateCodeModal(
+                activeTab.requestPath,
+                activeTab.name || '',
+                activeTab.collectionId ?? null
+              )
+            }
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
           >
             <Icons.Code size={14} />
