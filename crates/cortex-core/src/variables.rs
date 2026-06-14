@@ -7,7 +7,6 @@ use std::collections::{BTreeMap, HashSet};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum VariableScope {
-    GlobalEnv,
     Global,
     Collection,
     Environment,
@@ -18,7 +17,6 @@ pub enum VariableScope {
 impl std::fmt::Display for VariableScope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            VariableScope::GlobalEnv => write!(f, "globalenv"),
             VariableScope::Global => write!(f, "global"),
             VariableScope::Collection => write!(f, "collection"),
             VariableScope::Environment => write!(f, "environment"),
@@ -88,8 +86,7 @@ pub struct RenderResult {
 
 #[derive(Default)]
 pub struct VariableResolver {
-    /// Lowest-precedence scope: variables from the global environment file.
-    pub global_env_vars: BTreeMap<String, Variable>,
+    /// Lowest-precedence scope: workspace-level global variables.
     pub global_vars: BTreeMap<String, Variable>,
     pub collection_vars: BTreeMap<String, Variable>,
     pub env_vars: BTreeMap<String, Variable>,
@@ -388,16 +385,6 @@ impl VariableResolver {
                 });
             }
         }
-        if let Some(var) = self.global_env_vars.get(key) {
-            if var.enabled {
-                return Some(ResolvedVariable {
-                    value: var.value.clone(),
-                    scope: VariableScope::GlobalEnv,
-                    secret: var.secret,
-                    description: var.description.clone(),
-                });
-            }
-        }
         None
     }
 
@@ -559,19 +546,6 @@ impl VariableResolver {
 
         // Start from lowest precedence and override
         // Only include enabled variables
-        for (k, v) in &self.global_env_vars {
-            if v.enabled {
-                all.insert(
-                    k.clone(),
-                    ResolvedVariable {
-                        value: v.value.clone(),
-                        scope: VariableScope::GlobalEnv,
-                        secret: v.secret,
-                        description: v.description.clone(),
-                    },
-                );
-            }
-        }
         for (k, v) in &self.global_vars {
             if v.enabled {
                 all.insert(
@@ -964,7 +938,7 @@ mod tests {
     }
 
     #[test]
-    fn test_disabled_collection_falls_through_to_global_env() {
+    fn test_disabled_collection_falls_through_to_global() {
         let make = |name: &str, val: &str, enabled: bool| Variable {
             name: name.to_string(),
             value: serde_json::json!(val),
@@ -977,23 +951,23 @@ mod tests {
         let mut resolver = VariableResolver::new();
         // Collection var exists but is disabled
         resolver.collection_vars.insert("FOO".to_string(), make("FOO", "from-collection", false));
-        // Global env has the same key, enabled
-        resolver.global_env_vars.insert("FOO".to_string(), make("FOO", "from-global-env", true));
+        // Workspace global has the same key, enabled
+        resolver.global_vars.insert("FOO".to_string(), make("FOO", "from-global", true));
 
-        // resolve() must fall through and return the global env value
-        let r = resolver.resolve("FOO").expect("FOO should resolve via global env");
-        assert_eq!(r.value, serde_json::json!("from-global-env"));
-        assert_eq!(r.scope, VariableScope::GlobalEnv);
+        // resolve() must fall through and return the workspace global value
+        let r = resolver.resolve("FOO").expect("FOO should resolve via workspace global");
+        assert_eq!(r.value, serde_json::json!("from-global"));
+        assert_eq!(r.scope, VariableScope::Global);
 
-        // get_all_resolved() must also return the global env value (disabled collection doesn't block)
+        // get_all_resolved() must also return the global value (disabled collection doesn't block)
         let all = resolver.get_all_resolved();
         let r = all.get("FOO").expect("FOO should be in get_all_resolved()");
-        assert_eq!(r.value, serde_json::json!("from-global-env"));
-        assert_eq!(r.scope, VariableScope::GlobalEnv);
+        assert_eq!(r.value, serde_json::json!("from-global"));
+        assert_eq!(r.scope, VariableScope::Global);
 
-        // render() must produce the global env value
+        // render() must produce the workspace global value
         let result = resolver.render("{{FOO}}");
-        assert_eq!(result.text, "from-global-env");
+        assert_eq!(result.text, "from-global");
         assert!(result.warnings.is_empty());
     }
 

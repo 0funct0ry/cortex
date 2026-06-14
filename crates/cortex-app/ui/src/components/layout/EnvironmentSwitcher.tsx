@@ -17,13 +17,6 @@ const EnvironmentSwitcher: React.FC = () => {
     ? (activeCollectionEnvName[collectionPath] ?? null)
     : null
 
-  // The primary label is the collection env (if in a collection), else the global env
-  const primaryName = activeCollEnvName ?? activeEnvironmentName
-  const primaryColor = primaryName ? (envColors[primaryName] ?? null) : null
-
-  // Show a globe badge when both scopes are active simultaneously
-  const bothActive = !!(activeCollEnvName && activeEnvironmentName)
-
   const handleEdit = () => {
     if (activeCollEnvName && collectionPath) {
       // Edit the active collection environment
@@ -61,38 +54,63 @@ const EnvironmentSwitcher: React.FC = () => {
       <div className="flex items-center gap-1">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors text-sm font-medium group ${
-            isOpen
-              ? 'bg-bg-muted text-text-primary'
-              : 'hover:bg-bg-muted text-text-secondary hover:text-text-primary'
+          className={`flex items-center min-w-0 rounded-full border border-border-subtle transition-colors ${
+            isOpen ? 'bg-bg-muted' : 'hover:bg-bg-muted'
           }`}
         >
-          {primaryColor ? (
-            <span
-              className="w-3 h-3 rounded-full shrink-0"
-              style={{ backgroundColor: getTagColor(primaryColor).bg }}
+          {/* Left segment — collection scope */}
+          <span className="flex items-center gap-1.5 px-2.5 py-1 min-w-0">
+            <Icons.Layers className="text-text-muted shrink-0" size={12} />
+            {activeCollEnvName && envColors[activeCollEnvName] && (
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: getTagColor(envColors[activeCollEnvName]).bg }}
+              />
+            )}
+            {activeCollEnvName ? (
+              <span className="text-xs font-medium text-text-primary truncate max-w-[140px]">
+                {activeCollEnvName}
+              </span>
+            ) : (
+              <span className="text-xs italic text-text-muted">No environment</span>
+            )}
+          </span>
+
+          {/* Divider */}
+          <span className="w-px self-stretch bg-border-subtle shrink-0" />
+
+          {/* Right segment — global scope */}
+          <span className="flex items-center gap-1.5 px-2.5 py-1 min-w-0">
+            <Icons.Globe className="text-text-muted shrink-0" size={12} />
+            {activeEnvironmentName && envColors[activeEnvironmentName] && (
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: getTagColor(envColors[activeEnvironmentName]).bg }}
+              />
+            )}
+            {activeEnvironmentName ? (
+              <span className="text-xs font-medium text-text-primary truncate max-w-[140px]">
+                {activeEnvironmentName}
+              </span>
+            ) : (
+              <span className="text-xs italic text-text-muted">No environment</span>
+            )}
+            <Icons.ChevronDown
+              className={`text-text-muted shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+              size={10}
             />
-          ) : (
-            <Icons.Globe className="text-text-muted group-hover:text-text-secondary" size={14} />
-          )}
-          <span className="truncate max-w-[120px]">{primaryName || 'No Environment'}</span>
-          {/* Globe badge when global env is also active alongside a collection env */}
-          {bothActive && (
-            <span
-              className="flex items-center text-text-muted"
-              title={`Global env also active: ${activeEnvironmentName}`}
-            >
-              <Icons.Globe size={10} />
-            </span>
-          )}
-          <Icons.ChevronDown className="text-text-muted" size={10} />
+          </span>
         </button>
 
         <button
           onClick={handleEdit}
-          disabled={!primaryName}
-          className={`p-1 rounded transition-colors text-text-muted hover:text-text-primary hover:bg-bg-muted ${!primaryName ? 'opacity-30 cursor-not-allowed' : ''}`}
-          title={primaryName ? `Edit ${primaryName}` : 'Select an environment to edit'}
+          disabled={!activeCollEnvName && !activeEnvironmentName}
+          className={`p-1 rounded transition-colors text-text-muted hover:text-text-primary hover:bg-bg-muted ${!activeCollEnvName && !activeEnvironmentName ? 'opacity-30 cursor-not-allowed' : ''}`}
+          title={
+            activeCollEnvName || activeEnvironmentName
+              ? `Edit ${activeCollEnvName ?? activeEnvironmentName}`
+              : 'Select an environment to edit'
+          }
         >
           <Icons.Sliders size={14} />
         </button>

@@ -1621,60 +1621,6 @@ pub async fn write_text_file(path: String, content: String) -> Result<(), String
     .map_err(|e| e.to_string())?
 }
 
-fn global_environment_path() -> std::path::PathBuf {
-    if let Some(mut path) = dirs::config_dir() {
-        path.push("cortex");
-        path.push("global-environment.yaml");
-        path
-    } else {
-        std::path::PathBuf::from(".cortex-global-environment.yaml")
-    }
-}
-
-/// Loads the app-level global environment from the user config directory.
-#[tauri::command]
-#[specta::specta]
-pub async fn load_global_environment() -> Result<cortex_core::environment::EnvironmentFile, String>
-{
-    tauri::async_runtime::spawn_blocking(move || {
-        let path = global_environment_path();
-        if !path.exists() {
-            return Ok(cortex_core::environment::EnvironmentFile::new("Global".to_string()));
-        }
-        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        let mut env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
-            .map_err(|e| e.to_string())?;
-        let key = cortex_core::crypto::get_app_key();
-        env.decrypt_secrets(&key);
-        Ok(env)
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-/// Saves variables to the app-level global environment file.
-#[tauri::command]
-#[specta::specta]
-pub async fn save_global_environment(variables: Vec<Variable>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let path = global_environment_path();
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        let mut env = cortex_core::environment::EnvironmentFile {
-            version: "1".to_string(),
-            name: "Global".to_string(),
-            variables,
-        };
-        let key = cortex_core::crypto::get_app_key();
-        env.encrypt_secrets(&key).map_err(|e| e.to_string())?;
-        let yaml = env.to_yaml().map_err(|e| e.to_string())?;
-        std::fs::write(&path, yaml).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
 // ---------------------------------------------------------------------------
 // Ephemeral (session) variable commands
 // ---------------------------------------------------------------------------
@@ -1774,6 +1720,13 @@ fn populate_resolver(
     collection_environment_name: Option<String>,
     ephemeral_vars: Vec<Variable>,
 ) -> Result<(), String> {
+    // When neither a global nor a collection environment is selected, the
+    // "always-on" layers (workspace globals, collection vars, global-env file)
+    // are intentionally gated off so that nothing resolves — variables render as
+    // unresolved (red) until the user picks an environment. Only session
+    // (ephemeral/runtime) and dynamic `$` variables remain available.
+    let any_env_selected = environment_name.is_some() || collection_environment_name.is_some();
+
     // 1. Global (Workspace)
     if let Some(wp) = workspace_path {
         let path = PathBuf::from(&wp);
@@ -1785,10 +1738,12 @@ fn populate_resolver(
 
         let workspace = Workspace::load_manifest(&abs_path).map_err(|e| e.to_string())?;
 
-        // 1.1 Workspace variables (Global)
-        if let Some(vars) = workspace.manifest.variables {
-            for var in vars {
-                resolver.global_vars.insert(var.name.clone(), var);
+        // 1.1 Workspace variables (Global) — gated: only resolve when an env is selected
+        if any_env_selected {
+            if let Some(vars) = workspace.manifest.variables {
+                for var in vars {
+                    resolver.global_vars.insert(var.name.clone(), var);
+                }
             }
         }
 
@@ -1817,33 +1772,20 @@ fn populate_resolver(
         }
     }
 
-    // 2. Collection
-    if let Some(cp) = collection_path {
-        if let Ok(collection) = Collection::load_manifest(&cp) {
-            if let Some(vars) = collection.manifest.variables {
-                for var in vars {
-                    resolver.collection_vars.insert(var.name.clone(), var);
+    // 2. Collection — gated: only resolve when an env is selected
+    if any_env_selected {
+        if let Some(cp) = collection_path {
+            if let Ok(collection) = Collection::load_manifest(&cp) {
+                if let Some(vars) = collection.manifest.variables {
+                    for var in vars {
+                        resolver.collection_vars.insert(var.name.clone(), var);
+                    }
                 }
             }
         }
     }
 
-    // 3. Global environment file — lowest-precedence named scope.
-    // Loaded fresh on every resolve so edits are reflected immediately without restart.
-    let path = global_environment_path();
-    if path.exists() {
-        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        let mut global_env = cortex_core::environment::EnvironmentFile::from_yaml(&content)
-            .map_err(|e| e.to_string())?;
-        global_env.decrypt_secrets(&cortex_core::crypto::get_app_key());
-        for var in global_env.variables {
-            if var.enabled {
-                resolver.global_env_vars.entry(var.name.clone()).or_insert(var);
-            }
-        }
-    }
-
-    // 4. Ephemeral / Session — Runtime scope, highest precedence.
+    // 3. Ephemeral / Session — Runtime scope, highest precedence.
     // These are never read from disk; they come from the in-process EphemeralStore.
     for var in ephemeral_vars {
         resolver.runtime_vars.insert(var.name.clone(), var);

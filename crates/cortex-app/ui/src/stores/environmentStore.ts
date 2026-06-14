@@ -38,7 +38,7 @@ interface EnvironmentState {
   renameEnvironment: (oldName: string, newName: string) => Promise<void>
   addDotEnvFile: (path: string) => Promise<void>
   removeDotEnvFile: (path: string) => Promise<void>
-  loadGlobalEnvironment: () => Promise<void>
+  loadGlobalEnvironment: (variables: Variable[]) => void
   updateGlobalEnvironment: (variables: Variable[]) => Promise<void>
 }
 
@@ -359,20 +359,19 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
       }
     },
 
-    loadGlobalEnvironment: async () => {
-      try {
-        const result = await commands.loadGlobalEnvironment()
-        if (result.status === 'error') throw new Error(result.error)
-        set({ globalEnvironment: result.data })
-      } catch (err) {
-        set({ error: String(err) })
-      }
+    // The "Global" environment is the single workspace-level global scope, sourced
+    // from the workspace manifest `variables:`. It is delivered by loadWorkspace, so
+    // this just stores the variables as the in-memory global environment.
+    loadGlobalEnvironment: (variables) => {
+      set({ globalEnvironment: { version: '1', name: 'Global', variables } })
     },
 
     updateGlobalEnvironment: async (variables) => {
+      const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
+      if (!workspacePath) return
       set({ isLoading: true, error: null })
       try {
-        const result = await commands.saveGlobalEnvironment(variables)
+        const result = await commands.updateWorkspaceVariables(workspacePath, variables)
         if (result.status === 'error') throw new Error(result.error)
 
         set((state) => ({

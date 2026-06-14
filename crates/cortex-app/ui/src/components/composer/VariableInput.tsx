@@ -154,8 +154,8 @@ export const VariableInput: React.FC<VariableInputProps> = ({
           title = activeCollEnv ? `Collection env: ${activeCollEnv}` : 'Collection'
         } else if (scope === 'environment') {
           title = activeGlobalEnv ? `Global env: ${activeGlobalEnv}` : 'Global'
-        } else if (scope === 'globalenv' || scope === 'global') {
-          title = activeGlobalEnv ? `Global env: ${activeGlobalEnv}` : 'Global'
+        } else if (scope === 'global') {
+          title = 'Global'
         } else {
           title = `Resolved Variable (${scope})`
         }

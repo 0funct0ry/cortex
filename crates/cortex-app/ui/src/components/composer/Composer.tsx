@@ -13,6 +13,7 @@ import { useTabs } from '../../contexts/TabsContext'
 import { useRequestStore } from '../../stores/requestStore'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { useCollectionViewStore } from '../../stores/collectionViewStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 
 const Composer: React.FC = () => {
   const { activeTabId, activeTab, setDirty } = useTabs()
@@ -24,6 +25,9 @@ const Composer: React.FC = () => {
   const collectionId = activeTab?.collectionId || null
   const collectionSavedRevision = useCollectionViewStore((s) =>
     collectionId ? s.savedRevisions[collectionId] : undefined
+  )
+  const activeCollectionEnvName = useCollectionEnvironmentStore((s) =>
+    collectionId ? s.activeCollectionEnvName[collectionId] : undefined
   )
 
   React.useEffect(() => {
@@ -37,6 +41,7 @@ const Composer: React.FC = () => {
     environments,
     globalEnvironment,
     collectionSavedRevision,
+    activeCollectionEnvName,
     fetchResolvedVariables,
   ])
 

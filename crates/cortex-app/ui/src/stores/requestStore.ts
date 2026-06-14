@@ -480,11 +480,20 @@ export const useRequestStore = create<RequestState>((set, get) => ({
     // Remember the context so a global change (e.g. toggling the global env) can
     // re-resolve without needing to know the active tab.
     set({ _resolutionCtx: { tabId, collectionId } })
+
+    // Clear stale resolved variables immediately so the UI reflects the new
+    // env state while the async backend call is in flight (prevents stale green
+    // highlights persisting after an environment is deselected).
+    set((state) => ({
+      resolvedVariables: { ...state.resolvedVariables, [tabId]: {} },
+    }))
+
     const workspacePath = useWorkspaceStore.getState().activeWorkspacePath
     const environmentName = useEnvironmentStore.getState().activeEnvironmentName
     const collectionEnvironmentName = collectionId
       ? (useCollectionEnvironmentStore.getState().activeCollectionEnvName[collectionId] ?? null)
       : null
+
     if (!workspacePath) return
 
     try {

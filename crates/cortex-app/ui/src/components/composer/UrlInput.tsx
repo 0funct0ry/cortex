@@ -63,7 +63,6 @@ function computeBadge(
       return collectionEnvVarNames.has(varName) ? COLLECTION_BADGE : GLOBAL_BADGE
     case 'collection':
       return COLLECTION_BADGE
-    case 'globalenv':
     case 'global':
       return GLOBAL_BADGE
     case 'runtime':

@@ -368,28 +368,6 @@ async parseEnvFile(filePath: string) : Promise<Result<Variable[], string>> {
 }
 },
 /**
- * Loads the app-level global environment from the user config directory.
- */
-async loadGlobalEnvironment() : Promise<Result<EnvironmentFile, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("load_global_environment") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Saves variables to the app-level global environment file.
- */
-async saveGlobalEnvironment(variables: Variable[]) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("save_global_environment", { variables }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
  * Loads and decrypts all environment files from a collection's `environments/` subdirectory.
  * Returns an empty list (not an error) if the directory does not exist.
  */
@@ -1038,7 +1016,7 @@ prompt?: boolean;
  * Optional hint shown beneath the input in the prompt dialog.
  */
 description?: string | null }
-export type VariableScope = "globalenv" | "global" | "collection" | "environment" | "runtime" | "dynamic"
+export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
 export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; env_files: string[]; active_environment: string | null; 
 /**

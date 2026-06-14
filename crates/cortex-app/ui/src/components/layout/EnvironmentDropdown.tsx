@@ -142,7 +142,7 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorBg }} />
       )
     }
-    return <div className="w-2.5" />
+    return <div className="w-2.5 shrink-0" />
   }
 
   const EmptyState: React.FC<{ onCreateClick: () => void; onImportClick: () => void }> = ({
@@ -187,7 +187,7 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
       >
         <div className="flex items-center gap-2">
           {!activeEnvironmentName ? (
-            <Icons.Check size={14} className="text-accent" />
+            <Icons.Check size={14} className="text-accent shrink-0" />
           ) : (
             <div className="w-[14px]" />
           )}
@@ -215,20 +215,20 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
                   setActiveEnvironment(env.name)
                   onClose()
                 }}
-                className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm text-left"
+                className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 text-sm text-left"
               >
                 {activeEnvironmentName === env.name ? (
-                  <Icons.Check size={14} className="text-accent" />
+                  <Icons.Check size={14} className="text-accent shrink-0" />
                 ) : (
-                  <div className="w-[14px]" />
+                  <div className="w-[14px] shrink-0" />
                 )}
                 <ColorDot envName={env.name} />
                 <span
-                  className={
+                  className={`truncate ${
                     activeEnvironmentName === env.name
                       ? 'text-text-primary font-medium'
                       : 'text-text-secondary'
-                  }
+                  }`}
                 >
                   {env.name}
                 </span>
@@ -294,7 +294,7 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
       >
         <div className="flex items-center gap-2">
           {!activeCollEnvName ? (
-            <Icons.Check size={14} className="text-accent" />
+            <Icons.Check size={14} className="text-accent shrink-0" />
           ) : (
             <div className="w-[14px]" />
           )}
@@ -320,20 +320,20 @@ const EnvironmentDropdown: React.FC<EnvironmentDropdownProps> = ({ onClose }) =>
                   if (collectionPath) setActiveCollectionEnvironment(collectionPath, env.name)
                   onClose()
                 }}
-                className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm text-left"
+                className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 text-sm text-left"
               >
                 {activeCollEnvName === env.name ? (
-                  <Icons.Check size={14} className="text-accent" />
+                  <Icons.Check size={14} className="text-accent shrink-0" />
                 ) : (
-                  <div className="w-[14px]" />
+                  <div className="w-[14px] shrink-0" />
                 )}
                 <ColorDot envName={env.name} />
                 <span
-                  className={
+                  className={`truncate ${
                     activeCollEnvName === env.name
                       ? 'text-text-primary font-medium'
                       : 'text-text-secondary'
-                  }
+                  }`}
                 >
                   {env.name}
                 </span>

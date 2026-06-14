@@ -49,8 +49,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             result.data.decrypt_failures
           )
 
-        // Also load the app-level global environment
-        useEnvironmentStore.getState().loadGlobalEnvironment()
+        // Load the workspace-level global variables as the global environment
+        useEnvironmentStore.getState().loadGlobalEnvironment(result.data.variables ?? [])
 
         // Refresh recent list
         const recent = await commands.getRecentWorkspaces()
