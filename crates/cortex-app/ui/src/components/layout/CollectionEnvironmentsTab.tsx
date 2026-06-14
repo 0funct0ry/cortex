@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import * as Icons from '../ui/Icons'
 import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
+import { useEnvironmentStore } from '../../stores/environmentStore'
 import { toast } from '../../stores/toastStore'
 import { EnvironmentEditor, CreateEnvironmentModal, HeaderMenu } from './EnvironmentsTab'
 import Dialog from '../ui/Dialog'
 import { commands } from '../../bindings'
 import type { Variable } from '../../bindings'
+import { getTagColor } from '../../utils/tagColors'
 
 interface CollectionEnvironmentsTabProps {
   collectionPath: string
@@ -27,6 +29,8 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
     deleteCollectionEnv,
     renameCollectionEnv,
   } = useCollectionEnvironmentStore()
+
+  const { envColors, setEnvironmentColor } = useEnvironmentStore()
 
   const envs = useMemo(
     () => collectionEnvironments[collectionPath] ?? [],
@@ -213,11 +217,13 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
           name={selectedEnv.name}
           envKey={`col:${collectionPath}:${selectedEnv.name}`}
           variables={selectedEnv.variables}
+          color={envColors[selectedEnv.name] ?? null}
           collectionName={collectionName}
           tamperedVariables={{}}
           onSave={handleSave}
           onDelete={handleDelete}
           onRename={handleRename}
+          onColorChange={(c) => setEnvironmentColor(selectedEnv.name, c)}
           onDirtyChange={(dirty) => setCollectionEnvDirty(collectionPath, selectedEnv.name, dirty)}
         />
       )
@@ -323,6 +329,7 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
             filteredEnvs.map((env) => {
               const dk = `${collectionPath}\0${env.name}`
               const isDirty = dirtyCollectionEnvs[dk] ?? false
+              const envColorBg = envColors[env.name] ? getTagColor(envColors[env.name]).bg : null
               return (
                 <div
                   key={env.name}
@@ -331,15 +338,25 @@ const CollectionEnvironmentsTab: React.FC<CollectionEnvironmentsTabProps> = ({
                     editingEnvName === env.name ? 'bg-bg-muted' : 'hover:bg-bg-muted/50'
                   }`}
                 >
-                  <span
-                    className={`text-sm truncate flex-1 min-w-0 ${
-                      editingEnvName === env.name
-                        ? 'text-text-primary font-medium'
-                        : 'text-text-secondary'
-                    }`}
-                  >
-                    {env.name}
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    {envColorBg ? (
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: envColorBg }}
+                      />
+                    ) : (
+                      <div className="w-2 shrink-0" />
+                    )}
+                    <span
+                      className={`text-sm truncate flex-1 min-w-0 ${
+                        editingEnvName === env.name
+                          ? 'text-text-primary font-medium'
+                          : 'text-text-secondary'
+                      }`}
+                    >
+                      {env.name}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1 shrink-0 ml-1">
                     {isDirty && (
                       <span

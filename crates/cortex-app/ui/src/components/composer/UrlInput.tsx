@@ -1,9 +1,10 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import * as Icons from '../ui/Icons'
 import { useRequestStore } from '../../stores/requestStore'
 import { useTabs } from '../../contexts/TabsContext'
-import type { ResolvedVariable, VariableScope } from '../../bindings'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
+import type { ResolvedVariable } from '../../bindings'
 
 interface UrlInputProps {
   value: string
@@ -12,14 +13,66 @@ interface UrlInputProps {
 }
 
 const EMPTY_RESOLVED: Record<string, ResolvedVariable> = {}
+const EMPTY_SET = new Set<string>()
 
-const SCOPE_META: Record<VariableScope, { label: string; cls: string }> = {
-  globalenv: { label: 'Global', cls: 'bg-warning/15 text-warning border-warning/30' },
-  global: { label: 'Workspace', cls: 'bg-info/15 text-info border-info/30' },
-  collection: { label: 'Collection', cls: 'bg-accent/15 text-accent border-accent/30' },
-  environment: { label: 'Environment', cls: 'bg-success/15 text-success border-success/30' },
-  runtime: { label: 'Session', cls: 'bg-bg-muted text-text-secondary border-border-default' },
-  dynamic: { label: 'Dynamic', cls: 'bg-accent/15 text-accent border-accent/30' },
+interface BadgeInfo {
+  label: string
+  cls: string
+}
+
+const GLOBAL_BADGE: BadgeInfo = {
+  label: 'Global',
+  cls: 'bg-success/15 text-success border-success/30',
+}
+const COLLECTION_BADGE: BadgeInfo = {
+  label: 'Collection',
+  cls: 'bg-accent/15 text-accent border-accent/30',
+}
+const SESSION_BADGE: BadgeInfo = {
+  label: 'Session',
+  cls: 'bg-bg-muted text-text-secondary border-border-default',
+}
+const DYNAMIC_BADGE: BadgeInfo = {
+  label: 'Dynamic',
+  cls: 'bg-accent/15 text-accent border-accent/30',
+}
+const UNRESOLVED_BADGE: BadgeInfo = {
+  label: 'Unresolved',
+  cls: 'bg-error/15 text-error border-error/30',
+}
+
+/**
+ * Determine the source badge for a variable.
+ *
+ * Note: both the active *global* environment (sent to the backend as
+ * `environment_name`) and the active *collection* environment
+ * (`collection_environment_name`) resolve to the same `environment` scope.
+ * We disambiguate by checking whether the variable name belongs to the active
+ * collection environment — if so it's Collection, otherwise Global.
+ */
+function computeBadge(
+  varName: string,
+  resolved: ResolvedVariable | null,
+  isDynamic: boolean,
+  collectionEnvVarNames: Set<string>
+): BadgeInfo {
+  if (isDynamic) return DYNAMIC_BADGE
+  if (!resolved) return UNRESOLVED_BADGE
+  switch (resolved.scope) {
+    case 'environment':
+      return collectionEnvVarNames.has(varName) ? COLLECTION_BADGE : GLOBAL_BADGE
+    case 'collection':
+      return COLLECTION_BADGE
+    case 'globalenv':
+    case 'global':
+      return GLOBAL_BADGE
+    case 'runtime':
+      return SESSION_BADGE
+    case 'dynamic':
+      return DYNAMIC_BADGE
+    default:
+      return GLOBAL_BADGE
+  }
 }
 
 const DYNAMIC_DESC: Record<string, string> = {
@@ -48,6 +101,7 @@ interface PopoverData {
   varName: string
   resolved: ResolvedVariable | null
   isDynamic: boolean
+  badge: BadgeInfo
 }
 
 interface PopoverState extends PopoverData {
@@ -62,7 +116,7 @@ const VarPopover: React.FC<{
   onMouseEnter: () => void
   onMouseLeave: () => void
 }> = ({ data, onMouseEnter, onMouseLeave }) => {
-  const { varName, resolved, isDynamic, x, y } = data
+  const { varName, resolved, isDynamic, badge, x, y } = data
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -78,22 +132,13 @@ const VarPopover: React.FC<{
     }
   }
 
-  let badge: { label: string; cls: string }
-  if (isDynamic) {
-    badge = SCOPE_META.dynamic
-  } else if (resolved) {
-    badge = SCOPE_META[resolved.scope] ?? SCOPE_META.environment
-  } else {
-    badge = { label: 'Unresolved', cls: 'bg-error/15 text-error border-error/30' }
-  }
-
   return ReactDOM.createPortal(
     <div
       style={{
         position: 'fixed',
         left: `${x}px`,
         top: `${y}px`,
-        transform: 'translate(-50%, -100%)',
+        transform: 'translateX(-50%)',
         zIndex: 9999,
       }}
       onMouseEnter={onMouseEnter}
@@ -163,10 +208,33 @@ const VarPopover: React.FC<{
  * secrets) and a copy action.
  */
 const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
-  const { activeTabId } = useTabs()
+  const { activeTabId, activeTab } = useTabs()
   const resolvedVariables = useRequestStore((s) =>
     activeTabId ? s.resolvedVariables[activeTabId] || EMPTY_RESOLVED : EMPTY_RESOLVED
   )
+
+  const collectionId = activeTab?.collectionId ?? null
+  const loadCollectionEnvironments = useCollectionEnvironmentStore(
+    (s) => s.loadCollectionEnvironments
+  )
+  const collectionEnvironments = useCollectionEnvironmentStore((s) => s.collectionEnvironments)
+  const activeCollectionEnvName = useCollectionEnvironmentStore((s) => s.activeCollectionEnvName)
+
+  // Ensure the active collection's environments are loaded so the tooltip can
+  // tell Collection-env variables apart from Global-env ones (both share the
+  // backend `environment` scope).
+  useEffect(() => {
+    if (collectionId) loadCollectionEnvironments(collectionId)
+  }, [collectionId, loadCollectionEnvironments])
+
+  // Names of variables defined in the active collection environment.
+  const collectionEnvVarNames = useMemo(() => {
+    const active = collectionId ? (activeCollectionEnvName[collectionId] ?? null) : null
+    if (!collectionId || !active) return EMPTY_SET
+    const envs = collectionEnvironments[collectionId] ?? []
+    const env = envs.find((e) => e.name === active)
+    return env ? new Set(env.variables.map((v) => v.name)) : EMPTY_SET
+  }, [collectionId, activeCollectionEnvName, collectionEnvironments])
 
   const effectiveResolved = useCallback(
     (varName: string): ResolvedVariable | null => resolvedVariables[varName] ?? null,
@@ -184,6 +252,7 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
     varName: '',
     resolved: null,
     isDynamic: false,
+    badge: UNRESOLVED_BADGE,
   })
 
   // Keep the overlay's scroll position aligned with the input's.
@@ -228,13 +297,14 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
       setPopover({
         visible: true,
         x: rect.left + rect.width / 2,
-        y: rect.top - 6,
+        y: rect.bottom + 6, // just below the token
         varName,
         resolved,
         isDynamic,
+        badge: computeBadge(varName, resolved, isDynamic, collectionEnvVarNames),
       })
     },
-    [effectiveResolved]
+    [effectiveResolved, collectionEnvVarNames]
   )
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

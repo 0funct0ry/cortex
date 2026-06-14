@@ -124,7 +124,7 @@ export function rfc3986Encode(str: string): string {
   )
 }
 
-function encodeParamSegment(str: string): string {
+export function encodeParamSegment(str: string): string {
   if (!str) return ''
   const regex = /(\{\{[^{}]+\}\})/g
   const parts = str.split(regex)

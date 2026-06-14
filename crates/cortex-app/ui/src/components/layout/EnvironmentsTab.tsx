@@ -792,17 +792,41 @@ const EnvironmentsTab: React.FC = () => {
       )
     }
 
-    // Default: always show the global environment editor
+    if (isEditingGlobal) {
+      return (
+        <EnvironmentEditor
+          key="__global__"
+          name="Global"
+          envKey={GLOBAL_KEY}
+          variables={globalEnvironment?.variables ?? []}
+          isGlobal
+          onSave={handleSaveGlobal}
+          onDirtyChange={(dirty) => setDirty(GLOBAL_KEY, dirty)}
+        />
+      )
+    }
+
+    // Nothing selected — show empty state
     return (
-      <EnvironmentEditor
-        key="__global__"
-        name="Global"
-        envKey={GLOBAL_KEY}
-        variables={globalEnvironment?.variables ?? []}
-        isGlobal
-        onSave={handleSaveGlobal}
-        onDirtyChange={(dirty) => setDirty(GLOBAL_KEY, dirty)}
-      />
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
+        <div className="w-10 h-10 rounded-full bg-bg-muted flex items-center justify-center">
+          <Icons.Globe size={20} className="text-text-muted" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-text-secondary">No environment selected</p>
+          <p className="text-xs text-text-muted leading-relaxed max-w-[260px]">
+            Select an environment from the list to edit its variables, or create a new one to get
+            started.
+          </p>
+        </div>
+        <button
+          onClick={handleCreate}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+        >
+          <Icons.Plus size={12} />
+          Create Environment
+        </button>
+      </div>
     )
   }
 

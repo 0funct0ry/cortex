@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { useRequestStore } from '../../stores/requestStore'
 import { useTabs } from '../../contexts/TabsContext'
+import { useEnvironmentStore } from '../../stores/environmentStore'
+import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import type { ResolvedVariable } from '../../bindings'
 
 interface VariableInputProps {
@@ -67,7 +69,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
   masked = false,
   type = 'text',
 }) => {
-  const { activeTabId } = useTabs()
+  const { activeTabId, activeTab } = useTabs()
   const resolvedVariables = useRequestStore((s) =>
     activeTabId
       ? s.resolvedVariables[activeTabId] || EMPTY_RESOLVED_VARIABLES
@@ -110,7 +112,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
   const handleMouseEnter = (e: React.MouseEvent<HTMLSpanElement>, rawVar: string) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = rect.left + rect.width / 2
-    const y = rect.top - 8 // slightly above the span
+    const y = rect.bottom + 8 // just below the span
 
     const varName = rawVar.replace(/^\{\{/, '').replace(/\}\}$/, '').trim()
     const isDynamic = varName.startsWith('$')
@@ -127,7 +129,37 @@ export const VariableInput: React.FC<VariableInputProps> = ({
       const resolved = resolvedVariables[varName]
       if (resolved) {
         scope = resolved.scope || 'environment'
-        title = `Resolved Variable (${scope})`
+
+        // Build a human-readable source label for the title.
+        // Both the active global environment and the active collection environment
+        // resolve to the same backend `environment` scope — disambiguate by checking
+        // whether the variable belongs to the active collection environment.
+        const collectionId = activeTab?.collectionId ?? null
+        const activeGlobalEnv = useEnvironmentStore.getState().activeEnvironmentName
+        const collState = useCollectionEnvironmentStore.getState()
+        const activeCollEnv = collectionId
+          ? (collState.activeCollectionEnvName[collectionId] ?? null)
+          : null
+        const collEnvVarNames = (() => {
+          if (!collectionId || !activeCollEnv) return new Set<string>()
+          const envs = collState.collectionEnvironments[collectionId] ?? []
+          const env = envs.find((e) => e.name === activeCollEnv)
+          return new Set((env?.variables ?? []).map((v) => v.name))
+        })()
+
+        const fromCollection =
+          scope === 'collection' || (scope === 'environment' && collEnvVarNames.has(varName))
+
+        if (fromCollection) {
+          title = activeCollEnv ? `Collection env: ${activeCollEnv}` : 'Collection'
+        } else if (scope === 'environment') {
+          title = activeGlobalEnv ? `Global env: ${activeGlobalEnv}` : 'Global'
+        } else if (scope === 'globalenv' || scope === 'global') {
+          title = activeGlobalEnv ? `Global env: ${activeGlobalEnv}` : 'Global'
+        } else {
+          title = `Resolved Variable (${scope})`
+        }
+
         if (resolved.secret) {
           content = 'Secret Value: ********'
         } else {
@@ -222,7 +254,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
         data-field={dataField}
       />
 
-      {/* Portal Tooltip positioned absolutely relative to viewport */}
+      {/* Portal Tooltip — positioned below the hovered variable span */}
       {tooltip.visible &&
         ReactDOM.createPortal(
           <div
@@ -230,14 +262,14 @@ export const VariableInput: React.FC<VariableInputProps> = ({
               position: 'fixed',
               left: `${tooltip.x}px`,
               top: `${tooltip.y}px`,
-              transform: 'translate(-50%, -100%)',
+              transform: 'translateX(-50%)',
               zIndex: 9999,
             }}
             className="bg-bg-overlay border border-border-subtle rounded-md shadow-lg p-2 max-w-[280px] pointer-events-none text-xs flex flex-col gap-1 font-sans text-text-primary animate-fade-in"
           >
-            <div className="flex items-center gap-1.5 font-semibold">
+            <div className="flex items-center gap-1.5">
               <span
-                className={`w-1.5 h-1.5 rounded-full ${
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                   tooltip.scope === 'dynamic'
                     ? 'bg-accent'
                     : tooltip.scope === 'unresolved'
@@ -245,7 +277,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
                       : 'bg-success'
                 }`}
               />
-              <span className="text-[10px] uppercase tracking-wider text-text-secondary">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">
                 {tooltip.title}
               </span>
             </div>

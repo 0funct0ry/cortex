@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { useRequestStore, rfc3986Encode } from '../../stores/requestStore'
+import { useRequestStore, encodeParamSegment } from '../../stores/requestStore'
 import * as Icons from '../ui/Icons'
 import Tooltip from '../ui/Tooltip'
 
@@ -125,13 +125,13 @@ const UrlPreviewBar: React.FC<UrlPreviewBarProps> = ({ requestId }) => {
             const k =
               mask && hasSecretVariables(p.key, resolvedVars)
                 ? resolvedKey
-                : rfc3986Encode(resolvedKey)
+                : encodeParamSegment(resolvedKey)
             if (p.is_valueless) return k
             const resolvedValue = resolveTemplateString(p.value, resolvedVars, mask)
             const v =
               mask && hasSecretVariables(p.value, resolvedVars)
                 ? resolvedValue
-                : rfc3986Encode(resolvedValue)
+                : encodeParamSegment(resolvedValue)
             return `${k}=${v}`
           })
           .join('&')
