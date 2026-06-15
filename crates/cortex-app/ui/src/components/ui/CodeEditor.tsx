@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useRef, useEffect, useCallback } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { xml } from '@codemirror/lang-xml'
@@ -10,7 +10,11 @@ import { EditorView } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import { createTheme } from '@uiw/codemirror-themes'
 import { linter, lintGutter } from '@codemirror/lint'
+import { autocompletion } from '@codemirror/autocomplete'
+import type { CompletionSource, Completion, CompletionContext } from '@codemirror/autocomplete'
 import type { Diagnostic } from '@codemirror/lint'
+import type { ResolvedVariable } from '../../bindings'
+import { buildSuggestions } from '../composer/useVariablePicker'
 
 interface CodeEditorProps {
   value: string
@@ -19,6 +23,7 @@ interface CodeEditorProps {
   readOnly?: boolean
   autoFocus?: boolean
   wordWrap?: boolean
+  resolvedVariables?: Record<string, ResolvedVariable>
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -28,7 +33,46 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   readOnly = false,
   autoFocus = false,
   wordWrap = false,
+  resolvedVariables,
 }) => {
+  // Use a ref so the completion source always reads the latest variables
+  // without recreating the extensions on every change.
+  const resolvedVarsRef = useRef<Record<string, ResolvedVariable>>(resolvedVariables ?? {})
+  useEffect(() => {
+    resolvedVarsRef.current = resolvedVariables ?? {}
+  }, [resolvedVariables])
+
+  // Completion source defined as a stable callback so the ref is accessed
+  // at call-time (inside the editor event loop), not during render.
+  const variableCompletionSource: CompletionSource = useCallback((context: CompletionContext) => {
+    const match = context.matchBefore(/\{\{[\w$]*/)
+    if (!match) return null
+    const query = match.text.slice(2)
+    const suggestions = buildSuggestions(resolvedVarsRef.current, query)
+    if (suggestions.length === 0) return null
+    const openBracePos = match.from
+    return {
+      from: openBracePos,
+      options: suggestions.map((s) => ({
+        label: `{{${s.name}}}`,
+        displayLabel: s.name,
+        detail: s.isDynamic ? '↻ dynamic' : s.scope,
+        info: s.isDynamic ? `${s.description ?? ''} → ${s.value}` : s.value,
+        apply: (view: EditorView, _completion: Completion, from: number, to: number) => {
+          // Consume trailing }} if already present so we don't produce {{name}}}}
+          const trailing = view.state.doc.sliceString(to, to + 2)
+          const actualTo = trailing === '}}' ? to + 2 : to
+          view.dispatch({
+            changes: { from, to: actualTo, insert: `{{${s.name}}}` },
+            selection: { anchor: from + s.name.length + 4 },
+          })
+        },
+        boost: s.isDynamic ? 1 : 0,
+      })),
+      validFor: /^\{\{[\w$]*$/,
+    }
+  }, [])
+
   const extensions = useMemo(() => {
     const exts = []
     if (wordWrap) {
@@ -118,6 +162,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       exts.push(lintGutter())
     }
 
+    // eslint-disable-next-line react-hooks/refs
+    exts.push(autocompletion({ override: [variableCompletionSource], activateOnTyping: true }))
+
     // Custom theme logic based on CSS variables
     exts.push(
       EditorView.theme({
@@ -136,15 +183,44 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         '.cm-cursor': {
           borderLeft: '1.5px solid var(--color-accent) !important',
         },
+        // Style the autocomplete tooltip
+        '.cm-tooltip.cm-tooltip-autocomplete': {
+          backgroundColor: 'var(--color-bg-overlay)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: '6px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        },
+        '.cm-tooltip-autocomplete ul li': {
+          color: 'var(--color-text-primary)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '11px',
+        },
+        '.cm-tooltip-autocomplete ul li[aria-selected]': {
+          backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+          color: 'var(--color-text-primary)',
+        },
+        '.cm-completionDetail': {
+          color: 'var(--color-text-muted)',
+          fontSize: '10px',
+        },
+        '.cm-completionInfo': {
+          backgroundColor: 'var(--color-bg-overlay)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: '4px',
+          color: 'var(--color-text-secondary)',
+          fontSize: '10px',
+          fontFamily: 'var(--font-mono)',
+          padding: '4px 8px',
+        },
       })
     )
 
     return exts
-  }, [language, wordWrap])
+  }, [language, wordWrap, variableCompletionSource])
 
   const theme = useMemo(() => {
     return createTheme({
-      theme: 'dark', // Base theme
+      theme: 'dark',
       settings: {
         background: 'transparent',
         foreground: 'var(--color-text-primary)',
@@ -182,6 +258,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         foldGutter: true,
         highlightActiveLine: true,
         searchKeymap: true,
+        completionKeymap: false,
       }}
     />
   )

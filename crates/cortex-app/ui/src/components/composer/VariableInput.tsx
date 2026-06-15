@@ -1,10 +1,13 @@
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
+import { Combobox, ComboboxInput } from '@headlessui/react'
 import { useRequestStore } from '../../stores/requestStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { useEnvironmentStore } from '../../stores/environmentStore'
 import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import type { ResolvedVariable } from '../../bindings'
+import { DYNAMIC_VARS_DESC, detectContext, buildSuggestions } from './useVariablePicker'
+import { VariablePickerDropdown } from './VariablePickerDropdown'
 
 interface VariableInputProps {
   value: string
@@ -31,23 +34,6 @@ interface TooltipState {
   title: string
   content: string
   scope?: string
-}
-
-const DYNAMIC_VARS_DESC: Record<string, string> = {
-  $randomInt: 'Generates a random integer between 0 and 1000.',
-  $timestamp: 'Current Unix timestamp in seconds.',
-  $isoTimestamp: 'Current ISO 8601 UTC timestamp.',
-  $randomNanoId: 'Generates a secure 21-character NanoID.',
-  $uuid: 'Generates a random v4 UUID.',
-  $randomFirstName: 'Generates a realistic random first name.',
-  $randomLastName: 'Generates a realistic random last name.',
-  $randomEmail: 'Generates a random email address.',
-  $randomPhoneNumber: 'Generates a random phone number.',
-  $randomUrl: 'Generates a random URL.',
-  $randomIPv4: 'Generates a random IPv4 address.',
-  $randomBoolean: 'Generates a random boolean value.',
-  $randomLoremWord: 'Generates a random lorem ipsum word.',
-  $randomLoremSentence: 'Generates a random lorem ipsum sentence.',
 }
 
 const EMPTY_RESOLVED_VARIABLES: Record<string, ResolvedVariable> = {}
@@ -88,6 +74,30 @@ export const VariableInput: React.FC<VariableInputProps> = ({
     content: '',
   })
 
+  // Detect {{ context purely from the value string — no stale ref tricks needed.
+  const context = useMemo(() => detectContext(value), [value])
+  const query = context?.query ?? ''
+  const suggestions = useMemo(
+    () => buildSuggestions(resolvedVariables, query),
+    [resolvedVariables, query]
+  )
+
+  // Insert the selected variable name at the {{ offset.
+  const handleSelect = (name: string | null) => {
+    if (!name || !context) return
+    const el = inputRef.current
+    const caretPos = el?.selectionStart ?? value.length
+    const newValue = value.slice(0, context.openOffset) + `{{${name}}}` + value.slice(caretPos)
+    onChange(newValue)
+    const newCaret = context.openOffset + name.length + 4
+    setTimeout(() => {
+      if (el) {
+        el.focus()
+        el.setSelectionRange(newCaret, newCaret)
+      }
+    }, 0)
+  }
+
   // Synchronize scrolling of input and highlight overlay
   const syncScroll = React.useCallback(() => {
     if (inputRef.current && overlayRef.current) {
@@ -104,7 +114,6 @@ export const VariableInput: React.FC<VariableInputProps> = ({
     }
   }, [inputRef, syncScroll])
 
-  // Sync scroll on value change as well
   useEffect(() => {
     syncScroll()
   }, [value, syncScroll])
@@ -112,7 +121,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
   const handleMouseEnter = (e: React.MouseEvent<HTMLSpanElement>, rawVar: string) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = rect.left + rect.width / 2
-    const y = rect.bottom + 8 // just below the span
+    const y = rect.bottom + 8
 
     const varName = rawVar.replace(/^\{\{/, '').replace(/\}\}$/, '').trim()
     const isDynamic = varName.startsWith('$')
@@ -130,10 +139,6 @@ export const VariableInput: React.FC<VariableInputProps> = ({
       if (resolved) {
         scope = resolved.scope || 'environment'
 
-        // Build a human-readable source label for the title.
-        // Both the active global environment and the active collection environment
-        // resolve to the same backend `environment` scope — disambiguate by checking
-        // whether the variable belongs to the active collection environment.
         const collectionId = activeTab?.collectionId ?? null
         const activeGlobalEnv = useEnvironmentStore.getState().activeEnvironmentName
         const collState = useCollectionEnvironmentStore.getState()
@@ -169,14 +174,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
       }
     }
 
-    setTooltip({
-      visible: true,
-      x,
-      y,
-      title,
-      content,
-      scope,
-    })
+    setTooltip({ visible: true, x, y, title, content, scope })
   }
 
   const handleMouseLeave = () => {
@@ -184,7 +182,6 @@ export const VariableInput: React.FC<VariableInputProps> = ({
   }
 
   const renderHighlighted = (text: string) => {
-    // Regex matches {{variable_name}} templates
     const parts = text.split(/(\{\{[^{}]*\}\})/)
     return parts.map((part, i) => {
       if (part.startsWith('{{') && part.endsWith('}}')) {
@@ -192,11 +189,11 @@ export const VariableInput: React.FC<VariableInputProps> = ({
         const isDynamic = varName.startsWith('$')
         const isResolved = !isDynamic && !!resolvedVariables[varName]
 
-        let spanClass = 'border-b border-warning text-warning' // default unresolved (orange)
+        let spanClass = 'border-b border-warning text-warning'
         if (isDynamic) {
-          spanClass = 'border-b border-accent text-accent' // dynamic (blue)
+          spanClass = 'border-b border-accent text-accent'
         } else if (isResolved) {
-          spanClass = 'border-b border-success text-success' // resolved (green)
+          spanClass = 'border-b border-success text-success'
         }
 
         return (
@@ -214,47 +211,62 @@ export const VariableInput: React.FC<VariableInputProps> = ({
     })
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value)
-  }
-
   return (
-    <div className="relative w-full h-full flex items-center group">
-      {/* Highlighting Overlay (absolutely positioned behind/underneath transparent text) */}
-      <div
-        ref={overlayRef}
-        className={`absolute inset-x-0 bottom-0 top-0 flex items-center px-3 font-mono text-sm pointer-events-none overflow-hidden whitespace-pre select-none ${
-          !value ? 'text-text-muted' : 'text-text-primary'
-        }`}
-      >
-        {value ? (
-          renderHighlighted(value)
-        ) : (
-          <span className="text-text-muted opacity-50">{placeholder}</span>
-        )}
+    // Combobox manages keyboard navigation and selection for the options panel.
+    // immediate: opens the options panel as soon as the input is focused/typed in.
+    // value={null}: we never track a "selected" combobox item — we handle insertion
+    //   ourselves in handleSelect and always keep value controlled externally.
+    <Combobox immediate value={null} onChange={handleSelect}>
+      <div className="relative w-full h-full flex items-center group">
+        {/* Highlighting Overlay */}
+        <div
+          ref={overlayRef}
+          className={`absolute inset-x-0 bottom-0 top-0 flex items-center px-3 font-mono text-sm pointer-events-none overflow-hidden whitespace-pre select-none ${
+            !value ? 'text-text-muted' : 'text-text-primary'
+          }`}
+        >
+          {value ? (
+            renderHighlighted(value)
+          ) : (
+            <span className="text-text-muted opacity-50">{placeholder}</span>
+          )}
+        </div>
+
+        <ComboboxInput
+          ref={inputRef as React.Ref<HTMLInputElement>}
+          as="input"
+          type={type}
+          id={id}
+          value={value}
+          displayValue={() => value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            // headlessui calls e.preventDefault() for ↑/↓/Enter/Escape when open.
+            // We stop propagation so parent KVE row-navigation doesn't also fire.
+            if (e.defaultPrevented) {
+              e.stopPropagation()
+              return
+            }
+            onKeyDown?.(e)
+          }}
+          onPaste={onPaste}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          disabled={readOnly}
+          className={`w-full h-full bg-transparent border-none outline-none px-3 font-mono text-sm text-transparent caret-accent selection:bg-accent/20 ${className}`}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          data-row={dataRow}
+          data-field={dataField}
+        />
       </div>
 
-      <input
-        ref={inputRef}
-        type={type}
-        id={id}
-        value={value}
-        onChange={handleInputChange}
-        onKeyDown={onKeyDown}
-        onPaste={onPaste}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        disabled={readOnly}
-        className={`w-full h-full bg-transparent border-none outline-none px-3 font-mono text-sm text-transparent caret-accent selection:bg-accent/20 ${className}`}
-        autoCapitalize="none"
-        autoCorrect="off"
-        spellCheck={false}
-        data-row={dataRow}
-        data-field={dataField}
-      />
+      {/* Rendered inside Combobox React context; portals to document.body via headlessui */}
+      <VariablePickerDropdown suggestions={suggestions} query={query} open={!!context} />
 
-      {/* Portal Tooltip — positioned below the hovered variable span */}
+      {/* Portal Tooltip */}
       {tooltip.visible &&
         ReactDOM.createPortal(
           <div
@@ -287,7 +299,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
           </div>,
           document.body
         )}
-    </div>
+    </Combobox>
   )
 }
 

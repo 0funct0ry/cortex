@@ -1,10 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import ReactDOM from 'react-dom'
+import { Combobox, ComboboxInput } from '@headlessui/react'
 import * as Icons from '../ui/Icons'
 import { useRequestStore } from '../../stores/requestStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import type { ResolvedVariable } from '../../bindings'
+import { detectContext, buildSuggestions } from './useVariablePicker'
+import { VariablePickerDropdown } from './VariablePickerDropdown'
 
 interface UrlInputProps {
   value: string
@@ -194,22 +197,27 @@ const VarPopover: React.FC<{
 }
 
 /**
- * URL input bar with inline variable highlighting.
+ * URL input bar with inline variable highlighting and {{ autocomplete.
  *
  * A transparent <input> sits on top of a colour-coded overlay; the overlay's
  * horizontal scroll is kept in sync with the input. This keeps native caret
- * hit-testing, keyboard shortcuts and click-to-position fully intact (the
- * input owns all interaction) while showing `{{variable}}` tokens in colour:
- *   • green  — resolved
- *   • red    — unresolved
- *   • blue   — dynamic ($-prefixed) built-ins
- * Hovering a token reveals a popover with its scope, value (masked reveal for
- * secrets) and a copy action.
+ * hit-testing, keyboard shortcuts and click-to-position fully intact.
+ *
+ * Autocomplete is powered by @headlessui/react <Combobox> which handles all
+ * keyboard navigation (↑/↓/Enter/Escape) correctly without stale-ref issues.
  */
 const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
   const { activeTabId, activeTab } = useTabs()
   const resolvedVariables = useRequestStore((s) =>
     activeTabId ? s.resolvedVariables[activeTabId] || EMPTY_RESOLVED : EMPTY_RESOLVED
+  )
+
+  // Detect {{ context from the value — no stale state, just a regex.
+  const context = useMemo(() => detectContext(value), [value])
+  const query = context?.query ?? ''
+  const suggestions = useMemo(
+    () => buildSuggestions(resolvedVariables, query),
+    [resolvedVariables, query]
   )
 
   const collectionId = activeTab?.collectionId ?? null
@@ -219,14 +227,10 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
   const collectionEnvironments = useCollectionEnvironmentStore((s) => s.collectionEnvironments)
   const activeCollectionEnvName = useCollectionEnvironmentStore((s) => s.activeCollectionEnvName)
 
-  // Ensure the active collection's environments are loaded so the tooltip can
-  // tell Collection-env variables apart from Global-env ones (both share the
-  // backend `environment` scope).
   useEffect(() => {
     if (collectionId) loadCollectionEnvironments(collectionId)
   }, [collectionId, loadCollectionEnvironments])
 
-  // Names of variables defined in the active collection environment.
   const collectionEnvVarNames = useMemo(() => {
     const active = collectionId ? (activeCollectionEnvName[collectionId] ?? null) : null
     if (!collectionId || !active) return EMPTY_SET
@@ -254,7 +258,6 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
     badge: UNRESOLVED_BADGE,
   })
 
-  // Keep the overlay's scroll position aligned with the input's.
   const syncScroll = useCallback(() => {
     if (inputRef.current && overlayRef.current) {
       overlayRef.current.scrollLeft = inputRef.current.scrollLeft
@@ -296,7 +299,7 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
       setPopover({
         visible: true,
         x: rect.left + rect.width / 2,
-        y: rect.bottom + 6, // just below the token
+        y: rect.bottom + 6,
         varName,
         resolved,
         isDynamic,
@@ -306,8 +309,20 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
     [effectiveResolved, collectionEnvVarNames]
   )
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') onEnter?.()
+  // Insert the selected variable name at the {{ offset.
+  const handleSelect = (name: string | null) => {
+    if (!name || !context) return
+    const el = inputRef.current
+    const caretPos = el?.selectionStart ?? value.length
+    const newValue = value.slice(0, context.openOffset) + `{{${name}}}` + value.slice(caretPos)
+    onChange(newValue)
+    const newCaret = context.openOffset + name.length + 4
+    setTimeout(() => {
+      if (el) {
+        el.focus()
+        el.setSelectionRange(newCaret, newCaret)
+      }
+    }, 0)
   }
 
   const renderHighlighted = (text: string) => {
@@ -318,9 +333,9 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
         const isDynamic = varName.startsWith('$')
         const isResolved = !isDynamic && !!effectiveResolved(varName)
 
-        let cls = 'text-error' // unresolved → red
+        let cls = 'text-error'
         if (isDynamic) cls = 'text-accent'
-        else if (isResolved) cls = 'text-success' // resolved → green
+        else if (isResolved) cls = 'text-success'
 
         return (
           <span
@@ -338,45 +353,63 @@ const UrlInput: React.FC<UrlInputProps> = ({ value, onChange, onEnter }) => {
   }
 
   return (
-    <div className="flex-1 flex flex-col justify-center min-w-0">
-      <div className="relative flex items-center h-[30px] bg-bg-surface border border-border-default rounded-md transition-all duration-150 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-accent/20">
-        {/* Colour-coded overlay (behind the transparent input text) */}
-        <div
-          ref={overlayRef}
-          aria-hidden
-          className={`absolute inset-0 flex items-center px-3 font-mono text-sm overflow-hidden whitespace-pre pointer-events-none ${
-            value ? 'text-text-primary' : 'text-text-muted'
-          }`}
-        >
-          {value ? (
-            renderHighlighted(value)
-          ) : (
-            <span className="text-text-muted">Enter URL or paste text</span>
-          )}
+    // Combobox handles keyboard navigation for the {{ picker.
+    // immediate: opens (internally) as soon as the input is focused/typed in,
+    //   so ↑/↓/Enter/Escape are ready without an extra click.
+    // value={null}: we never persist a "selected" combobox item — insertion is
+    //   done in handleSelect and the full URL text is always controlled externally.
+    <Combobox immediate value={null} onChange={handleSelect}>
+      <div className="flex-1 flex flex-col justify-center min-w-0">
+        <div className="relative flex items-center h-[30px] bg-bg-surface border border-border-default rounded-md transition-all duration-150 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-accent/20">
+          {/* Colour-coded overlay (behind the transparent input text) */}
+          <div
+            ref={overlayRef}
+            aria-hidden
+            className={`absolute inset-0 flex items-center px-3 font-mono text-sm overflow-hidden whitespace-pre pointer-events-none ${
+              value ? 'text-text-primary' : 'text-text-muted'
+            }`}
+          >
+            {value ? (
+              renderHighlighted(value)
+            ) : (
+              <span className="text-text-muted">Enter URL or paste text</span>
+            )}
+          </div>
+
+          <ComboboxInput
+            ref={inputRef as React.Ref<HTMLInputElement>}
+            as="input"
+            type="text"
+            value={value}
+            displayValue={() => value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              // headlessui preventDefault for ↑/↓/Enter/Escape when picker is open.
+              // Only forward Enter to onEnter when headlessui did NOT handle it.
+              if (e.defaultPrevented) return
+              if (e.key === 'Enter') onEnter?.()
+            }}
+            onBlur={() => {}}
+            className="w-full h-full bg-transparent border-none outline-none px-3 font-mono text-sm text-transparent caret-accent selection:bg-accent/20"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
         </div>
 
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="w-full h-full bg-transparent border-none outline-none px-3 font-mono text-sm text-transparent caret-accent selection:bg-accent/20"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-      </div>
+        {/* Rendered inside Combobox React context; portals to document.body via headlessui */}
+        <VariablePickerDropdown suggestions={suggestions} query={query} open={!!context} />
 
-      {popover.visible && (
-        <VarPopover
-          key={popover.varName}
-          data={popover}
-          onMouseEnter={clearHide}
-          onMouseLeave={scheduleHide}
-        />
-      )}
-    </div>
+        {popover.visible && (
+          <VarPopover
+            key={popover.varName}
+            data={popover}
+            onMouseEnter={clearHide}
+            onMouseLeave={scheduleHide}
+          />
+        )}
+      </div>
+    </Combobox>
   )
 }
 

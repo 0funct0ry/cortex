@@ -3,6 +3,7 @@ import CodeEditor from '../ui/CodeEditor'
 import KeyValueEditor from './KeyValueEditor'
 import FormDataEditor from './FormDataEditor'
 import { useRequestStore } from '../../stores/requestStore'
+import { useTabs } from '../../contexts/TabsContext'
 import * as Icons from '../ui/Icons'
 import { commands } from '../../bindings'
 
@@ -59,6 +60,10 @@ const getContentTypeForBodyType = (type: string, rawSubtype?: string) => {
 
 const BodyTab: React.FC<BodyTabProps> = ({ requestId }) => {
   const { getRequestState, updateRequest } = useRequestStore()
+  const { activeTabId } = useTabs()
+  const resolvedVariables = useRequestStore((s) =>
+    activeTabId ? s.resolvedVariables[activeTabId] : undefined
+  )
   const requestData = getRequestState(requestId)
   const body = requestData.body
 
@@ -277,6 +282,7 @@ const BodyTab: React.FC<BodyTabProps> = ({ requestId }) => {
                 onChange={(val) => updateRequest(requestId, { body: { ...body, json: val } })}
                 language="json"
                 autoFocus
+                resolvedVariables={resolvedVariables}
               />
             </div>
           </div>
@@ -356,6 +362,7 @@ const BodyTab: React.FC<BodyTabProps> = ({ requestId }) => {
                 }
                 wordWrap={wordWrap}
                 autoFocus
+                resolvedVariables={resolvedVariables}
               />
             </div>
 
