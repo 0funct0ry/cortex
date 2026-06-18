@@ -80,7 +80,8 @@ const GenerateCodeModal: React.FC = () => {
         workspacePath,
         collectionId ?? null,
         envStore.activeEnvironmentName,
-        collEnvName
+        collEnvName,
+        requestPath ?? null
       )
 
       const varMap: Record<string, string> = {}

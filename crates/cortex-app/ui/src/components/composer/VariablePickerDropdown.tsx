@@ -8,16 +8,18 @@ type Scope = VariableScope | 'dynamic'
 const GROUP_LABELS: Record<Scope, string> = {
   dynamic: 'Dynamic',
   runtime: 'Runtime',
+  folder: 'Folder',
   environment: 'Environment',
   collection: 'Collection',
   global: 'Global',
 }
 
-const GROUP_ORDER: Scope[] = ['dynamic', 'runtime', 'environment', 'collection', 'global']
+const GROUP_ORDER: Scope[] = ['dynamic', 'runtime', 'folder', 'environment', 'collection', 'global']
 
 const SCOPE_BADGE_CLASS: Record<Scope, string> = {
   dynamic: 'bg-accent/15 text-accent border-accent/30',
   runtime: 'bg-purple-500/15 text-purple-400 border-purple-400/30',
+  folder: 'bg-warning/15 text-warning border-warning/30',
   environment: 'bg-success/15 text-success border-success/30',
   collection: 'bg-success/15 text-success border-success/30',
   global: 'bg-text-muted/15 text-text-secondary border-border-subtle',
@@ -26,6 +28,7 @@ const SCOPE_BADGE_CLASS: Record<Scope, string> = {
 const GROUP_HEADER_CLASS: Record<Scope, string> = {
   dynamic: 'text-accent',
   runtime: 'text-purple-400',
+  folder: 'text-warning',
   environment: 'text-success',
   collection: 'text-success',
   global: 'text-text-secondary',

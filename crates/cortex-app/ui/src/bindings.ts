@@ -249,6 +249,14 @@ async updateFolderScripts(folderPath: string, scripts: Scripts | null) : Promise
     else return { status: "error", error: e  as any };
 }
 },
+async updateFolderVars(folderPath: string, vars: Variable[] | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_folder_vars", { folderPath, vars }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async updateCollectionScripts(collectionPath: string, scripts: Scripts | null) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_collection_scripts", { collectionPath, scripts }) };
@@ -434,17 +442,17 @@ async writeTextFile(path: string, content: string) : Promise<Result<null, string
     else return { status: "error", error: e  as any };
 }
 },
-async getResolvedVariables(workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null) : Promise<Result<{ [key in string]: ResolvedVariable }, string>> {
+async getResolvedVariables(workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null, requestPath: string | null) : Promise<Result<{ [key in string]: ResolvedVariable }, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_resolved_variables", { workspacePath, collectionPath, environmentName, collectionEnvironmentName }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_resolved_variables", { workspacePath, collectionPath, environmentName, collectionEnvironmentName, requestPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async previewTemplate(text: string, workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null) : Promise<Result<PreviewResponse, string>> {
+async previewTemplate(text: string, workspacePath: string | null, collectionPath: string | null, environmentName: string | null, collectionEnvironmentName: string | null, requestPath: string | null) : Promise<Result<PreviewResponse, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("preview_template", { text, workspacePath, collectionPath, environmentName, collectionEnvironmentName }) };
+    return { status: "ok", data: await TAURI_INVOKE("preview_template", { text, workspacePath, collectionPath, environmentName, collectionEnvironmentName, requestPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -879,7 +887,11 @@ export type FolderManifest = { headers?: { [key in string]: string } | null; aut
 /**
  * Custom display/execution order for items in this folder (filenames/dirnames).
  */
-order?: string[] | null }
+order?: string[] | null; 
+/**
+ * Variables scoped to this folder — injected before every request inside it fires.
+ */
+vars?: Variable[] | null }
 export type FormEntry = { key: string; value: string; is_file: boolean; file_path: string; enabled: boolean }
 export type GitInitResult = { already_initialized: boolean }
 export type GreetResponse = { message: string }
@@ -1016,7 +1028,7 @@ prompt?: boolean;
  * Optional hint shown beneath the input in the prompt dialog.
  */
 description?: string | null }
-export type VariableScope = "global" | "collection" | "environment" | "runtime" | "dynamic"
+export type VariableScope = "global" | "collection" | "folder" | "environment" | "runtime" | "dynamic"
 export type WorkspaceCollectionResult = { path: string; name: string | null; error: string | null }
 export type WorkspaceResponse = { name: string; collections: WorkspaceCollectionResult[]; variables: Variable[] | null; environments: EnvironmentFile[]; env_files: string[]; active_environment: string | null; 
 /**

@@ -32,11 +32,12 @@ const Composer: React.FC = () => {
 
   React.useEffect(() => {
     if (activeTabId) {
-      fetchResolvedVariables(activeTabId, collectionId)
+      fetchResolvedVariables(activeTabId, collectionId, activeTab?.requestPath ?? null)
     }
   }, [
     activeTabId,
     collectionId,
+    activeTab?.requestPath,
     activeEnvironmentName,
     environments,
     globalEnvironment,

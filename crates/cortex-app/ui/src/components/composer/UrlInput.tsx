@@ -1,13 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import ReactDOM from 'react-dom'
 import { Combobox, ComboboxInput } from '@headlessui/react'
-import * as Icons from '../ui/Icons'
 import { useRequestStore } from '../../stores/requestStore'
 import { useTabs } from '../../contexts/TabsContext'
 import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import type { ResolvedVariable } from '../../bindings'
 import { detectContext, buildSuggestions } from './useVariablePicker'
 import { VariablePickerDropdown } from './VariablePickerDropdown'
+import { VarPopover } from './VarPopover'
+import { computeBadge, UNRESOLVED_BADGE, type PopoverState } from './varBadges'
 
 interface UrlInputProps {
   value: string
@@ -17,184 +17,6 @@ interface UrlInputProps {
 
 const EMPTY_RESOLVED: Record<string, ResolvedVariable> = {}
 const EMPTY_SET = new Set<string>()
-
-interface BadgeInfo {
-  label: string
-  cls: string
-}
-
-const GLOBAL_BADGE: BadgeInfo = {
-  label: 'Global',
-  cls: 'bg-success/15 text-success border-success/30',
-}
-const COLLECTION_BADGE: BadgeInfo = {
-  label: 'Collection',
-  cls: 'bg-accent/15 text-accent border-accent/30',
-}
-const SESSION_BADGE: BadgeInfo = {
-  label: 'Session',
-  cls: 'bg-bg-muted text-text-secondary border-border-default',
-}
-const DYNAMIC_BADGE: BadgeInfo = {
-  label: 'Dynamic',
-  cls: 'bg-accent/15 text-accent border-accent/30',
-}
-const UNRESOLVED_BADGE: BadgeInfo = {
-  label: 'Unresolved',
-  cls: 'bg-error/15 text-error border-error/30',
-}
-
-/**
- * Determine the source badge for a variable.
- *
- * Note: both the active *global* environment (sent to the backend as
- * `environment_name`) and the active *collection* environment
- * (`collection_environment_name`) resolve to the same `environment` scope.
- * We disambiguate by checking whether the variable name belongs to the active
- * collection environment — if so it's Collection, otherwise Global.
- */
-function computeBadge(
-  varName: string,
-  resolved: ResolvedVariable | null,
-  isDynamic: boolean,
-  collectionEnvVarNames: Set<string>
-): BadgeInfo {
-  if (isDynamic) return DYNAMIC_BADGE
-  if (!resolved) return UNRESOLVED_BADGE
-  switch (resolved.scope) {
-    case 'environment':
-      return collectionEnvVarNames.has(varName) ? COLLECTION_BADGE : GLOBAL_BADGE
-    case 'collection':
-      return COLLECTION_BADGE
-    case 'global':
-      return GLOBAL_BADGE
-    case 'runtime':
-      return SESSION_BADGE
-    case 'dynamic':
-      return DYNAMIC_BADGE
-    default:
-      return GLOBAL_BADGE
-  }
-}
-
-const DYNAMIC_DESC: Record<string, string> = {
-  $randomInt: 'Random integer between 0 and 1000.',
-  $timestamp: 'Current Unix timestamp (seconds).',
-  $isoTimestamp: 'Current ISO 8601 UTC timestamp.',
-  $randomNanoId: 'Secure 21-character NanoID.',
-  $uuid: 'Random v4 UUID.',
-  $randomFirstName: 'Random first name.',
-  $randomLastName: 'Random last name.',
-  $randomEmail: 'Random email address.',
-  $randomPhoneNumber: 'Random phone number.',
-  $randomUrl: 'Random URL.',
-  $randomIPv4: 'Random IPv4 address.',
-  $randomBoolean: 'Random boolean value.',
-  $randomLoremWord: 'Random lorem ipsum word.',
-  $randomLoremSentence: 'Random lorem ipsum sentence.',
-}
-
-function valueToString(v: unknown): string {
-  if (v === null || v === undefined) return ''
-  return typeof v === 'string' ? v : JSON.stringify(v)
-}
-
-interface PopoverData {
-  varName: string
-  resolved: ResolvedVariable | null
-  isDynamic: boolean
-  badge: BadgeInfo
-}
-
-interface PopoverState extends PopoverData {
-  visible: boolean
-  x: number
-  y: number
-}
-
-/** The hover card shown over a `{{variable}}` token. Manages its own reveal/copy state. */
-const VarPopover: React.FC<{
-  data: PopoverState
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-}> = ({ data, onMouseEnter, onMouseLeave }) => {
-  const { varName, resolved, isDynamic, badge, x, y } = data
-  const [revealed, setRevealed] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const realValue = resolved ? valueToString(resolved.value) : ''
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(realValue)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* ignore clipboard errors */
-    }
-  }
-
-  return ReactDOM.createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        left: `${x}px`,
-        top: `${y}px`,
-        transform: 'translateX(-50%)',
-        zIndex: 9999,
-      }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      className="w-[260px] bg-bg-overlay border border-border-subtle rounded-md shadow-xl p-2.5 text-xs flex flex-col gap-2 font-sans animate-fade-in"
-    >
-      {/* Header: variable name + scope badge */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-mono font-semibold text-text-primary truncate">{varName}</span>
-        <span
-          className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border ${badge.cls}`}
-        >
-          {badge.label}
-        </span>
-      </div>
-
-      {/* Body */}
-      {isDynamic ? (
-        <p className="text-[11px] text-text-secondary leading-relaxed">
-          {DYNAMIC_DESC[varName] ?? 'Generates a value when the request is sent.'}
-        </p>
-      ) : resolved ? (
-        <div className="flex items-center gap-1.5 bg-bg-muted/60 border border-border-subtle/60 rounded px-2 py-1.5">
-          <span className="flex-1 font-mono text-[11px] text-text-primary break-all min-w-0">
-            {resolved.secret && !revealed
-              ? '••••••••'
-              : realValue || <em className="text-text-muted not-italic">(empty)</em>}
-          </span>
-          {resolved.secret && (
-            <button
-              onClick={() => setRevealed((r) => !r)}
-              className="shrink-0 p-0.5 rounded text-text-muted hover:text-text-primary transition-colors"
-              title={revealed ? 'Hide value' : 'Reveal value'}
-            >
-              {revealed ? <Icons.EyeOff size={13} /> : <Icons.Eye size={13} />}
-            </button>
-          )}
-          <button
-            onClick={handleCopy}
-            className="shrink-0 p-0.5 rounded text-text-muted hover:text-text-primary transition-colors"
-            title="Copy value"
-          >
-            {copied ? <Icons.Check size={13} className="text-success" /> : <Icons.Copy size={13} />}
-          </button>
-        </div>
-      ) : (
-        <p className="text-[11px] text-text-secondary leading-relaxed">
-          Not defined in any active scope. Define it in an environment or as a variable.
-        </p>
-      )}
-    </div>,
-    document.body
-  )
-}
 
 /**
  * URL input bar with inline variable highlighting and {{ autocomplete.

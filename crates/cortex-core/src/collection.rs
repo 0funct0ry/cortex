@@ -155,6 +155,9 @@ pub struct FolderManifest {
     /// Custom display/execution order for items in this folder (filenames/dirnames).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<Vec<String>>,
+    /// Variables scoped to this folder — injected before every request inside it fires.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vars: Option<Vec<crate::variables::Variable>>,
 }
 
 impl FolderManifest {
@@ -590,7 +593,7 @@ impl Collection {
                 let yaml_str = fs::read_to_string(&folder_yaml)?;
                 FolderManifest::from_yaml(&yaml_str)?
             } else {
-                FolderManifest { headers: None, auth: None, scripts: None, order: None }
+                FolderManifest { headers: None, auth: None, scripts: None, order: None, vars: None }
             };
             manifest.order = Some(names);
             fs::write(&folder_yaml, manifest.to_yaml()?)?;
@@ -886,8 +889,13 @@ description: \"Description\"
     fn test_folder_manifest_roundtrip() {
         let mut headers = BTreeMap::new();
         headers.insert("X-Folder-Level".to_string(), "true".to_string());
-        let manifest =
-            FolderManifest { headers: Some(headers), auth: None, scripts: None, order: None };
+        let manifest = FolderManifest {
+            headers: Some(headers),
+            auth: None,
+            scripts: None,
+            order: None,
+            vars: None,
+        };
         let yaml = manifest.to_yaml().unwrap();
         let decoded = FolderManifest::from_yaml(&yaml).unwrap();
         assert_eq!(manifest, decoded);

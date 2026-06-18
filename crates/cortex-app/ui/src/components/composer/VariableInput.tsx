@@ -1,13 +1,13 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react'
-import ReactDOM from 'react-dom'
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import { Combobox, ComboboxInput } from '@headlessui/react'
 import { useRequestStore } from '../../stores/requestStore'
 import { useTabs } from '../../contexts/TabsContext'
-import { useEnvironmentStore } from '../../stores/environmentStore'
 import { useCollectionEnvironmentStore } from '../../stores/collectionEnvironmentStore'
 import type { ResolvedVariable } from '../../bindings'
-import { DYNAMIC_VARS_DESC, detectContext, buildSuggestions } from './useVariablePicker'
+import { detectContext, buildSuggestions } from './useVariablePicker'
 import { VariablePickerDropdown } from './VariablePickerDropdown'
+import { VarPopover } from './VarPopover'
+import { computeBadge, UNRESOLVED_BADGE, type PopoverState } from './varBadges'
 
 interface VariableInputProps {
   value: string
@@ -27,16 +27,8 @@ interface VariableInputProps {
   type?: string
 }
 
-interface TooltipState {
-  visible: boolean
-  x: number
-  y: number
-  title: string
-  content: string
-  scope?: string
-}
-
 const EMPTY_RESOLVED_VARIABLES: Record<string, ResolvedVariable> = {}
+const EMPTY_SET = new Set<string>()
 
 export const VariableInput: React.FC<VariableInputProps> = ({
   value,
@@ -62,16 +54,31 @@ export const VariableInput: React.FC<VariableInputProps> = ({
       : EMPTY_RESOLVED_VARIABLES
   )
 
+  const collectionId = activeTab?.collectionId ?? null
+  const collectionEnvironments = useCollectionEnvironmentStore((s) => s.collectionEnvironments)
+  const activeCollectionEnvName = useCollectionEnvironmentStore((s) => s.activeCollectionEnvName)
+
+  const collectionEnvVarNames = useMemo(() => {
+    const active = collectionId ? (activeCollectionEnvName[collectionId] ?? null) : null
+    if (!collectionId || !active) return EMPTY_SET
+    const envs = collectionEnvironments[collectionId] ?? []
+    const env = envs.find((e) => e.name === active)
+    return env ? new Set(env.variables.map((v) => v.name)) : EMPTY_SET
+  }, [collectionId, activeCollectionEnvName, collectionEnvironments])
+
   const internalInputRef = useRef<HTMLInputElement>(null)
   const inputRef = externalInputRef || internalInputRef
   const overlayRef = useRef<HTMLDivElement>(null)
+  const hideTimer = useRef<number | null>(null)
 
-  const [tooltip, setTooltip] = useState<TooltipState>({
+  const [popover, setPopover] = useState<PopoverState>({
     visible: false,
     x: 0,
     y: 0,
-    title: '',
-    content: '',
+    varName: '',
+    resolved: null,
+    isDynamic: false,
+    badge: UNRESOLVED_BADGE,
   })
 
   // Detect {{ context purely from the value string — no stale ref tricks needed.
@@ -118,68 +125,39 @@ export const VariableInput: React.FC<VariableInputProps> = ({
     syncScroll()
   }, [value, syncScroll])
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLSpanElement>, rawVar: string) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = rect.left + rect.width / 2
-    const y = rect.bottom + 8
-
-    const varName = rawVar.replace(/^\{\{/, '').replace(/\}\}$/, '').trim()
-    const isDynamic = varName.startsWith('$')
-
-    let title = varName
-    let content = 'Unresolved'
-    let scope = 'unresolved'
-
-    if (isDynamic) {
-      scope = 'dynamic'
-      title = `Dynamic Variable: ${varName}`
-      content = DYNAMIC_VARS_DESC[varName] || 'Generates a dynamic value at run-time.'
-    } else {
-      const resolved = resolvedVariables[varName]
-      if (resolved) {
-        scope = resolved.scope || 'environment'
-
-        const collectionId = activeTab?.collectionId ?? null
-        const activeGlobalEnv = useEnvironmentStore.getState().activeEnvironmentName
-        const collState = useCollectionEnvironmentStore.getState()
-        const activeCollEnv = collectionId
-          ? (collState.activeCollectionEnvName[collectionId] ?? null)
-          : null
-        const collEnvVarNames = (() => {
-          if (!collectionId || !activeCollEnv) return new Set<string>()
-          const envs = collState.collectionEnvironments[collectionId] ?? []
-          const env = envs.find((e) => e.name === activeCollEnv)
-          return new Set((env?.variables ?? []).map((v) => v.name))
-        })()
-
-        const fromCollection =
-          scope === 'collection' || (scope === 'environment' && collEnvVarNames.has(varName))
-
-        if (fromCollection) {
-          title = activeCollEnv ? `Collection env: ${activeCollEnv}` : 'Collection'
-        } else if (scope === 'environment') {
-          title = activeGlobalEnv ? `Global env: ${activeGlobalEnv}` : 'Global'
-        } else if (scope === 'global') {
-          title = 'Global'
-        } else {
-          title = `Resolved Variable (${scope})`
-        }
-
-        if (resolved.secret) {
-          content = 'Secret Value: ********'
-        } else {
-          content =
-            typeof resolved.value === 'string' ? resolved.value : JSON.stringify(resolved.value)
-        }
-      }
+  const clearHide = useCallback(() => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current)
+      hideTimer.current = null
     }
+  }, [])
 
-    setTooltip({ visible: true, x, y, title, content, scope })
-  }
+  const scheduleHide = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    hideTimer.current = window.setTimeout(() => setPopover((p) => ({ ...p, visible: false })), 140)
+  }, [])
 
-  const handleMouseLeave = () => {
-    setTooltip((prev) => ({ ...prev, visible: false }))
-  }
+  const handleTokenEnter = useCallback(
+    (e: React.MouseEvent<HTMLSpanElement>, varName: string) => {
+      if (hideTimer.current) {
+        clearTimeout(hideTimer.current)
+        hideTimer.current = null
+      }
+      const rect = e.currentTarget.getBoundingClientRect()
+      const isDynamic = varName.startsWith('$')
+      const resolved = isDynamic ? null : (resolvedVariables[varName] ?? null)
+      setPopover({
+        visible: true,
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 8,
+        varName,
+        resolved,
+        isDynamic,
+        badge: computeBadge(varName, resolved, isDynamic, collectionEnvVarNames),
+      })
+    },
+    [resolvedVariables, collectionEnvVarNames]
+  )
 
   const renderHighlighted = (text: string) => {
     const parts = text.split(/(\{\{[^{}]*\}\})/)
@@ -200,8 +178,8 @@ export const VariableInput: React.FC<VariableInputProps> = ({
           <span
             key={i}
             className={`${spanClass} pointer-events-auto cursor-help font-mono font-medium`}
-            onMouseEnter={(e) => handleMouseEnter(e, part)}
-            onMouseLeave={handleMouseLeave}
+            onMouseEnter={(e) => handleTokenEnter(e, varName)}
+            onMouseLeave={scheduleHide}
           >
             {part}
           </span>
@@ -266,39 +244,14 @@ export const VariableInput: React.FC<VariableInputProps> = ({
       {/* Rendered inside Combobox React context; portals to document.body via headlessui */}
       <VariablePickerDropdown suggestions={suggestions} query={query} open={!!context} />
 
-      {/* Portal Tooltip */}
-      {tooltip.visible &&
-        ReactDOM.createPortal(
-          <div
-            style={{
-              position: 'fixed',
-              left: `${tooltip.x}px`,
-              top: `${tooltip.y}px`,
-              transform: 'translateX(-50%)',
-              zIndex: 9999,
-            }}
-            className="bg-bg-overlay border border-border-subtle rounded-md shadow-lg p-2 max-w-[280px] pointer-events-none text-xs flex flex-col gap-1 font-sans text-text-primary animate-fade-in"
-          >
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  tooltip.scope === 'dynamic'
-                    ? 'bg-accent'
-                    : tooltip.scope === 'unresolved'
-                      ? 'bg-warning'
-                      : 'bg-success'
-                }`}
-              />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">
-                {tooltip.title}
-              </span>
-            </div>
-            <div className="font-mono text-text-primary break-all bg-bg-muted/50 p-1 rounded-sm border border-border-subtle/50 text-[11px] leading-relaxed">
-              {tooltip.content}
-            </div>
-          </div>,
-          document.body
-        )}
+      {popover.visible && (
+        <VarPopover
+          key={popover.varName}
+          data={popover}
+          onMouseEnter={clearHide}
+          onMouseLeave={scheduleHide}
+        />
+      )}
     </Combobox>
   )
 }

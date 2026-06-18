@@ -1047,6 +1047,7 @@ pub async fn update_folder_auth(folder_path: String, auth: Option<AuthRef>) -> R
                 auth: None,
                 scripts: None,
                 order: None,
+                vars: None,
             }
         };
         fm.auth = auth;
@@ -1202,6 +1203,7 @@ pub async fn update_folder_headers(
                 auth: None,
                 scripts: None,
                 order: None,
+                vars: None,
             }
         };
         fm.headers = headers;
@@ -1232,9 +1234,41 @@ pub async fn update_folder_scripts(
                 auth: None,
                 scripts: None,
                 order: None,
+                vars: None,
             }
         };
         fm.scripts = scripts;
+        let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
+        std::fs::write(&fy, yaml).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_folder_vars(
+    folder_path: String,
+    vars: Option<Vec<cortex_core::variables::Variable>>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder_path_buf = PathBuf::from(folder_path);
+        let fy = folder_path_buf.join("folder.yaml");
+        let mut fm = if fy.exists() {
+            let content = std::fs::read_to_string(&fy).map_err(|e| e.to_string())?;
+            cortex_core::collection::FolderManifest::from_yaml(&content)
+                .map_err(|e| e.to_string())?
+        } else {
+            cortex_core::collection::FolderManifest {
+                headers: None,
+                auth: None,
+                scripts: None,
+                order: None,
+                vars: None,
+            }
+        };
+        fm.vars = vars;
         let yaml = fm.to_yaml().map_err(|e| e.to_string())?;
         std::fs::write(&fy, yaml).map_err(|e| e.to_string())?;
         Ok(())
@@ -1719,6 +1753,7 @@ fn populate_resolver(
     environment_name: Option<String>,
     collection_environment_name: Option<String>,
     ephemeral_vars: Vec<Variable>,
+    request_path: Option<String>,
 ) -> Result<(), String> {
     // When neither a global nor a collection environment is selected, the
     // "always-on" layers (workspace globals, collection vars, global-env file)
@@ -1774,8 +1809,8 @@ fn populate_resolver(
 
     // 2. Collection — gated: only resolve when an env is selected
     if any_env_selected {
-        if let Some(cp) = collection_path {
-            if let Ok(collection) = Collection::load_manifest(&cp) {
+        if let Some(ref cp) = collection_path {
+            if let Ok(collection) = Collection::load_manifest(cp) {
                 if let Some(vars) = collection.manifest.variables {
                     for var in vars {
                         resolver.collection_vars.insert(var.name.clone(), var);
@@ -1785,7 +1820,44 @@ fn populate_resolver(
         }
     }
 
-    // 3. Ephemeral / Session — Runtime scope, highest precedence.
+    // 3. Folder vars — walk from collection root down to request's immediate parent (top-down)
+    // so child folder vars override parent folder vars.
+    if let (Some(ref req_path), Some(ref col_path)) = (&request_path, &collection_path) {
+        let req_path_buf = PathBuf::from(req_path);
+        let col_path_buf = PathBuf::from(col_path);
+        let mut ancestors = Vec::new();
+        let mut curr = req_path_buf.parent();
+        while let Some(p) = curr {
+            if p == col_path_buf || !p.starts_with(&col_path_buf) {
+                break;
+            }
+            ancestors.push(p.to_path_buf());
+            curr = p.parent();
+        }
+        ancestors.reverse(); // top-down: grandparent first, immediate parent last
+        for folder_dir in ancestors {
+            let fy = folder_dir.join("folder.yaml");
+            if fy.exists() {
+                if let Ok(content) = std::fs::read_to_string(&fy) {
+                    if let Ok(fm) = cortex_core::collection::FolderManifest::from_yaml(&content) {
+                        if let Some(vars) = fm.vars {
+                            for var in vars {
+                                // Only enabled vars override. A disabled child-folder var
+                                // must NOT erase an enabled parent-folder var of the same
+                                // name — it should fall through to the parent (and only
+                                // then to collection/global).
+                                if var.enabled {
+                                    resolver.folder_vars.insert(var.name.clone(), var);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Ephemeral / Session — Runtime scope, highest precedence.
     // These are never read from disk; they come from the in-process EphemeralStore.
     for var in ephemeral_vars {
         resolver.runtime_vars.insert(var.name.clone(), var);
@@ -1801,6 +1873,7 @@ pub async fn get_resolved_variables(
     collection_path: Option<String>,
     environment_name: Option<String>,
     collection_environment_name: Option<String>,
+    request_path: Option<String>,
     store: tauri::State<'_, EphemeralStore>,
 ) -> Result<std::collections::BTreeMap<String, cortex_core::variables::ResolvedVariable>, String> {
     // Snapshot the ephemeral store before entering spawn_blocking (State is not Send).
@@ -1814,6 +1887,7 @@ pub async fn get_resolved_variables(
             environment_name,
             collection_environment_name,
             ephemeral_vars,
+            request_path,
         )?;
         Ok(resolver.get_all_resolved())
     })
@@ -1829,6 +1903,7 @@ pub async fn preview_template(
     collection_path: Option<String>,
     environment_name: Option<String>,
     collection_environment_name: Option<String>,
+    request_path: Option<String>,
     store: tauri::State<'_, EphemeralStore>,
 ) -> Result<PreviewResponse, String> {
     // Snapshot the ephemeral store before entering spawn_blocking (State is not Send).
@@ -1842,6 +1917,7 @@ pub async fn preview_template(
             environment_name,
             collection_environment_name,
             ephemeral_vars,
+            request_path,
         )?;
         let result = resolver.render_masked(&text);
         Ok(PreviewResponse {
@@ -2003,6 +2079,7 @@ pub async fn preview_request_headers(
             environment_name,
             collection_environment_name,
             ephemeral_vars,
+            request_path.clone(),
         )?;
 
         let (rendered_headers, warnings, _) =
@@ -2214,6 +2291,7 @@ pub async fn send_request(
                 metadata.environment_name,
                 metadata.collection_environment_name,
                 ephemeral_vars,
+                metadata.request_path.clone(),
             )?;
 
             let result = resolver.render(&payload.url);
@@ -2780,6 +2858,7 @@ pub async fn introspect_graphql(
             environment_name,
             collection_environment_name,
             ephemeral_vars,
+            request_path.clone(),
         )?;
 
         let mut missing_vars = Vec::new();
@@ -3031,6 +3110,7 @@ pub async fn oauth2_fetch_token(
             payload.environment_name,
             payload.collection_environment_name,
             ephemeral_vars,
+            None,
         )?;
 
         let grant_type = resolver.render(&payload.grant_type).text;
@@ -3441,6 +3521,7 @@ pub async fn oauth2_refresh_token(
                 payload.environment_name,
                 payload.collection_environment_name,
                 ephemeral_vars,
+                None,
             )?;
 
             let refresh_token = resolver.render(&payload.refresh_token).text;
@@ -4164,4 +4245,100 @@ pub async fn generate_docs_postman(collection_path: String) -> Result<String, St
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod folder_var_resolution_tests {
+    use super::*;
+    use cortex_core::variables::{VariableResolver, VariableScope};
+    use std::fs;
+
+    /// Regression: in a nested-folder layout where the inner folder defines a
+    /// variable of the same name but DISABLED, resolution must fall through to
+    /// the (enabled) outer folder's value — NOT skip the folder scope entirely
+    /// and resolve to collection/environment.
+    #[test]
+    fn disabled_inner_folder_var_falls_through_to_outer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let col = tmp.path();
+        let outer = col.join("outer");
+        let inner = outer.join("inner");
+        fs::create_dir_all(&inner).unwrap();
+
+        // outer folder: TEMPERATURE = "outer" (enabled)
+        fs::write(
+            outer.join("folder.yaml"),
+            "vars:\n- name: TEMPERATURE\n  value: outer\n  enabled: true\n",
+        )
+        .unwrap();
+
+        // inner folder: TEMPERATURE = "inner" (DISABLED)
+        fs::write(
+            inner.join("folder.yaml"),
+            "vars:\n- name: TEMPERATURE\n  value: inner\n  enabled: false\n",
+        )
+        .unwrap();
+
+        // request lives inside inner/
+        let req_path = inner.join("usevar.crx");
+        fs::write(&req_path, "version: '1'\nname: usevar\nmethod: GET\nurl: ''\n").unwrap();
+
+        let mut resolver = VariableResolver::new();
+        populate_resolver(
+            &mut resolver,
+            None,
+            Some(col.to_string_lossy().to_string()),
+            None,
+            None,
+            vec![],
+            Some(req_path.to_string_lossy().to_string()),
+        )
+        .unwrap();
+
+        let resolved = resolver
+            .resolve("TEMPERATURE")
+            .expect("TEMPERATURE should resolve to the outer folder value");
+        assert_eq!(resolved.value, serde_json::json!("outer"));
+        assert_eq!(resolved.scope, VariableScope::Folder);
+    }
+
+    /// An enabled inner-folder var still overrides the outer-folder var.
+    #[test]
+    fn enabled_inner_folder_var_overrides_outer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let col = tmp.path();
+        let outer = col.join("outer");
+        let inner = outer.join("inner");
+        fs::create_dir_all(&inner).unwrap();
+
+        fs::write(
+            outer.join("folder.yaml"),
+            "vars:\n- name: TEMPERATURE\n  value: outer\n  enabled: true\n",
+        )
+        .unwrap();
+        fs::write(
+            inner.join("folder.yaml"),
+            "vars:\n- name: TEMPERATURE\n  value: inner\n  enabled: true\n",
+        )
+        .unwrap();
+
+        let req_path = inner.join("usevar.crx");
+        fs::write(&req_path, "version: '1'\nname: usevar\nmethod: GET\nurl: ''\n").unwrap();
+
+        let mut resolver = VariableResolver::new();
+        populate_resolver(
+            &mut resolver,
+            None,
+            Some(col.to_string_lossy().to_string()),
+            None,
+            None,
+            vec![],
+            Some(req_path.to_string_lossy().to_string()),
+        )
+        .unwrap();
+
+        let resolved = resolver.resolve("TEMPERATURE").expect("should resolve");
+        assert_eq!(resolved.value, serde_json::json!("inner"));
+        assert_eq!(resolved.scope, VariableScope::Folder);
+    }
 }

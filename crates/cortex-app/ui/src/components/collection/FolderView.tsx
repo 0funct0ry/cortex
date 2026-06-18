@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { commands } from '../../bindings'
-import type { AuthRef, CollectionItem, Folder } from '../../bindings'
+import type { AuthRef, CollectionItem, Folder, Variable } from '../../bindings'
 import { VariableInput } from '../composer/VariableInput'
 import { useCollectionStore } from '../../stores/collectionStore'
+import { useRequestStore } from '../../stores/requestStore'
 import { toast } from '../../stores/toastStore'
 import CodeEditor from '../ui/CodeEditor'
+import VariableEditor from '../composer/VariableEditor'
 
 interface FolderViewProps {
   folderPath: string
@@ -20,7 +22,7 @@ interface HeaderRow {
 const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, folderName }) => {
   const { collections, loadCollection } = useCollectionStore()
 
-  const [activeTab, setActiveTab] = useState<'auth' | 'headers' | 'scripts'>('auth')
+  const [activeTab, setActiveTab] = useState<'auth' | 'headers' | 'scripts' | 'vars'>('auth')
   const [authType, setAuthType] = useState<'none' | 'api_key' | 'bearer_token'>('none')
   const [pendingAuthType, setPendingAuthType] = useState<
     'none' | 'api_key' | 'bearer_token' | null
@@ -36,6 +38,8 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
   const [preScript, setPreScript] = useState<string>('')
   const [postScript, setPostScript] = useState<string>('')
   const [activeScriptSubTab, setActiveScriptSubTab] = useState<'pre' | 'post'>('pre')
+  const [vars, setVars] = useState<Variable[]>([])
+  const [lastLoadedVars, setLastLoadedVars] = useState<Variable[] | null | undefined>(undefined)
 
   const col = collections[collectionPath]
 
@@ -89,6 +93,12 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
     setLastLoadedScripts(loadedScripts)
     setPreScript(loadedScripts?.pre ?? '')
     setPostScript(loadedScripts?.post ?? '')
+  }
+
+  const loadedVars = folder?.manifest?.vars ?? null
+  if (loadedVars !== lastLoadedVars) {
+    setLastLoadedVars(loadedVars)
+    setVars(loadedVars ?? [])
   }
 
   // Load existing manifest when the collection data is available
@@ -152,7 +162,9 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
         Object.keys(headersRecord).length > 0 ? headersRecord : null
       )
       await commands.updateFolderScripts(folderPath, scriptsPayload)
+      await commands.updateFolderVars(folderPath, vars.length > 0 ? vars : null)
       await loadCollection(collectionPath)
+      useRequestStore.getState().refetchResolvedVariables()
       toast.success('Folder settings saved')
     } catch (err) {
       toast.error(`Save failed: ${String(err)}`)
@@ -195,6 +207,17 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
           className={`${TAB_BTN} ${activeTab === 'scripts' ? TAB_ACTIVE : TAB_INACTIVE}`}
         >
           Scripts
+        </button>
+        <button
+          onClick={() => setActiveTab('vars')}
+          className={`${TAB_BTN} ${activeTab === 'vars' ? TAB_ACTIVE : TAB_INACTIVE} flex items-center gap-1.5`}
+        >
+          Variables
+          {vars.length > 0 && (
+            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-bg-muted rounded-full">
+              {vars.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -446,6 +469,20 @@ const FolderView: React.FC<FolderViewProps> = ({ folderPath, collectionPath, fol
                 Scripts here run for every request in this folder, in addition to collection and
                 request-level scripts.
               </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'vars' && (
+          <div className="flex flex-col h-full -m-6">
+            <div className="shrink-0 px-6 py-3 border-b border-border-subtle bg-bg-panel/40">
+              <p className="text-xs text-text-muted">
+                These variables are injected before every request in this folder fires. They
+                override collection and environment variables of the same name.
+              </p>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <VariableEditor variables={vars} onChange={setVars} title="" />
             </div>
           </div>
         )}

@@ -588,6 +588,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-specta",
+ "tempfile",
  "tokio",
  "walkdir",
  "zip",

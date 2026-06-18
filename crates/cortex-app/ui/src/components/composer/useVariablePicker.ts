@@ -32,6 +32,7 @@ export type VariableSuggestion = {
 const SCOPE_ORDER: Array<VariableScope | 'dynamic'> = [
   'dynamic',
   'runtime',
+  'folder',
   'environment',
   'collection',
   'global',

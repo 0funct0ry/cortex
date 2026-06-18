@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, HashSet};
 pub enum VariableScope {
     Global,
     Collection,
+    Folder,
     Environment,
     Runtime,
     Dynamic,
@@ -19,6 +20,7 @@ impl std::fmt::Display for VariableScope {
         match self {
             VariableScope::Global => write!(f, "global"),
             VariableScope::Collection => write!(f, "collection"),
+            VariableScope::Folder => write!(f, "folder"),
             VariableScope::Environment => write!(f, "environment"),
             VariableScope::Runtime => write!(f, "runtime"),
             VariableScope::Dynamic => write!(f, "dynamic"),
@@ -89,6 +91,9 @@ pub struct VariableResolver {
     /// Lowest-precedence scope: workspace-level global variables.
     pub global_vars: BTreeMap<String, Variable>,
     pub collection_vars: BTreeMap<String, Variable>,
+    /// Folder-scoped variables — injected before every request inside the folder fires.
+    /// Overrides env/collection/global; overridden by runtime. Child folders override parents.
+    pub folder_vars: BTreeMap<String, Variable>,
     pub env_vars: BTreeMap<String, Variable>,
     pub runtime_vars: BTreeMap<String, Variable>,
 }
@@ -343,13 +348,23 @@ impl VariableResolver {
             });
         }
 
-        // Precedence: Runtime -> Environment -> Collection -> Global
+        // Precedence: Runtime -> Folder -> Environment -> Collection -> Global
         // Only resolve if enabled
         if let Some(var) = self.runtime_vars.get(key) {
             if var.enabled {
                 return Some(ResolvedVariable {
                     value: var.value.clone(),
                     scope: VariableScope::Runtime,
+                    secret: var.secret,
+                    description: var.description.clone(),
+                });
+            }
+        }
+        if let Some(var) = self.folder_vars.get(key) {
+            if var.enabled {
+                return Some(ResolvedVariable {
+                    value: var.value.clone(),
+                    scope: VariableScope::Folder,
                     secret: var.secret,
                     description: var.description.clone(),
                 });
@@ -579,6 +594,19 @@ impl VariableResolver {
                     ResolvedVariable {
                         value: v.value.clone(),
                         scope: VariableScope::Environment,
+                        secret: v.secret,
+                        description: v.description.clone(),
+                    },
+                );
+            }
+        }
+        for (k, v) in &self.folder_vars {
+            if v.enabled {
+                all.insert(
+                    k.clone(),
+                    ResolvedVariable {
+                        value: v.value.clone(),
+                        scope: VariableScope::Folder,
                         secret: v.secret,
                         description: v.description.clone(),
                     },
@@ -1013,6 +1041,50 @@ mod tests {
         let (text, warnings) = resolver.interpolate("Bearer {{API_KEY}}");
         assert_eq!(text, "Bearer session-token");
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_folder_var_precedence() {
+        let mut resolver = VariableResolver::new();
+
+        let make = |value: &str, enabled: bool| Variable {
+            name: "BASE_URL".to_string(),
+            value: serde_json::json!(value),
+            secret: false,
+            enabled,
+            prompt: false,
+            description: None,
+        };
+
+        resolver.global_vars.insert("BASE_URL".to_string(), make("global", true));
+        resolver.collection_vars.insert("BASE_URL".to_string(), make("collection", true));
+        resolver.env_vars.insert("BASE_URL".to_string(), make("env", true));
+        resolver.folder_vars.insert("BASE_URL".to_string(), make("folder", true));
+
+        // Folder wins over env, collection, global
+        let resolved = resolver.resolve("BASE_URL").unwrap();
+        assert_eq!(resolved.value, serde_json::json!("folder"));
+        assert_eq!(resolved.scope, VariableScope::Folder);
+
+        // Runtime wins over folder
+        resolver.runtime_vars.insert("BASE_URL".to_string(), make("runtime", true));
+        let resolved = resolver.resolve("BASE_URL").unwrap();
+        assert_eq!(resolved.value, serde_json::json!("runtime"));
+        assert_eq!(resolved.scope, VariableScope::Runtime);
+
+        // Disabled folder var falls through to env
+        resolver.runtime_vars.clear();
+        resolver.folder_vars.insert("BASE_URL".to_string(), make("folder", false));
+        let resolved = resolver.resolve("BASE_URL").unwrap();
+        assert_eq!(resolved.value, serde_json::json!("env"));
+        assert_eq!(resolved.scope, VariableScope::Environment);
+
+        // Folder vars appear in get_all_resolved at the right scope
+        resolver.folder_vars.insert("BASE_URL".to_string(), make("folder", true));
+        let all = resolver.get_all_resolved();
+        let rv = all.get("BASE_URL").unwrap();
+        assert_eq!(rv.scope, VariableScope::Folder);
+        assert_eq!(rv.value, serde_json::json!("folder"));
     }
 
     #[test]

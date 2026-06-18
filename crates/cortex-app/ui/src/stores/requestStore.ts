@@ -69,15 +69,19 @@ interface RequestState {
   // tabId -> state
   requestStates: Record<string, RequestData>
   resolvedVariables: Record<string, Record<string, ResolvedVariable>>
-  /** Last (tabId, collectionId) passed to fetchResolvedVariables — used to re-resolve
+  /** Last (tabId, collectionId, requestPath) passed to fetchResolvedVariables — used to re-resolve
    * after a global change (e.g. toggling the global environment active state). */
-  _resolutionCtx: { tabId: string; collectionId: string | null } | null
+  _resolutionCtx: { tabId: string; collectionId: string | null; requestPath: string | null } | null
   updateRequest: (tabId: string, data: Partial<RequestData>) => void
   setInFlight: (tabId: string, inFlight: boolean, requestId: string | null) => void
   getRequestState: (tabId: string) => RequestData
   saveRequest: (tabId: string, path: string) => Promise<void>
   populateRequest: (tabId: string, content: RequestFile) => void
-  fetchResolvedVariables: (tabId: string, collectionId: string | null) => Promise<void>
+  fetchResolvedVariables: (
+    tabId: string,
+    collectionId: string | null,
+    requestPath?: string | null
+  ) => Promise<void>
   /** Re-run resolution for the most recent context. Safe to call when none exists. */
   refetchResolvedVariables: () => void
 }
@@ -476,10 +480,10 @@ export const useRequestStore = create<RequestState>((set, get) => ({
     }
   },
 
-  fetchResolvedVariables: async (tabId, collectionId) => {
+  fetchResolvedVariables: async (tabId, collectionId, requestPath) => {
     // Remember the context so a global change (e.g. toggling the global env) can
     // re-resolve without needing to know the active tab.
-    set({ _resolutionCtx: { tabId, collectionId } })
+    set({ _resolutionCtx: { tabId, collectionId, requestPath: requestPath ?? null } })
 
     // Clear stale resolved variables immediately so the UI reflects the new
     // env state while the async backend call is in flight (prevents stale green
@@ -501,7 +505,8 @@ export const useRequestStore = create<RequestState>((set, get) => ({
         workspacePath,
         collectionId,
         environmentName,
-        collectionEnvironmentName
+        collectionEnvironmentName,
+        requestPath ?? null
       )
       if (result.status === 'ok') {
         set((state) => ({
@@ -519,7 +524,7 @@ export const useRequestStore = create<RequestState>((set, get) => ({
   refetchResolvedVariables: () => {
     const ctx = get()._resolutionCtx
     if (ctx) {
-      void get().fetchResolvedVariables(ctx.tabId, ctx.collectionId)
+      void get().fetchResolvedVariables(ctx.tabId, ctx.collectionId, ctx.requestPath)
     }
   },
 }))
