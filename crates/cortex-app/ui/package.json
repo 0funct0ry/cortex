@@ -8,7 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o ../../../dist/storybook",
+    "test:stories": "test-storybook"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.2",
@@ -39,6 +42,13 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@chromatic-com/storybook": "^5",
+    "@storybook/addon-a11y": "^10",
+    "@storybook/addon-themes": "^10",
+    "@storybook/react-vite": "^10",
+    "@storybook/test-runner": "^0.24",
+    "chromatic": "^11",
+    "storybook": "^10",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",

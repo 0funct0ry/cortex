@@ -1,4 +1,5 @@
 target/
+dist/
 .agents/
 .idea/
 internal-docs

@@ -119,6 +119,20 @@ verify-ipc: test-app ## Verify IPC contract sync
 		exit 1; \
 	fi
 
+## ── Storybook ───────────────────────────────────────────────────────────────
+
+.PHONY: storybook
+storybook: ## Launch Storybook dev server (port 6006)
+	cd $(UI_DIR) && $(NPM) run storybook
+
+.PHONY: storybook-build
+storybook-build: ## Build static Storybook to dist/storybook/
+	cd $(UI_DIR) && $(NPM) run build-storybook
+
+.PHONY: storybook-test
+storybook-test: ## Run @storybook/test-runner headlessly (requires Storybook running or --url)
+	cd $(UI_DIR) && $(NPM) run test:stories -- --ci
+
 # --- CI ---
 
 .PHONY: ci
