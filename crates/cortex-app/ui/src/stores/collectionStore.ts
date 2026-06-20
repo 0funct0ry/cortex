@@ -66,6 +66,26 @@ interface CollectionState {
   updateTagRegistry: (collectionPath: string, tags: TagDefinition[]) => Promise<void>
 }
 
+export function resetCollectionStore() {
+  useCollectionStore.setState({
+    collections: {},
+    loadingCollections: {},
+    errors: {},
+    expansionState: {},
+    searchQuery: '',
+    isCreatingInline: false,
+    selectedPath: null,
+    renamingPath: null,
+    clipboardPath: null,
+    clipboardType: null,
+    dropIndicator: null,
+    dndUndoStack: [],
+    activeTagFilters: [],
+    tagFilterMode: 'and',
+    showTagFilterBar: false,
+  })
+}
+
 export const useCollectionStore = create<CollectionState>((set, get) => ({
   collections: {},
   loadingCollections: {},

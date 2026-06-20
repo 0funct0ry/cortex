@@ -223,6 +223,10 @@ function syncUrlFromParams(url: string, params: HeaderEntry[]): string {
   }
 }
 
+export function resetRequestStore() {
+  useRequestStore.setState({ requestStates: {}, resolvedVariables: {}, _resolutionCtx: null })
+}
+
 export const useRequestStore = create<RequestState>((set, get) => ({
   requestStates: {},
   resolvedVariables: {},

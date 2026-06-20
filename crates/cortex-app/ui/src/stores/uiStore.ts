@@ -94,6 +94,31 @@ interface UIState {
 const STORAGE_KEY = 'cortex.sidebar-collapsed'
 const LAYOUT_STORAGE_KEY = 'cortex.layout.direction'
 
+export function resetUIStore() {
+  localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(LAYOUT_STORAGE_KEY)
+  useUIStore.setState({
+    sidebarCollapsed: false,
+    newRequestDialog: { isOpen: false, collectionPath: null, folderPath: null },
+    dialogResetKey: 0,
+    isNewTransientDialogOpen: false,
+    newTransientDialogResetKey: 0,
+    isSaveToCollectionDialogOpen: false,
+    saveToCollectionTabId: null,
+    saveToCollectionResetKey: 0,
+    importFolderDialog: { isOpen: false, targetPath: null, targetType: null, collectionPath: null },
+    importFolderResetKey: 0,
+    shareModal: { isOpen: false, collectionPath: null, collectionName: null },
+    importCollectionDialog: { isOpen: false, format: null },
+    generateDocsModal: { isOpen: false, collectionPath: null, collectionName: null },
+    generateCodeModal: { isOpen: false, requestPath: null, requestName: null, collectionId: null },
+    createExampleModal: { isOpen: false, requestPath: null, resetKey: 0 },
+    layout: 'horizontal',
+    isCommandPaletteOpen: false,
+    commandPaletteMode: 'search',
+  })
+}
+
 export const useUIStore = create<UIState>((set) => {
   const saved = localStorage.getItem(STORAGE_KEY)
   const initialCollapsed = saved === 'true'

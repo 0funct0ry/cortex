@@ -39,6 +39,10 @@ export const useToastStore = create<ToastState>((set) => ({
     })),
 }))
 
+export function resetToastStore() {
+  useToastStore.setState({ toasts: [] })
+}
+
 // Helper to use outside React components
 export const toast = {
   success: (message: string, duration?: number) =>

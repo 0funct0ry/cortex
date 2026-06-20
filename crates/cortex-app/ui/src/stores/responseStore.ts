@@ -32,6 +32,16 @@ function loadActiveTabs(): Record<string, ResponseTabId> {
   return {}
 }
 
+export function resetResponseStore() {
+  localStorage.removeItem(ACTIVE_TABS_STORAGE_KEY)
+  useResponseStore.setState({
+    responses: {},
+    activeTabs: {},
+    visualizations: {},
+    multipartEnabled: {},
+  })
+}
+
 interface ResponseState {
   // requestId (tabId) -> payload
   responses: Record<string, ResponsePayload>

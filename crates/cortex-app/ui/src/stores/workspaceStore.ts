@@ -18,6 +18,18 @@ interface WorkspaceState {
   closeWorkspace: () => Promise<void>
 }
 
+const INITIAL_WORKSPACE_STATE = {
+  activeWorkspace: null,
+  activeWorkspacePath: null,
+  recentWorkspaces: [] as WorkspaceState['recentWorkspaces'],
+  isLoading: false,
+  error: null,
+}
+
+export function resetWorkspaceStore() {
+  useWorkspaceStore.setState(INITIAL_WORKSPACE_STATE)
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   activeWorkspace: null,
   activeWorkspacePath: null,

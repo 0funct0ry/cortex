@@ -68,6 +68,32 @@ function readEnvColors(workspacePath: string | null): Record<string, string> {
   }
 }
 
+export function resetEnvironmentStore() {
+  // Clear all cortex environment-related localStorage keys
+  for (const key of Object.keys(localStorage)) {
+    if (
+      key === 'cortex.active-environment' ||
+      key.startsWith('cortex.active-environment.') ||
+      key.startsWith('cortex.env-colors')
+    ) {
+      localStorage.removeItem(key)
+    }
+  }
+  useEnvironmentStore.setState({
+    environments: [],
+    activeEnvironmentName: null,
+    editingEnvironmentName: null,
+    dirtyEnvironments: {},
+    varSearchQueries: {},
+    envColors: {},
+    dotEnvFiles: [],
+    globalEnvironment: null,
+    isLoading: false,
+    error: null,
+    decryptFailures: {},
+  })
+}
+
 export const useEnvironmentStore = create<EnvironmentState>((set, get) => {
   return {
     environments: [],

@@ -273,6 +273,11 @@ export const useCommandRegistry = create<CommandRegistryState>((set, get) => ({
   },
 }))
 
+export function resetCommandRegistry() {
+  localStorage.removeItem(RECENT_KEY)
+  useCommandRegistry.setState({ commands: BUILTIN_COMMANDS as Command[], recentCommandIds: [] })
+}
+
 // Helper: set the run() action for a built-in command after store/hook wiring.
 // Call this from the component that owns the relevant action.
 export function setCommandAction(id: string, run: () => void) {

@@ -114,6 +114,20 @@ export function buildRunnerItems(
   return []
 }
 
+export function resetCollectionRunnerStore() {
+  useCollectionRunnerStore.setState({
+    isOpen: false,
+    scope: null,
+    items: [],
+    selected: new Set(),
+    options: { iterations: 1, delayMs: 0, environmentName: null, collectionEnvironmentName: null },
+    results: {},
+    runStatus: 'idle',
+    currentIndex: -1,
+    _abortRequested: false,
+  })
+}
+
 export const useCollectionRunnerStore = create<CollectionRunnerState>((set, get) => ({
   isOpen: false,
   scope: null,

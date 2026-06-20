@@ -73,6 +73,10 @@ function authToRef(auth: CollectionDraft['auth']): Record<string, unknown> | nul
   return { type: auth.type, ...auth.config }
 }
 
+export function resetCollectionViewStore() {
+  useCollectionViewStore.setState({ drafts: {}, savedRevisions: {} })
+}
+
 export const useCollectionViewStore = create<CollectionViewState>((set, get) => ({
   drafts: {},
   savedRevisions: {},

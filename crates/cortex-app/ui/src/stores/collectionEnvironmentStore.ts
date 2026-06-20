@@ -32,6 +32,20 @@ function dirtyKey(collectionPath: string, envName: string): string {
   return `${collectionPath}\0${envName}`
 }
 
+export function resetCollectionEnvironmentStore() {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('cortex.collection-active-env.')) {
+      localStorage.removeItem(key)
+    }
+  }
+  useCollectionEnvironmentStore.setState({
+    collectionEnvironments: {},
+    activeCollectionEnvName: {},
+    editingCollectionEnvName: {},
+    dirtyCollectionEnvs: {},
+  })
+}
+
 export const useCollectionEnvironmentStore = create<CollectionEnvironmentState>((set) => ({
   collectionEnvironments: {},
   activeCollectionEnvName: {},
