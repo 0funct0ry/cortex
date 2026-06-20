@@ -1,0 +1,190 @@
+import { Meta, Canvas, Source } from '@storybook/addon-docs/blocks'
+import * as ThemeGalleryStories from './ThemeGallery.stories'
+
+<Meta of={ThemeGalleryStories} />
+
+# Theme Gallery
+
+Cortex ships **13 themes** driven entirely by CSS custom properties. Every component uses tokens — never hardcoded colours — so switching themes requires only changing `data-theme` on the root `<html>` element. Use the **Theme** toolbar button at the top of this page to switch themes live.
+
+The gallery below renders all 13 themes simultaneously. Each tile applies its own `data-theme` attribute so it is a fully independent themed island. A blank or incorrectly coloured tile immediately signals a missing or incomplete theme CSS file.
+
+---
+
+## All 13 themes
+
+<Canvas of={ThemeGalleryStories.AllThemes} />
+
+---
+
+## Theme reference
+
+### Dark themes (8)
+
+| Theme ID               | Description                                                           |
+| ---------------------- | --------------------------------------------------------------------- |
+| `dark`                 | Default dark theme. Deep grey backgrounds, amber accent.              |
+| `dark-monochrome`      | Greyscale variant of dark — zero colour accent, pure neutrals only.   |
+| `dark-pastel`          | Dark backgrounds with soft, pastel-toned accents and method colours.  |
+| `vscode-dark`          | Mirrors the VS Code default dark colour scheme for familiarity.       |
+| `catppuccin-frappe`    | Catppuccin Frappe — cool grey-purple dark palette.                    |
+| `catppuccin-macchiato` | Catppuccin Macchiato — deeper mauve-tinted dark palette.              |
+| `catppuccin-mocha`     | Catppuccin Mocha — the darkest Catppuccin variant, warm brown-purple. |
+| `nord`                 | Nord — arctic, blue-grey inspired dark palette.                       |
+
+### Light themes (5)
+
+| Theme ID           | Description                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| `light`            | Default light theme. Off-white backgrounds, blue accent.              |
+| `light-monochrome` | Greyscale variant of light — zero colour accent, pure neutrals.       |
+| `light-pastel`     | Light backgrounds with soft, pastel-toned accents and method colours. |
+| `vscode-light`     | Mirrors the VS Code default light colour scheme.                      |
+| `catppuccin-latte` | Catppuccin Latte — the light Catppuccin variant, warm cream tones.    |
+
+---
+
+## CSS variable contract
+
+Every theme must define all **39 CSS custom properties** under its `[data-theme="<id>"]` selector. Use `dark.css` as the canonical template — every variable present there must exist in every other theme.
+
+```css
+/* Example: src/styles/themes/dark.css */
+[data-theme='dark'] {
+  /* Background (6) */
+  --color-bg-base: #1a1a1a;
+  --color-bg-panel: #212121;
+  --color-bg-surface: #2a2a2a;
+  --color-bg-overlay: #303030;
+  --color-bg-muted: #252525;
+  --color-bg-highlight: #2d3748;
+
+  /* Text (5) */
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #a0aec0;
+  --color-text-muted: #718096;
+  --color-text-inverse: #1a1a1a;
+  --color-text-link: #63b3ed;
+
+  /* Border (3) */
+  --color-border-subtle: #2d3748;
+  --color-border-default: #4a5568;
+  --color-border-strong: #63b3ed;
+
+  /* Accent (3) */
+  --color-accent: #f6ad55;
+  --color-accent-hover: #ed8936;
+  --color-accent-foreground: #1a1a1a;
+
+  /* Status (8) */
+  --color-success: #68d391;
+  --color-success-muted: #22543d;
+  --color-warning: #f6ad55;
+  --color-warning-muted: #744210;
+  --color-error: #fc8181;
+  --color-error-muted: #63171b;
+  --color-info: #63b3ed;
+  --color-info-muted: #1a365d;
+
+  /* HTTP Methods (13) */
+  --color-method-get: #68d391;
+  --color-method-post: #63b3ed;
+  --color-method-put: #f6ad55;
+  --color-method-patch: #76e4f7;
+  --color-method-delete: #fc8181;
+  --color-method-head: #b794f4;
+  --color-method-options: #fbd38d;
+  --color-method-ws: #4fd1c5;
+  --color-method-sse: #f687b3;
+  --color-method-grpc: #90cdf4;
+  --color-method-graphql: #ed64a6;
+  --color-method-trace: #a0aec0;
+  --color-method-connect: #68d391;
+
+  /* Syntax highlighting (9) */
+  --color-syntax-keyword: #f6ad55;
+  --color-syntax-string: #68d391;
+  --color-syntax-number: #76e4f7;
+  --color-syntax-comment: #718096;
+  --color-syntax-punctuation: #a0aec0;
+  --color-syntax-property: #63b3ed;
+  --color-syntax-variable: #fc8181;
+  --color-syntax-type: #b794f4;
+  --color-syntax-operator: #f6ad55;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-base: 0.8125rem;
+  --font-size-md: 0.875rem;
+
+  /* Shape */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+}
+```
+
+---
+
+## How theming works
+
+Themes are applied by setting the `data-theme` attribute on the `<html>` element. Because the selectors are element-agnostic (`[data-theme='light']`, not `:root[data-theme]`), you can also scope a theme to any subtree — which is how the gallery above renders all 13 themes simultaneously:
+
+```tsx
+// Each tile is a self-contained themed island
+function ThemeTile({ id }: { id: string }) {
+  return (
+    <div data-theme={id} style={{ backgroundColor: 'var(--color-bg-base)' }}>
+      {/* All CSS tokens resolve to this theme's values inside this div */}
+    </div>
+  )
+}
+```
+
+---
+
+## Adding a new theme
+
+Three files must be updated when adding a new theme. The ThemeGallery story acts as a contract enforcement point — a blank tile means a step was missed.
+
+**1. Create the CSS file**
+
+```bash
+# Copy the dark theme as a starting point
+cp src/styles/themes/dark.css src/styles/themes/<new-id>.css
+```
+
+Edit `src/styles/themes/<new-id>.css` — change the selector and redefine all 39 tokens.
+
+**2. Register in `ThemeContext.tsx`**
+
+```ts
+// src/contexts/ThemeContext.tsx
+export type ThemeId =
+  | 'dark' | 'light' | ...
+  | '<new-id>'          // ← add here
+
+export const THEMES: ThemeId[] = [
+  'dark', 'light', ...,
+  '<new-id>',           // ← add here
+]
+```
+
+**3. Register in `.storybook/preview.tsx`**
+
+```ts
+withThemeByDataAttribute({
+  themes: {
+    dark: 'dark',
+    ...
+    '<new-id>': '<new-id>',   // ← add here
+  },
+  defaultTheme: 'dark',
+  attributeName: 'data-theme',
+})
+```
+
+After these three changes, the new theme tile will appear in the gallery above and in the toolbar dropdown.

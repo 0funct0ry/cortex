@@ -1,7 +1,9 @@
+import { addons } from 'storybook/preview-api'
 import type { Preview, Decorator } from '@storybook/react'
 import { withThemeByDataAttribute } from '@storybook/addon-themes'
 import { mockIPC } from '@tauri-apps/api/mocks'
 import '../src/index.css'
+import './storybook.css'
 import { resetRequestStore } from '../src/stores/requestStore'
 import { resetWorkspaceStore } from '../src/stores/workspaceStore'
 import { resetUIStore } from '../src/stores/uiStore'
@@ -14,25 +16,52 @@ import { resetCollectionRunnerStore } from '../src/stores/collectionRunnerStore'
 import { resetToastStore } from '../src/stores/toastStore'
 import { resetCommandRegistry } from '../src/stores/commandRegistry'
 
-// Re-apply the IPC mock before each story, honouring per-story overrides.
-// This runs as a decorator (during render) so it can access ctx.parameters.
+// ─── Docs-page theme sync ─────────────────────────────────────────────────────
+//
+// Problem: withThemeByDataAttribute is a React decorator — it only runs inside
+// individual story renders. In Docs mode, the docs page's own <html> element
+// never receives data-theme from the decorator (only the story preview iframes
+// embedded within the page do). This means --color-bg-base resolves to the
+// tokens.css fallback (#000000), making the docs body black (blank screen).
+//
+// Fix:
+//   1. Set data-theme immediately at module load so the docs page is never black.
+//   2. Listen to the 'globals:updated' channel event to update data-theme in
+//      real-time when the toolbar theme switcher is used from a docs page.
+//
+// Story canvases are unaffected — withThemeByDataAttribute still owns them.
+
+const DEFAULT_THEME = 'dark'
+
+document.documentElement.setAttribute('data-theme', DEFAULT_THEME)
+
+addons.ready().then((channel) => {
+  channel.on('globals:updated', ({ globals }: { globals: Record<string, string> }) => {
+    if (globals.theme) {
+      document.documentElement.setAttribute('data-theme', globals.theme)
+    }
+  })
+})
+
+// ─── Tauri IPC mock ──────────────────────────────────────────────────────────
+//
+// Re-applied before each story so per-story overrides in parameters.tauriMock
+// are picked up. Runs as a decorator (during render) to access ctx.parameters.
 //
 // IMPORTANT — how Tauri bindings wrap IPC results:
-//   Result-type commands (the majority) are generated as:
+//   Result-type commands are generated as:
 //     return { status: "ok", data: await TAURI_INVOKE(cmd, args) }
 //   Their catch block re-throws Error instances but returns { status: "error" }
 //   for any other thrown value.
 //
 // Consequence for mocks:
-//   • The default no-op must THROW a non-Error string, not return null.
-//     Returning null produces { status: "ok", data: null }, which makes stores
-//     overwrite their seeded state with null and triggers infinite reload loops.
-//     Throwing a string makes the binding return { status: "error" }, which
-//     stores handle gracefully (log the error, leave existing state intact).
+//   • The default must THROW a non-Error string (not return null).
+//     Returning null → { status: "ok", data: null } → stores overwrite seeded
+//     state with null → infinite reload loops.
+//     Throwing a string → { status: "error" } → stores leave state intact.
 //
-//   • Per-story overrides must return the RAW inner value — the value that
-//     TAURI_INVOKE itself would resolve to — NOT a wrapped Result object.
-//     The binding adds the { status: "ok", data: ... } wrapper automatically.
+//   • Per-story overrides must return the RAW inner value — not a wrapped Result.
+//     The binding adds { status: "ok", data: ... } automatically.
 //     Example: to mock load_collection, return FIXTURE_COLLECTION directly,
 //     not { status: 'ok', data: FIXTURE_COLLECTION }.
 const withTauriMock: Decorator = (Story, ctx) => {

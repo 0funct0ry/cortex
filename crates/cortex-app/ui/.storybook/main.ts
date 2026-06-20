@@ -1,8 +1,25 @@
 import type { StorybookConfig } from '@storybook/react-vite'
+import remarkGfm from 'remark-gfm'
 
 const config: StorybookConfig = {
-  stories: ['../src/stories/**/*.stories.@(ts|tsx)'],
-  addons: ['@storybook/addon-a11y', '@storybook/addon-themes', '@chromatic-com/storybook'],
+  stories: ['../src/stories/**/*.mdx', '../src/stories/**/*.stories.@(ts|tsx)'],
+  addons: [
+    {
+      name: '@storybook/addon-docs',
+      options: {
+        // Storybook stopped enabling GFM in MDX by default (SB 7+). Re-enable it
+        // so pipe-tables, strikethrough, and autolinks render in our docs pages.
+        mdxPluginOptions: {
+          mdxCompileOptions: {
+            remarkPlugins: [remarkGfm],
+          },
+        },
+      },
+    },
+    '@storybook/addon-a11y',
+    '@storybook/addon-themes',
+    '@chromatic-com/storybook',
+  ],
   framework: {
     name: '@storybook/react-vite',
     options: {},

@@ -1,0 +1,124 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as WelcomeStories from './Placeholder.stories'
+
+<Meta of={WelcomeStories} />
+
+# Cortex UI — Component Library
+
+Cortex is an **offline-first, AI-native desktop API client** built with Tauri 2 + Rust (backend) and React 19 + TypeScript + Tailwind (frontend). This Storybook is the canonical visual catalogue, interactive design-system reference, and component development environment for the entire Cortex UI.
+
+---
+
+## Contents
+
+| Section               | Description                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Design System**     | Token gallery, theme gallery, icon catalog — the foundation everything else is built on                 |
+| **UI**                | 23 atomic components: badges, buttons, inputs, dialogs, tooltips, code editors, context menus, and more |
+| **Layout**            | 33 composed components: sidebar, panels, tabs, top bar, command palette, breadcrumbs                    |
+| **Composer**          | 24 request-composer components: URL bar, method picker, body editor, auth panel, headers table          |
+| **Collection**        | 14 collection-management components: tree, request row, folder row, environment picker                  |
+| **Collection Runner** | The automated collection runner UI                                                                      |
+
+---
+
+## Design system fundamentals
+
+### 13 themes, 39 CSS tokens
+
+Every component in Cortex is styled exclusively through **CSS custom properties**. Hardcoded colours are never used. The token contract has 39 variables across 9 categories:
+
+| Category     | Tokens | Example                                               |
+| ------------ | ------ | ----------------------------------------------------- |
+| Background   | 6      | `--color-bg-base`, `--color-bg-panel`                 |
+| Text         | 5      | `--color-text-primary`, `--color-text-muted`          |
+| Border       | 3      | `--color-border-default`, `--color-border-strong`     |
+| Accent       | 3      | `--color-accent`, `--color-accent-hover`              |
+| Status       | 8      | `--color-success`, `--color-error`, `--color-warning` |
+| HTTP Methods | 13     | `--color-method-get`, `--color-method-post`           |
+| Syntax       | 9      | `--color-syntax-keyword`, `--color-syntax-string`     |
+| Typography   | 4      | `--font-sans`, `--font-mono`, `--font-size-base`      |
+| Shape        | 3      | `--radius-sm`, `--radius-md`, `--radius-lg`           |
+
+Themes are switched by setting `data-theme="<id>"` on the `<html>` element. Use the **Theme** toolbar button at the top of the page to switch between all 13 themes in real time.
+
+### Tailwind integration
+
+All 39 tokens are mapped to Tailwind utility classes via `tailwind.config.ts`:
+
+```tsx
+// CSS token         → Tailwind class
+// --color-bg-base   → bg-bg-base
+// --color-text-primary → text-text-primary
+// --color-accent    → text-accent, bg-accent, border-accent
+// --color-method-get → text-method-get, bg-method-get
+
+<div className="bg-bg-panel text-text-primary border border-border-default rounded-md">...</div>
+```
+
+---
+
+## Story tiers
+
+Stories are organised into three tiers based on their dependencies:
+
+### Tier 1 — Atomic
+
+Pure presentational components with no Zustand or Tauri dependencies. Stories render with zero setup, cover all prop variants via `args`, and include `play()` functions for interactive behaviour.
+
+### Tier 2 — Composed
+
+Components with internal logic that may read one Zustand store. Stories seed the required store state in `beforeEach` and mock any `invoke()` calls using per-story `parameters.tauriMock`.
+
+### Tier 3 — Stateful
+
+Components that orchestrate multiple stores and IPC calls. Stories provide a complete fixture workspace/collection and document which stores are touched.
+
+---
+
+## Storybook infrastructure
+
+### Tauri IPC mocking
+
+All Tauri `invoke()` calls are intercepted by the global `withTauriMock` decorator. No native backend is needed. Per-story overrides are provided via `parameters.tauriMock`:
+
+```tsx
+export const WithData: Story = {
+  parameters: {
+    tauriMock: {
+      // Return the RAW value — the binding wraps it in { status: "ok", data: ... }
+      load_collection: () => FIXTURE_COLLECTION,
+    },
+  },
+}
+```
+
+### Zustand store isolation
+
+All 11 Zustand stores are reset to their initial state before every story via `preview.beforeEach`. Story-level `beforeEach` hooks run after the global reset, so seed data is always applied on a clean baseline:
+
+```tsx
+export const WithCollections: Story = {
+  beforeEach: () => {
+    useWorkspaceStore.setState({ activeWorkspace: FIXTURE_WORKSPACE })
+    useCollectionStore.setState({ collections: { ... } })
+  },
+}
+```
+
+---
+
+## Running Storybook locally
+
+```bash
+cd crates/cortex-app/ui
+npm run storybook        # dev server → http://localhost:6006
+npm run build-storybook  # static build → dist/storybook/
+npm run test:stories     # run interaction tests headlessly
+```
+
+---
+
+## Default story
+
+<Canvas of={WelcomeStories.Default} />

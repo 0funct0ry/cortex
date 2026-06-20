@@ -725,6 +725,43 @@ variables:
   version: "v1"
 ```
 
+## Storybook
+
+Cortex ships a [Storybook 8.x](https://storybook.js.org/) catalogue covering all UI components with interactive theme switching, accessibility checks, and visual regression via Chromatic.
+
+### Running Storybook
+
+```bash
+cd crates/cortex-app/ui
+npm run storybook        # dev server on http://localhost:6006
+npm run build-storybook  # static build → dist/storybook/
+```
+
+### Theme Switcher
+
+The toolbar **Theme** dropdown lets you switch between all 13 Cortex themes without reloading the page. Selecting a theme sets `data-theme` on `<html>`, which cascades the full 39-token CSS variable set to every component. The canvas background automatically reflects each theme's `--color-bg-base`.
+
+**Available themes:**
+
+| Dark (8) | Light (5) |
+|---|---|
+| dark, dark-monochrome, dark-pastel | light, light-monochrome, light-pastel |
+| vscode-dark | vscode-light |
+| catppuccin-frappe, catppuccin-macchiato, catppuccin-mocha | catppuccin-latte |
+| nord | |
+
+### Design System Stories
+
+Navigate to **Design System → Theme Gallery** in the Storybook sidebar to see all 13 themes rendered simultaneously side-by-side. Each tile applies its own `data-theme` attribute, so the gallery doubles as a contract enforcement point — a blank tile means a theme CSS file is missing or has incomplete token definitions.
+
+### Adding a New Theme
+
+When adding a new Cortex theme, update three files — Storybook enforces this contract:
+
+1. `src/styles/themes/<new-id>.css` — define all 39 CSS variables under `[data-theme="<new-id>"]`
+2. `src/contexts/ThemeContext.tsx` — add `<new-id>` to `ThemeId` and `THEMES`
+3. `.storybook/preview.tsx` — add `'<new-id>': '<new-id>'` to the `withThemeByDataAttribute` themes map
+
 ## Documentation
 
 For more detailed information, please refer to the following resources:

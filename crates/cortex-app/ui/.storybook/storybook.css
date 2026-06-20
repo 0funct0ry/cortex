@@ -1,0 +1,8 @@
+/* Storybook canvas overrides — not loaded in the production app */
+
+/* Sync canvas background to the active theme's base background colour.
+   withThemeByDataAttribute sets data-theme on <html>, which makes
+   --color-bg-base cascade to body automatically via the theme CSS files. */
+body {
+  background-color: var(--color-bg-base);
+}
