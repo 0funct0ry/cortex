@@ -1,0 +1,195 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as TokenGalleryStories from './TokenGallery.stories'
+
+<Meta of={TokenGalleryStories} />
+
+# Token Gallery
+
+Cortex's visual language is built on **39 CSS custom properties** (design tokens) defined in `src/styles/tokens.css`. Every component uses tokens — never hardcoded colours — so themes only need to override these properties under their own `[data-theme="<id>"]` selector.
+
+This gallery renders all 39 tokens as named swatches, grouped by category. Token values are read live from the computed document styles, so switching the **Theme** toolbar at the top of the page updates every swatch automatically.
+
+---
+
+## All tokens
+
+<Canvas of={TokenGalleryStories.AllTokens} />
+
+---
+
+## Token categories
+
+### Background (6)
+
+Background tokens define the layered surface system. Each layer sits on top of the previous one, creating depth without shadows.
+
+| Token                  | Role                                              |
+| ---------------------- | ------------------------------------------------- |
+| `--color-bg-base`      | Page / window root background — the darkest layer |
+| `--color-bg-panel`     | Sidebar, panel chrome — one step above base       |
+| `--color-bg-surface`   | Cards, list items, editor background              |
+| `--color-bg-overlay`   | Dropdowns, popovers, context menus                |
+| `--color-bg-muted`     | Subtle fills for inactive or disabled areas       |
+| `--color-bg-highlight` | Selection highlight, hover state fill             |
+
+### Text (5)
+
+| Token                    | Role                                    |
+| ------------------------ | --------------------------------------- |
+| `--color-text-primary`   | Default body text, headings             |
+| `--color-text-secondary` | Supporting labels, metadata             |
+| `--color-text-muted`     | Placeholders, disabled text, timestamps |
+| `--color-text-inverse`   | Text on accent/filled backgrounds       |
+| `--color-text-link`      | Hyperlinks, interactive text            |
+
+### Border (3)
+
+| Token                    | Role                                  |
+| ------------------------ | ------------------------------------- |
+| `--color-border-subtle`  | Dividers, hairlines — lowest contrast |
+| `--color-border-default` | Input outlines, card borders          |
+| `--color-border-strong`  | Focused input, selected item outline  |
+
+### Accent (3)
+
+The brand accent is the single colour used for primary actions (buttons, active state indicators, links on dark surfaces).
+
+| Token                       | Role                                              |
+| --------------------------- | ------------------------------------------------- |
+| `--color-accent`            | Primary brand colour                              |
+| `--color-accent-hover`      | Darkened accent for hover / active states         |
+| `--color-accent-foreground` | Text / icon colour on an accent-filled background |
+
+### Status (8)
+
+Each status colour has a **full-saturation** variant (badges, icons, text) and a **muted** variant (background fills for alert banners).
+
+| Token                   | Role                      |
+| ----------------------- | ------------------------- |
+| `--color-success`       | Success icon, badge, text |
+| `--color-success-muted` | Success alert banner fill |
+| `--color-warning`       | Warning icon, badge, text |
+| `--color-warning-muted` | Warning alert banner fill |
+| `--color-error`         | Error icon, badge, text   |
+| `--color-error-muted`   | Error alert banner fill   |
+| `--color-info`          | Info icon, badge, text    |
+| `--color-info-muted`    | Info alert banner fill    |
+
+### HTTP Methods (12)
+
+Each HTTP method and protocol type has a dedicated colour. These are used by `MethodBadge` and throughout the request composer to provide instant visual scanning.
+
+| Token                    | Method             |
+| ------------------------ | ------------------ |
+| `--color-method-get`     | GET                |
+| `--color-method-post`    | POST               |
+| `--color-method-put`     | PUT                |
+| `--color-method-patch`   | PATCH              |
+| `--color-method-delete`  | DELETE             |
+| `--color-method-head`    | HEAD               |
+| `--color-method-options` | OPTIONS            |
+| `--color-method-ws`      | WebSocket          |
+| `--color-method-sse`     | Server-Sent Events |
+| `--color-method-grpc`    | gRPC               |
+| `--color-method-graphql` | GraphQL            |
+| `--color-method-trace`   | TRACE              |
+
+### Syntax (9)
+
+Syntax highlighting colours for the built-in code editor. These match the active theme's palette so code always looks native.
+
+| Token                        | Role                                           |
+| ---------------------------- | ---------------------------------------------- |
+| `--color-syntax-keyword`     | Language keywords (`if`, `return`, `function`) |
+| `--color-syntax-string`      | String literals                                |
+| `--color-syntax-number`      | Numeric literals                               |
+| `--color-syntax-comment`     | Comments                                       |
+| `--color-syntax-punctuation` | Brackets, commas, colons                       |
+| `--color-syntax-property`    | Object keys, JSON property names               |
+| `--color-syntax-variable`    | Variable names                                 |
+| `--color-syntax-type`        | Type annotations                               |
+| `--color-syntax-operator`    | Operators (`=`, `+`, `=>`)                     |
+
+### Typography (6)
+
+| Token              | Value                                       |
+| ------------------ | ------------------------------------------- |
+| `--font-sans`      | `'Inter', system-ui, sans-serif`            |
+| `--font-mono`      | `'JetBrains Mono', 'Fira Code', monospace`  |
+| `--font-size-xs`   | `11px` — captions, badges                   |
+| `--font-size-sm`   | `12px` — secondary labels                   |
+| `--font-size-base` | `13px` — body text                          |
+| `--font-size-md`   | `14px` — slightly larger body / subheadings |
+
+### Shape (3)
+
+| Token         | Value | Usage                     |
+| ------------- | ----- | ------------------------- |
+| `--radius-sm` | `3px` | Badges, tags, small chips |
+| `--radius-md` | `5px` | Inputs, buttons, cards    |
+| `--radius-lg` | `8px` | Modals, panels, popovers  |
+
+---
+
+## How tokens are defined
+
+All 39 tokens have fallback values on `:root` in `src/styles/tokens.css`. Each theme overrides them under its own attribute selector:
+
+```css
+/* src/styles/tokens.css — fallback defaults */
+:root {
+  --color-bg-base: #000000;
+  --color-accent: #000000;
+  /* ... all 39 tokens ... */
+}
+
+/* src/styles/themes/dark.css — theme override */
+[data-theme='dark'] {
+  --color-bg-base: #1a1a1a;
+  --color-accent: #f6ad55;
+  /* ... all 39 tokens ... */
+}
+```
+
+Because the selector is element-agnostic (`[data-theme]`, not `:root`), any DOM element can act as a theme root — this is how `ThemeGallery` renders all 13 themes simultaneously without global conflicts.
+
+---
+
+## Using tokens in components
+
+Always reference tokens via CSS custom properties or Tailwind utility classes, never with hardcoded values:
+
+```tsx
+/* ✅ Correct — responds to theme changes */
+<div className="bg-bg-panel text-text-primary border border-border-default rounded-md">
+  <span className="text-text-muted">Metadata</span>
+</div>
+
+/* ✅ Also correct — inline CSS var */
+<div style={{ color: 'var(--color-accent)' }}>Accent text</div>
+
+/* ❌ Wrong — hardcoded colour breaks on theme switch */
+<div style={{ color: '#f6ad55' }}>Accent text</div>
+```
+
+The Tailwind config in `tailwind.config.ts` maps every token to a utility class:
+
+| CSS variable             | Tailwind class                              |
+| ------------------------ | ------------------------------------------- |
+| `--color-bg-base`        | `bg-bg-base`                                |
+| `--color-text-primary`   | `text-text-primary`                         |
+| `--color-border-default` | `border-border-default`                     |
+| `--color-accent`         | `bg-accent`, `text-accent`, `border-accent` |
+| `--color-method-get`     | `text-method-get`, `bg-method-get`          |
+| `--radius-md`            | `rounded-md`                                |
+
+---
+
+## Adding a new token
+
+1. Add the token with a fallback value in `src/styles/tokens.css` under `:root`.
+2. Add a themed value in every theme file under `src/styles/themes/`.
+3. Add the Tailwind mapping in `tailwind.config.ts` if the token needs a utility class.
+4. Add the token to the `CATEGORIES` array in `TokenGallery.stories.tsx` so it appears in this gallery.
+
+A token that appears as solid black (`#000000`) in the gallery indicates step 2 was missed for the active theme — the fallback from `tokens.css` is showing.

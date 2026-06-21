@@ -1,0 +1,153 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as IconCatalogStories from './IconCatalog.stories'
+
+<Meta of={IconCatalogStories} />
+
+# Icon Catalog
+
+Cortex uses a single icon module — `src/components/ui/Icons.tsx` — as the canonical source for all UI icons. Every icon is an inline React SVG component that accepts a `size` prop and all standard `SVGProps`, making them fully styleable via CSS.
+
+This catalog renders every named export from that file. If an icon is not shown here, it is not exported from `Icons.tsx`.
+
+---
+
+## All icons
+
+<Canvas of={IconCatalogStories.AllIcons} />
+
+---
+
+## Icon component API
+
+All icons share the same interface:
+
+```ts
+interface IconProps extends React.SVGProps<SVGSVGElement> {
+  size?: number // sets both width and height; each icon has its own default
+}
+```
+
+```tsx
+import { Play, Search, Trash } from '@/components/ui/Icons'
+
+// Default size (each icon has its own sensible default, typically 14–16px)
+<Play />
+
+// Explicit size
+<Search size={20} />
+
+// Colour via CSS (icons inherit currentColor)
+<Trash size={16} className="text-error" />
+<Trash size={16} style={{ color: 'var(--color-error)' }} />
+
+// All SVG props pass through
+<Play size={14} aria-label="Run request" className="text-text-primary" />
+```
+
+Icons inherit `currentColor` for their `stroke` or `fill`, so they automatically match whichever text colour is in scope. You never need to pass a colour prop directly.
+
+---
+
+## Icon reference
+
+| Icon | Export name      | Default size | Typical use                                  |
+| ---- | ---------------- | ------------ | -------------------------------------------- |
+| —    | `AlertCircle`    | 14           | Error state indicator, validation error      |
+| —    | `AlertTriangle`  | 14           | Warning banner, caution notice               |
+| —    | `Api`            | 14           | API endpoint node in the sidebar tree        |
+| —    | `Branch`         | 12           | Git branch indicator, version label          |
+| —    | `Check`          | 14           | Success tick, checkbox checked state         |
+| —    | `ChevronDown`    | 12           | Collapsed → expanded toggle, select dropdown |
+| —    | `ChevronLeft`    | 12           | Navigate back, collapse panel left           |
+| —    | `ChevronRight`   | 12           | Navigate forward, expand panel right         |
+| —    | `ChevronUp`      | 12           | Expanded → collapsed toggle                  |
+| —    | `ChevronsRight`  | 14           | Skip forward, expand all                     |
+| —    | `Code`           | 14           | Code view, raw body tab                      |
+| —    | `Columns`        | 14           | Side-by-side layout toggle                   |
+| —    | `Copy`           | 14           | Copy to clipboard                            |
+| —    | `Download`       | 14           | Export / download file                       |
+| —    | `Edit`           | 14           | Rename, inline edit                          |
+| —    | `ExternalLink`   | 14           | Open in browser / new tab                    |
+| —    | `Eye`            | 14           | Show / reveal secret                         |
+| —    | `EyeOff`         | 14           | Hide / mask secret                           |
+| —    | `File`           | 14           | Generic file node                            |
+| —    | `FileText`       | 14           | Request file, text document node             |
+| —    | `Filter`         | 14           | Filter list, query filter                    |
+| —    | `Folder`         | 14           | Collection folder node                       |
+| —    | `Globe`          | 14           | Environment switcher, base URL               |
+| —    | `Info`           | 14           | Info tooltip trigger, info banner            |
+| —    | `Layers`         | 14           | Collection runner, stacked requests          |
+| —    | `Loader`         | 14           | Spinner / in-progress indicator              |
+| —    | `MoreHorizontal` | 14           | Overflow menu (horizontal)                   |
+| —    | `MoreVertical`   | 14           | Overflow menu (vertical)                     |
+| —    | `Palette`        | 13           | Theme picker trigger                         |
+| —    | `Play`           | 14           | Send request, run collection                 |
+| —    | `Plug`           | 14           | Plugin, connection, extension                |
+| —    | `Plus`           | 14           | Add item, new request                        |
+| —    | `Power`          | 14           | Enable / disable toggle                      |
+| —    | `Rocket`         | 14           | Onboarding, launch, getting started          |
+| —    | `Rows`           | 14           | Stacked / list layout toggle                 |
+| —    | `Search`         | 13           | Search input trigger, command palette        |
+| —    | `Settings`       | 14           | Settings panel, configuration                |
+| —    | `SidebarToggle`  | 16           | Show / hide the sidebar                      |
+| —    | `Sliders`        | 14           | Advanced options, parameters panel           |
+| —    | `Star`           | 14           | Favourite, bookmark                          |
+| —    | `Terminal`       | 14           | CLI mode, script runner                      |
+| —    | `Trash`          | 14           | Delete item                                  |
+| —    | `Upload`         | 14           | Import file, upload body                     |
+| —    | `Workspace`      | 14           | Workspace node, root of tree                 |
+| —    | `X`              | 14           | Close, dismiss, remove tag                   |
+
+---
+
+## Adding a new icon
+
+1. Open `src/components/ui/Icons.tsx`.
+2. Export a new component following the existing pattern:
+
+```tsx
+export const MyIcon: React.FC<IconProps> = ({ size = 14, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    {/* SVG path(s) */}
+    <path d="..." />
+  </svg>
+)
+```
+
+3. The Icon Catalog story (`IconCatalog.stories.tsx`) uses `import * as Icons` + `Object.entries`, so the new icon **appears here automatically** — no story change required.
+4. Update the icon reference table above in this MDX file.
+
+### Icon design guidelines
+
+- **ViewBox:** always `0 0 24 24`.
+- **Stroke:** use `currentColor`; `strokeWidth={1.5}` is the default weight. Prefer stroke over fill for line icons.
+- **Default size:** match the visual weight of similar icons. Most UI icons default to `14px`; navigation icons (chevrons) to `12px`; the sidebar toggle to `16px`.
+- **No hardcoded colours:** icons must respond to `currentColor` so they inherit from the surrounding text colour context.
+- **Accessibility:** callers are responsible for `aria-label` or wrapping with a visually-hidden label when the icon is the only affordance.
+
+---
+
+## How icons are used in the app
+
+Icons are imported directly by name — there is no icon font, no sprite sheet, and no dynamic lookup:
+
+```tsx
+import { Play, Search, ChevronRight } from '@/components/ui/Icons'
+```
+
+Because they are inline SVGs, they:
+
+- Scale sharply at any resolution (no blur at high DPI).
+- Respond to CSS `color` / `currentColor` without any wrapper.
+- Are tree-shaken by Vite — only the icons actually imported are included in the production bundle.
+- Require no external asset loading — they render immediately without a network request.
