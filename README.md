@@ -727,7 +727,7 @@ variables:
 
 ## Storybook
 
-Cortex ships a [Storybook 8.x](https://storybook.js.org/) catalogue covering all UI components with interactive theme switching, accessibility checks, and visual regression via Chromatic.
+Cortex ships a [Storybook 10.x](https://storybook.js.org/) catalogue covering all UI components with interactive theme switching, accessibility checks, and visual regression via Chromatic.
 
 ### Running Storybook
 
@@ -759,6 +759,19 @@ Three living reference stories live under **Design System** in the Storybook sid
 | **Token Gallery** | Design System → Token Gallery → All Tokens | All 39 CSS custom properties grouped into 9 categories (Background, Text, Border, Accent, Status, HTTP Methods, Syntax, Typography, Shape). Each row shows a colour chip or preview, the token name, and its computed hex / value. Swatches update live when the theme toolbar is switched. |
 | **Theme Gallery** | Design System → Theme Gallery → All Themes | All 13 Cortex themes rendered simultaneously side-by-side. Each tile applies its own `data-theme` attribute — a blank tile means a theme CSS file is missing or has incomplete token definitions. |
 | **Icon Catalog** | Design System → Icon Catalog → All Icons | Every named icon exported from `components/ui/Icons.tsx` (45 icons), rendered at 24 px with its export name. The subtitle shows the live count, so a missing icon in the grid means it was not exported. |
+
+### Component Stories (ui/)
+
+Atomic UI component stories live under **ui/** in the Storybook sidebar. Each component has at least one named story plus a paired MDX Docs page.
+
+| Component | Stories | Coverage |
+|---|---|---|
+| **MethodBadge** | Default, AllMethods, Get/Post/Put/Patch/Delete/Head/Options/WS/SSE/GRPC/GraphQL/Trace | All 12 HTTP method colour variants; select-control argType to switch method |
+| **Toast** | Default, Success, Error, Info, LongMessage, ResetStore | All three type variants; `play()` on Success clicks dismiss; long-message max-width test |
+| **ToastContainer** | Empty, Single, Multiple, LongMessages | 0 / 1 / N stacked toasts seeded via `useToastStore.setState` in `beforeEach`; `play()` on Multiple asserts all messages in DOM |
+| **Tooltip** | Default, Bottom, Top, Left, Right, LongContent, AlignStart, AlignEnd, WithDelay | All 4 placements + alignment variants; `play()` hovers trigger; WithDelay tests 300 ms hover delay |
+
+Story files are in `src/stories/ui/`; paired MDX docs render in the **Docs** tab.
 
 ### Adding a New Theme
 

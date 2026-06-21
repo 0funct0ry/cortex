@@ -1,0 +1,60 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ToastStories from './Toast.stories'
+
+<Meta of={ToastStories} />
+
+# Toast
+
+A single notification toast rendered as a horizontally-laid-out card with a coloured left border, a type icon, the message text, and a dismiss button. Toasts are managed by `useToastStore` — the `id` prop connects the dismiss button to the store's `removeToast` action.
+
+Source: [`src/components/ui/Toast.tsx`](../../../components/ui/Toast.tsx)
+
+---
+
+## Default
+
+<Canvas of={ToastStories.Default} />
+
+---
+
+## Variants
+
+### Success
+
+<Canvas of={ToastStories.Success} />
+
+### Error
+
+<Canvas of={ToastStories.Error} />
+
+### Info
+
+<Canvas of={ToastStories.Info} />
+
+---
+
+## Long Message
+
+Text wraps within the `min-w-[300px] max-w-[450px]` constraints. The toast never overflows those bounds.
+
+<Canvas of={ToastStories.LongMessage} />
+
+---
+
+## Props
+
+| Prop      | Type                             | Description                                           |
+| --------- | -------------------------------- | ----------------------------------------------------- |
+| `id`      | `string`                         | Unique identifier; passed to `removeToast` on dismiss |
+| `type`    | `'success' \| 'error' \| 'info'` | Controls border colour and icon                       |
+| `message` | `string`                         | Notification text                                     |
+
+## Design tokens used
+
+| Token                  | Role                                   |
+| ---------------------- | -------------------------------------- |
+| `--color-success`      | Left border + icon for success variant |
+| `--color-error`        | Left border + icon for error variant   |
+| `--color-info`         | Left border + icon for info variant    |
+| `--color-bg-overlay`   | Toast background surface               |
+| `--color-bg-highlight` | Dismiss button hover background        |

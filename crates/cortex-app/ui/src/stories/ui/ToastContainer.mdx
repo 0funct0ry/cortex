@@ -1,0 +1,52 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ToastContainerStories from './ToastContainer.stories'
+
+<Meta of={ToastContainerStories} />
+
+# ToastContainer
+
+A zero-prop container that reads `toasts` from `useToastStore` and stacks them in the top-right corner of the viewport (`fixed top-4 right-4 z-[9999]`). Each toast is wrapped in a `pointer-events-auto` div so dismissal works even though the container itself uses `pointer-events-none`.
+
+Source: [`src/components/ui/ToastContainer.tsx`](../../../components/ui/ToastContainer.tsx)
+
+Mount `<ToastContainer />` once in `App.tsx` — it is always present regardless of which workspace or panel is active.
+
+---
+
+## Empty
+
+No toasts in the store — the container renders but is invisible.
+
+<Canvas of={ToastContainerStories.Empty} />
+
+---
+
+## Single
+
+One success toast visible in the top-right corner.
+
+<Canvas of={ToastContainerStories.Single} />
+
+---
+
+## Multiple (stacked)
+
+Three toasts stacked with a `gap-2` between them. The play function asserts all three messages are in the DOM.
+
+<Canvas of={ToastContainerStories.Multiple} />
+
+---
+
+## Long Messages
+
+Verifies that `max-w-[450px]` on individual toasts is respected even when multiple long-message toasts are stacked.
+
+<Canvas of={ToastContainerStories.LongMessages} />
+
+---
+
+## Behaviour notes
+
+- **Auto-dismiss**: `addToast` schedules a `setTimeout` for `duration` ms (default 4000). Stories use direct `setState` so duration timers are not active.
+- **Stacking order**: toasts are appended; newest appears at the bottom of the stack.
+- **Z-index**: `z-[9999]` sits above all panels, modals, and dropdowns.

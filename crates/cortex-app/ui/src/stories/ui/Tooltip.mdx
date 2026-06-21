@@ -1,0 +1,82 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as TooltipStories from './Tooltip.stories'
+
+<Meta of={TooltipStories} />
+
+# Tooltip
+
+A lightweight hover tooltip that renders a small floating label adjacent to its trigger element. Visibility is controlled by `onMouseEnter` / `onMouseLeave` with a configurable delay, and placement is determined by the `position` + `align` props.
+
+Source: [`src/components/ui/Tooltip.tsx`](../../../components/ui/Tooltip.tsx)
+
+---
+
+## Default
+
+Tooltip below the trigger, centre-aligned, instant display (`delay={0}`).
+
+<Canvas of={TooltipStories.Default} />
+
+---
+
+## Placement variants
+
+### Bottom (default)
+
+<Canvas of={TooltipStories.Bottom} />
+
+### Top
+
+<Canvas of={TooltipStories.Top} />
+
+### Left
+
+<Canvas of={TooltipStories.Left} />
+
+### Right
+
+<Canvas of={TooltipStories.Right} />
+
+---
+
+## Alignment
+
+### Align Start
+
+<Canvas of={TooltipStories.AlignStart} />
+
+### Align End
+
+<Canvas of={TooltipStories.AlignEnd} />
+
+---
+
+## Long Content
+
+The tooltip uses `whitespace-nowrap` so long content extends horizontally. Keep tooltip text short in production.
+
+<Canvas of={TooltipStories.LongContent} />
+
+---
+
+## With Delay
+
+The default `delay` is 300 ms. The play function waits 350 ms after hover before asserting visibility.
+
+<Canvas of={TooltipStories.WithDelay} />
+
+---
+
+## Props
+
+| Prop       | Type                                     | Default    | Description                                                 |
+| ---------- | ---------------------------------------- | ---------- | ----------------------------------------------------------- |
+| `content`  | `string`                                 | —          | Text displayed inside the tooltip                           |
+| `children` | `ReactNode`                              | —          | The element that triggers the tooltip                       |
+| `delay`    | `number`                                 | `300`      | Milliseconds before the tooltip appears after hover         |
+| `position` | `'top' \| 'bottom' \| 'left' \| 'right'` | `'bottom'` | Side of the trigger where the tooltip appears               |
+| `align`    | `'start' \| 'center' \| 'end'`           | `'center'` | Alignment along the cross-axis (ignored for `left`/`right`) |
+
+## Accessibility note
+
+The tooltip is purely CSS-positioned and mouse-driven. It does not currently implement `aria-describedby` or keyboard focus handling. For keyboard-accessible tooltips wrap the trigger in a focusable element and manage `onFocus` / `onBlur` alongside `onMouseEnter` / `onMouseLeave`.

@@ -1,0 +1,54 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as MethodBadgeStories from './MethodBadge.stories'
+
+<Meta of={MethodBadgeStories} />
+
+# MethodBadge
+
+A compact, colour-coded badge that identifies the HTTP method of a request. Each method maps to a dedicated design-token colour pair (`text-method-<m>` / `bg-method-<m>/15`) so badges remain legible across all 13 Cortex themes.
+
+Source: [`src/components/ui/MethodBadge.tsx`](../../../components/ui/MethodBadge.tsx)
+
+---
+
+## Default
+
+<Canvas of={MethodBadgeStories.Default} />
+
+---
+
+## All Methods
+
+Every supported method rendered side-by-side. Switch the **Theme** toolbar to verify colour contrast across all 13 themes.
+
+<Canvas of={MethodBadgeStories.AllMethods} />
+
+---
+
+## Variants
+
+| Story   | Method  | Token                    |
+| ------- | ------- | ------------------------ |
+| Get     | GET     | `--color-method-get`     |
+| Post    | POST    | `--color-method-post`    |
+| Put     | PUT     | `--color-method-put`     |
+| Patch   | PATCH   | `--color-method-patch`   |
+| Delete  | DELETE  | `--color-method-delete`  |
+| Head    | HEAD    | `--color-method-head`    |
+| Options | OPTIONS | `--color-method-options` |
+| Ws      | WS      | `--color-method-ws`      |
+| Sse     | SSE     | `--color-method-sse`     |
+| Grpc    | GRPC    | `--color-method-grpc`    |
+| GraphQl | GraphQL | `--color-method-graphql` |
+| Trace   | TRACE   | `--color-method-trace`   |
+
+---
+
+## Props
+
+| Prop        | Type     | Default | Description                                      |
+| ----------- | -------- | ------- | ------------------------------------------------ |
+| `method`    | `string` | —       | HTTP method string (case-insensitive match)      |
+| `className` | `string` | `''`    | Additional Tailwind classes for layout overrides |
+
+The component normalises `method` to lowercase before matching, so `'GET'`, `'get'`, and `'Get'` all render identically. Unknown methods fall back to a muted neutral style.
