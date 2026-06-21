@@ -1,0 +1,69 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as DialogStories from './Dialog.stories'
+
+<Meta of={DialogStories} />
+
+# Dialog
+
+A modal confirmation dialog that renders into `document.body` via `createPortal`. Used throughout Cortex for destructive confirmations (delete collection, discard changes) and neutral confirmations (save, export).
+
+Source: [`src/components/ui/Dialog.tsx`](../../../components/ui/Dialog.tsx)
+
+---
+
+## Open (primary)
+
+Default state — `isOpen=true`, primary variant. The backdrop is semi-transparent with a subtle blur. Clicking the backdrop or pressing **Escape** calls `onClose`.
+
+<Canvas of={DialogStories.Open} />
+
+---
+
+## Closed
+
+`isOpen=false` — the component returns `null`. Nothing is mounted in the DOM. Callers can always render `<Dialog>` unconditionally and toggle `isOpen` without unmounting.
+
+<Canvas of={DialogStories.Closed} />
+
+---
+
+## Danger variant
+
+`variant="danger"` renders the confirm button with the `bg-error` token — red in all themes. Use for irreversible operations.
+
+<Canvas of={DialogStories.DangerVariant} />
+
+---
+
+## Long content
+
+Long `description` text wraps inside the `max-w-md` container. The dialog does not scroll; keep descriptions concise.
+
+<Canvas of={DialogStories.LongContent} />
+
+---
+
+## Custom labels
+
+Override `confirmLabel` and `cancelLabel` for domain-specific copy.
+
+<Canvas of={DialogStories.CustomLabels} />
+
+---
+
+## Props
+
+| Prop           | Type                    | Default     | Description                                              |
+| -------------- | ----------------------- | ----------- | -------------------------------------------------------- |
+| `isOpen`       | `boolean`               | —           | Controls visibility; component returns null when false   |
+| `onClose`      | `() => void`            | —           | Called on backdrop click, Escape key, or Cancel button   |
+| `onConfirm`    | `() => void`            | —           | Called when the confirm button is clicked (then onClose) |
+| `title`        | `string`                | —           | Heading text                                             |
+| `description`  | `string`                | —           | Body text shown below the title                          |
+| `confirmLabel` | `string`                | `'Confirm'` | Label for the primary action button                      |
+| `cancelLabel`  | `string`                | `'Cancel'`  | Label for the dismiss button                             |
+| `variant`      | `'primary' \| 'danger'` | `'primary'` | Visual style of the confirm button                       |
+
+## Portal behaviour
+
+Dialog renders via `createPortal(…, document.body)`. Storybook interaction tests must therefore use `within(document.body)` rather than `within(canvasElement)` when querying dialog elements.

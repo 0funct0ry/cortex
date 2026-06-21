@@ -770,8 +770,17 @@ Atomic UI component stories live under **ui/** in the Storybook sidebar. Each co
 | **Toast** | Default, Success, Error, Info, LongMessage, ResetStore | All three type variants; `play()` on Success clicks dismiss; long-message max-width test |
 | **ToastContainer** | Empty, Single, Multiple, LongMessages | 0 / 1 / N stacked toasts seeded via `useToastStore.setState` in `beforeEach`; `play()` on Multiple asserts all messages in DOM |
 | **Tooltip** | Default, Bottom, Top, Left, Right, LongContent, AlignStart, AlignEnd, WithDelay | All 4 placements + alignment variants; `play()` hovers trigger; WithDelay tests 300 ms hover delay |
+| **InlineInput** | Default, EmptyInitialValue, LongValue, ErrorStyle, EscapeCancel | Uncontrolled rename field; `play()` on Default types and presses Enter asserting `onConfirm`; EscapeCancel verifies `onCancel` via Escape key |
+| **Dialog** | Open, Closed, DangerVariant, LongContent, CustomLabels | Modal portal dialog; `play()` on Open clicks Cancel; DangerVariant `play()` clicks destructive confirm; queries use `within(document.body)` |
+| **InfoPanel** | Loading, FolderInfo, RequestInfo, ErrorState, Closed | Tauri IPC–driven info modal; each story supplies a `tauriMock` override; `play()` on FolderInfo/RequestInfo/ErrorState asserts rendered content |
 
-Story files are in `src/stories/ui/`; paired MDX docs render in the **Docs** tab.
+Layout component stories live under **layout/** in the Storybook sidebar.
+
+| Component | Stories | Coverage |
+|---|---|---|
+| **StatusBar** | Default, WithThemePicker, SearchHint | Footer bar reading `useTheme()` context; `play()` on Default clicks theme chip and asserts ThemePicker opens; SearchHint verifies Cmd+K affordance |
+
+Story files are in `src/stories/ui/` and `src/stories/layout/`; paired MDX docs render in the **Docs** tab.
 
 ### Adding a New Theme
 

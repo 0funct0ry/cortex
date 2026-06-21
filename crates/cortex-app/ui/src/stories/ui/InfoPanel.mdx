@@ -1,0 +1,69 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as InfoPanelStories from './InfoPanel.stories'
+
+<Meta of={InfoPanelStories} />
+
+# InfoPanel
+
+A modal information panel that displays filesystem metadata for a collection item (folder or request). Data is fetched from the Rust backend via the `get_item_info` Tauri command each time `isOpen` flips to `true`.
+
+Source: [`src/components/ui/InfoPanel.tsx`](../../../components/ui/InfoPanel.tsx)
+
+---
+
+## Loading
+
+The panel renders "Loading…" while awaiting the `get_item_info` response. In this story the mock never resolves so the loading state stays visible indefinitely.
+
+<Canvas of={InfoPanelStories.Loading} />
+
+---
+
+## Folder info
+
+Mock returns a complete folder `ItemInfo` fixture: path, size, timestamps, subfolder count, and total request count.
+
+<Canvas of={InfoPanelStories.FolderInfo} />
+
+---
+
+## Request info
+
+Mock returns a request `ItemInfo`: path, size, timestamps, HTTP method, and URL. Fields present in the fixture but absent from the type (e.g. `item_count`) are omitted from the table.
+
+<Canvas of={InfoPanelStories.RequestInfo} />
+
+---
+
+## Error state
+
+When `get_item_info` returns an error the panel replaces the table with the error message in red.
+
+<Canvas of={InfoPanelStories.ErrorState} />
+
+---
+
+## Closed
+
+`isOpen=false` — component returns null.
+
+<Canvas of={InfoPanelStories.Closed} />
+
+---
+
+## Props
+
+| Prop      | Type                    | Description                                            |
+| --------- | ----------------------- | ------------------------------------------------------ |
+| `isOpen`  | `boolean`               | Controls visibility; component returns null when false |
+| `onClose` | `() => void`            | Called on backdrop click or Escape key                 |
+| `path`    | `string`                | Filesystem path passed to `get_item_info`              |
+| `type`    | `'folder' \| 'request'` | Sets the panel title ("Folder Info" or "Request Info") |
+
+## Tauri IPC mocking in stories
+
+InfoPanel calls `commands.getItemInfo(path)` on mount. In Storybook, each story supplies a `parameters.tauriMock` map with a `get_item_info` key. The global `withTauriMock` decorator in `preview.tsx` intercepts IPC calls and routes them to the matching mock function.
+
+- To show **loaded data** — return the raw `ItemInfo` object (the binding wrapper adds `{ status: "ok", data: … }` automatically).
+- To show the **error state** — `throw` a string; the binding catches non-Error throws and produces `{ status: "error", error: … }`.
+- To show the **loading state** — return `new Promise(() => {})` (never resolves).

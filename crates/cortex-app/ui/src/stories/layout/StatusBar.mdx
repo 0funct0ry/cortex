@@ -1,0 +1,57 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as StatusBarStories from './StatusBar.stories'
+
+<Meta of={StatusBarStories} />
+
+# StatusBar
+
+The application footer bar (22 px tall) that sits at the bottom of every workspace. It shows the active theme name (clickable to open the ThemePicker), the app version, and — in development builds — a button to open Tauri devtools.
+
+Source: [`src/components/layout/StatusBar.tsx`](../../../components/layout/StatusBar.tsx)
+
+---
+
+## Default
+
+Idle state. The theme chip on the right shows the currently active theme name. Clicking it toggles the ThemePicker popover.
+
+<Canvas of={StatusBarStories.Default} />
+
+---
+
+## With theme picker
+
+Documents the toggle behaviour: a second click on the chip dismisses the ThemePicker.
+
+<Canvas of={StatusBarStories.WithThemePicker} />
+
+---
+
+## Search hint
+
+Verifies that the "Search / Cmd+K" affordance is always rendered, regardless of workspace state.
+
+<Canvas of={StatusBarStories.SearchHint} />
+
+---
+
+## Component characteristics
+
+| Property   | Value                                                |
+| ---------- | ---------------------------------------------------- |
+| Height     | `22px` fixed (`h-[22px]`)                            |
+| Background | `bg-bg-panel`                                        |
+| Border     | `border-t border-border-subtle` (top edge only)      |
+| Props      | None — reads from `useTheme()` and `import.meta.env` |
+
+## Theme display
+
+The active theme ID is humanised for display by replacing hyphens with spaces (`dark-monochrome` → "dark monochrome"). Clicking the chip opens a `ThemePicker` popover that lets the user switch between all 13 Cortex themes. The new theme is persisted to `settings.json` via `AppSettings`.
+
+## Version string
+
+`VITE_APP_VERSION` is injected at build time. If the env var is absent (e.g. in local dev without the Makefile), the component falls back to `"v0.1.0"`.
+
+## Devtools button
+
+Only rendered when `import.meta.env.DEV` is truthy. Not visible in production builds or in Storybook's production `build-storybook` output.

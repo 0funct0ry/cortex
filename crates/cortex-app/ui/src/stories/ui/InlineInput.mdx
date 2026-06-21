@@ -1,0 +1,67 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as InlineInputStories from './InlineInput.stories'
+
+<Meta of={InlineInputStories} />
+
+# InlineInput
+
+A minimal single-line text editor that mounts pre-focused and pre-selected, ready for the user to type. Used in the collection tree for in-place rename of folders and requests.
+
+Source: [`src/components/ui/InlineInput.tsx`](../../../components/ui/InlineInput.tsx)
+
+---
+
+## Default
+
+Input pre-filled with "My Collection". Auto-focuses and selects all text on mount so the user can type immediately without clicking. Press **Enter** or click away to confirm; press **Escape** to cancel.
+
+<Canvas of={InlineInputStories.Default} />
+
+---
+
+## Empty initial value
+
+When `initialValue` is an empty string the input renders blank.
+
+<Canvas of={InlineInputStories.EmptyInitialValue} />
+
+---
+
+## Long value
+
+A long initial value clips inside the fixed-width container. The component applies `w-full` so it always fills its parent; callers control the container width.
+
+<Canvas of={InlineInputStories.LongValue} />
+
+---
+
+## Error style (via className)
+
+InlineInput has no built-in validation state. Callers signal invalid input by passing a `className` that overrides the border colour.
+
+<Canvas of={InlineInputStories.ErrorStyle} />
+
+---
+
+## Escape to cancel
+
+Press Escape while the input is focused to call `onCancel` without committing changes.
+
+<Canvas of={InlineInputStories.EscapeCancel} />
+
+---
+
+## Props
+
+| Prop           | Type                      | Default | Description                                                |
+| -------------- | ------------------------- | ------- | ---------------------------------------------------------- |
+| `initialValue` | `string`                  | —       | Pre-filled text; also used as fallback if `value` is empty |
+| `onConfirm`    | `(value: string) => void` | —       | Called with the current input value on Enter or blur       |
+| `onCancel`     | `() => void`              | —       | Called when Escape is pressed                              |
+| `className`    | `string`                  | `''`    | Additional classes applied to the `<input>` element        |
+
+## Behaviour notes
+
+- **Auto-focus + select** — `useEffect` focuses and selects all text on mount, so the user never needs an extra click to start typing.
+- **Blur confirms** — tabbing or clicking away calls `onConfirm` with the current value, matching the UX of rename fields in macOS Finder and VS Code.
+- **No controlled value** — InlineInput is uncontrolled (`defaultValue`). Callers don't need to manage intermediate input state; they only react to `onConfirm`.
