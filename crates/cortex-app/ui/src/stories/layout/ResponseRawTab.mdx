@@ -1,0 +1,53 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ResponseRawTabStories from './ResponseRawTab.stories'
+
+<Meta of={ResponseRawTabStories} />
+
+# ResponseRawTab
+
+Renders the raw response body exactly as received from the server — no syntax highlighting, no parsing, no interpretation. The text is displayed in a monospace, `whitespace-pre-wrap`, selectable container that scrolls vertically when the body is long.
+
+Source: [`src/components/layout/ResponseRawTab.tsx`](../../../components/layout/ResponseRawTab.tsx)
+
+---
+
+## Raw text
+
+A small, well-formatted JSON response. The font is monospace and the text is fully selectable for copy-paste.
+
+<Canvas of={ResponseRawTabStories.RawText} />
+
+---
+
+## Long body
+
+120 lines of text. Verifies that the container scrolls vertically without clipping content or causing horizontal overflow. The `whitespace-pre-wrap` rule means long lines wrap rather than triggering horizontal scroll.
+
+<Canvas of={ResponseRawTabStories.LongBody} />
+
+---
+
+## Binary warning
+
+Documents the convention for binary or non-printable responses. The executor substitutes a human-readable placeholder string rather than attempting to render raw bytes in the browser.
+
+<Canvas of={ResponseRawTabStories.BinaryWarning} />
+
+---
+
+## Props
+
+| Prop       | Type              | Description                                                                                             |
+| ---------- | ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `response` | `ResponsePayload` | The completed response object. Only `response.body` is rendered; other fields are used by sibling tabs. |
+
+## Rendering contract
+
+- Body is rendered verbatim — no JSON formatting, no HTML escaping beyond what React provides.
+- Container uses `overflow-auto` so long bodies scroll instead of clipping.
+- Text selection (`select-text`) is enabled with an accent highlight (`selection:bg-accent/30`) so users can easily copy portions of the response.
+- Background is `bg-bg-surface` — one step lighter than `bg-bg-base`, matching the panel hosting the tab.
+
+## Binary content
+
+When the server returns a binary content-type (`application/octet-stream`, `image/*`, etc.), the Rust executor substitutes a placeholder string rather than trying to decode arbitrary bytes as UTF-8. The raw tab displays this placeholder as-is. Use the **Save** button in the `ResponseMetaBar` to download the actual binary file.

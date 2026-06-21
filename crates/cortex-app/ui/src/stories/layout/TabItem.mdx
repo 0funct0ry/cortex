@@ -1,0 +1,125 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as TabItemStories from './TabItem.stories'
+
+<Meta of={TabItemStories} />
+
+# TabItem
+
+A single tab in the horizontal request tab bar. Each tab shows a method label (or an icon for non-request tab types), the request name, and a close button that transitions from hidden to visible on hover. An accent bottom border marks the active tab. Tabs support drag-to-reorder and expose a right-click context menu with tab management actions.
+
+Source: [`src/components/layout/TabItem.tsx`](../../../components/layout/TabItem.tsx)
+
+---
+
+## Active
+
+The currently selected tab. Full-opacity close button, lighter `bg-bg-surface` background, and a 2 px accent bottom border.
+
+<Canvas of={TabItemStories.Active} />
+
+---
+
+## Inactive
+
+A background tab. Text is muted, background is `bg-bg-panel`, and the close button is hidden (opacity-0) until the tab is hovered.
+
+<Canvas of={TabItemStories.Inactive} />
+
+---
+
+## Dirty
+
+An active tab with unsaved changes. An orange dot (`bg-accent`) replaces the close button at rest. On hover the dot hides and the close button appears in its place. The tab's `title` attribute reads "Unsaved changes" for accessibility.
+
+<Canvas of={TabItemStories.Dirty} />
+
+---
+
+## Inactive hover
+
+Demonstrates the hover state of an inactive tab — the close button transitions from opacity-0 to visible via a CSS `group-hover` rule.
+
+<Canvas of={TabItemStories.InactiveHover} />
+
+---
+
+## Method variants
+
+All four common HTTP methods rendered side-by-side to verify per-method colour tokens.
+
+<Canvas of={TabItemStories.MethodVariants} />
+
+---
+
+## Context menu
+
+Right-clicking a tab opens a fixed-position context menu portalled to `document.body`. The menu adapts based on tab type — request tabs get additional actions (Save to Collection, Duplicate, Copy URL).
+
+<Canvas of={TabItemStories.ContextMenu} />
+
+---
+
+## Props
+
+| Prop            | Type                      | Description                                              |
+| --------------- | ------------------------- | -------------------------------------------------------- |
+| `tab`           | `Tab`                     | The tab data object (id, type, name, method, isDirty, …) |
+| `active`        | `boolean`                 | Whether this tab is the currently selected one           |
+| `index`         | `number`                  | Position in the tab list — used for drag-and-drop logic  |
+| `dragOverIndex` | `number \| null`          | Index of the tab currently being dragged over, or `null` |
+| `onDragStart`   | `(index: number) => void` | Called when drag starts on this tab                      |
+| `onDragOver`    | `(index: number) => void` | Called when another tab is dragged over this one         |
+| `onDragLeave`   | `() => void`              | Called when the dragged tab leaves this drop target      |
+| `onDrop`        | `(index: number) => void` | Called when a tab is dropped onto this one               |
+| `onDragEnd`     | `() => void`              | Called when a drag operation ends                        |
+
+## Tab types and icons
+
+| `tab.type`                | Icon                                                         |
+| ------------------------- | ------------------------------------------------------------ |
+| `request`                 | Method label (e.g. `GET`, `POST`) in the method colour token |
+| `environments`            | Globe icon in `text-accent`                                  |
+| `collection-environments` | Layers icon in `text-accent`                                 |
+| `collection`              | Settings icon in `text-accent`                               |
+| `folder`                  | Folder icon in `text-accent`                                 |
+| `example`                 | Method label (same as request)                               |
+
+## Method colour tokens
+
+| Method                    | Token                                   |
+| ------------------------- | --------------------------------------- |
+| GET                       | `text-method-get`                       |
+| POST                      | `text-method-post`                      |
+| PUT                       | `text-method-put`                       |
+| PATCH                     | `text-method-patch`                     |
+| DELETE                    | `text-method-delete`                    |
+| HEAD                      | `text-method-head`                      |
+| OPTIONS                   | `text-method-options`                   |
+| WS / SSE / gRPC / GraphQL | Their respective `text-method-*` tokens |
+
+## Dirty indicator
+
+When `tab.isDirty` is `true`:
+
+- At rest: a 6×6 px dot (`w-1.5 h-1.5 rounded-full bg-accent`) is shown, and the close button is hidden.
+- On hover: the dot hides (`group-hover:hidden`) and the close button appears (`hidden group-hover:flex`).
+- The tab's `title` attribute switches to `"Unsaved changes"` as a visual and accessibility cue.
+
+## Drag-to-reorder
+
+Drop targets are highlighted with a left accent border (`border-l-2 border-l-accent`) and a subtle background tint (`bg-bg-highlight/30`) when `dragOverIndex === index`. The parent `TabBar` component manages drag state and passes it down as props.
+
+## Context menu
+
+The context menu is a controlled component rendered in the component's own JSX (not a portal) at a fixed position derived from `e.clientX / e.clientY`. It is dismissed by a `mousedown` listener on `document`. Menu items available for `type === 'request'` tabs:
+
+- **Close Tab** — `Cmd+W`
+- **Close Other Tabs**
+- **Close Tabs to the Right**
+- **Save to Collection…** — only shown when `tab.requestPath` is `null` (scratch/transient tab)
+- **Duplicate Tab**
+- **Copy Request URL**
+
+## Context dependencies
+
+`TabItem` calls `useTabs()` from `TabsContext` and `useUIStore()`. In Storybook, stories wrap the component in a `<TabsProvider>` decorator and seed `useUIStore` via `beforeEach` with a spy for `openSaveToCollectionDialog`.

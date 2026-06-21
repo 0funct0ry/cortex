@@ -779,6 +779,10 @@ Layout component stories live under **layout/** in the Storybook sidebar.
 | Component | Stories | Coverage |
 |---|---|---|
 | **StatusBar** | Default, WithThemePicker, SearchHint | Footer bar reading `useTheme()` context; `play()` on Default clicks theme chip and asserts ThemePicker opens; SearchHint verifies Cmd+K affordance |
+| **EmptyComposerState** | Default | Purely presentational — faded rocket + 5 keyboard shortcut hints; `play()` asserts all hint labels and key bindings are rendered |
+| **ResponseRawTab** | RawText, LongBody, BinaryWarning | Monospace verbatim body display; LongBody (120 lines) verifies overflow scroll; BinaryWarning documents the non-printable placeholder convention |
+| **ResponseMetaBar** | NoResponse, Loading, Status200, Status404, Status500, WithRedirectChain, MultipartResponse | Full status/loading/redirect/multipart coverage; `tauriMock` for `save_file`; `beforeEach` resets responseStore; `play()` on WithRedirectChain opens the redirect popover and asserts hop URLs; MultipartResponse verifies the Parse Multipart checkbox |
+| **TabItem** | Active, Inactive, Dirty, InactiveHover, MethodVariants, ContextMenu | Tab bar item with `TabsProvider` decorator and `useUIStore` seeding; MethodVariants renders GET/POST/PUT/DELETE side-by-side with correct colour tokens; ContextMenu fires `contextmenu` event and queries portalled menu from `document.body` |
 
 Story files are in `src/stories/ui/` and `src/stories/layout/`; paired MDX docs render in the **Docs** tab.
 

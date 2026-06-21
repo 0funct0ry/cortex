@@ -1,0 +1,108 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ResponseMetaBarStories from './ResponseMetaBar.stories'
+
+<Meta of={ResponseMetaBarStories} />
+
+# ResponseMetaBar
+
+A fixed-height (36 px) status strip rendered above every response panel. It communicates HTTP status, duration, body size, redirect history, and multipart parse state at a glance — and provides one-click access to copy or save the response body.
+
+Source: [`src/components/layout/ResponseMetaBar.tsx`](../../../components/layout/ResponseMetaBar.tsx)
+
+---
+
+## No response
+
+Before any request has been sent for the active tab. A muted "RESPONSE" label occupies the bar as a placeholder.
+
+<Canvas of={ResponseMetaBarStories.NoResponse} />
+
+---
+
+## Loading
+
+While a request is in-flight (`inFlight=true`). Three skeleton pill animations replace the status/duration/size slots. The bar remains full-width and does not shift layout.
+
+<Canvas of={ResponseMetaBarStories.Loading} />
+
+---
+
+## Status 200 OK
+
+A successful response. Green badge, sub-200 ms duration (green), and body size in human-readable units.
+
+<Canvas of={ResponseMetaBarStories.Status200} />
+
+---
+
+## Status 404 Not Found
+
+A client error. The status badge uses the error colour token (`bg-error-muted / text-error`).
+
+<Canvas of={ResponseMetaBarStories.Status404} />
+
+---
+
+## Status 500 Internal Server Error
+
+A server error with a slow duration (>1000 ms → red duration text).
+
+<Canvas of={ResponseMetaBarStories.Status500} />
+
+---
+
+## With redirect chain
+
+The request followed two redirects before settling. An amber pill shows the redirect count and the final status. Clicking it opens a popover listing each hop with its method, URL, and status code.
+
+<Canvas of={ResponseMetaBarStories.WithRedirectChain} />
+
+---
+
+## Multipart response
+
+When the `content-type` header is `multipart/mixed` or `multipart/form-data`, a **Parse Multipart** checkbox appears. Toggling it switches the response view between raw and parsed-parts mode (handled by `ResponseMultipartTab`).
+
+<Canvas of={ResponseMetaBarStories.MultipartResponse} />
+
+---
+
+## Props
+
+| Prop        | Type                      | Description                                                        |
+| ----------- | ------------------------- | ------------------------------------------------------------------ |
+| `response`  | `ResponsePayload \| null` | The completed response, or `null` before a request is sent         |
+| `inFlight`  | `boolean`                 | `true` while the HTTP request is executing; renders skeleton state |
+| `requestId` | `string`                  | Keys multipart-enabled state in the response store                 |
+
+## Status badge colours
+
+| Status range | Colour token                                      |
+| ------------ | ------------------------------------------------- |
+| 2xx          | `bg-success-muted text-success border-success/20` |
+| 3xx          | `bg-warning-muted text-warning border-warning/20` |
+| 4xx / 5xx    | `bg-error-muted text-error border-error/20`       |
+
+## Duration colours
+
+| Threshold   | Colour                 |
+| ----------- | ---------------------- |
+| ≤ 200 ms    | `text-success` (green) |
+| 201–1000 ms | `text-warning` (amber) |
+| > 1000 ms   | `text-error` (red)     |
+
+## Size formatting
+
+Body size is reported in bytes, KB, or MB depending on magnitude:
+
+- `< 1 024 B` → `{n} B`
+- `< 1 MB` → `{n} KB` (1 decimal place)
+- `≥ 1 MB` → `{n} MB` (1 decimal place)
+
+## Redirect chain
+
+The `redirectChain` field of `ResponsePayload` is a `RedirectHop[]` where each hop records `{ method, url, status_code }`. The popover lists them in order with index labels (`#1`, `#2`, …). It is dismissed by clicking outside (via `mousedown` listener).
+
+## Tauri IPC dependency
+
+The Save button calls `commands.saveFile(…)` to open the native OS save dialog. In Storybook, this is mocked via `parameters.tauriMock: { save_file: () => null }` so the button can be clicked without throwing.

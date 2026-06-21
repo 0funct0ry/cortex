@@ -1,0 +1,45 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as EmptyComposerStateStories from './EmptyComposerState.stories'
+
+<Meta of={EmptyComposerStateStories} />
+
+# EmptyComposerState
+
+The placeholder screen shown in the composer panel when no request tab is active. It combines a large decorative rocket icon with a concise keyboard shortcut reference so new users can immediately discover the five most common actions — without leaving the screen to read documentation.
+
+Source: [`src/components/layout/EmptyComposerState.tsx`](../../../components/layout/EmptyComposerState.tsx)
+
+---
+
+## Default
+
+The only visual state this component has. Rendered whenever no tab is open in the workspace.
+
+<Canvas of={EmptyComposerStateStories.Default} />
+
+---
+
+## Layout
+
+The component is a full-height flex column (`flex-1 flex flex-col items-center justify-center`) that expands to fill whatever space the composer panel offers. Content is vertically centred with a `max-w-[380px]` constraint on the shortcut list.
+
+The rocket icon is rendered at 160 px, opacity 10 %, and rotated 45° — purely decorative; it carries no ARIA label.
+
+## Keyboard shortcuts
+
+| Shortcut      | Action                | Notes                                                         |
+| ------------- | --------------------- | ------------------------------------------------------------- |
+| `Cmd + Enter` | Send Request          | Fires the active request                                      |
+| `Cmd + ⇧N`    | New Request           | Opens a new named request and prompts to save to a collection |
+| `Cmd + B`     | New Transient Request | Opens a scratch request — choose protocol, never saved        |
+| `Cmd + N`     | New Quick Request     | Instant HTTP GET scratch tab, never saved                     |
+| `Cmd + E`     | Edit Environments     | Opens the environment editor                                  |
+
+## Component characteristics
+
+| Property        | Value                                                |
+| --------------- | ---------------------------------------------------- |
+| Props           | None                                                 |
+| Context / Store | None — purely presentational                         |
+| Animation       | `animate-in fade-in duration-300` on mount           |
+| Selection       | `select-none` — text is intentionally not selectable |

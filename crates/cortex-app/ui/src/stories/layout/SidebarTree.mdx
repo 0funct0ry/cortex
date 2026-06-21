@@ -1,0 +1,84 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as SidebarTreeStories from './SidebarTree.stories'
+
+<Meta of={SidebarTreeStories} />
+
+# SidebarTree
+
+The collapsible tree panel on the left edge of the workspace. It renders the full collection hierarchy — collections, folders, and individual requests — and is the primary navigation surface for saved API collections. Each node is drag-and-drop reorderable, context-menu enabled, and opens a tab in the composer when clicked.
+
+Source: [`src/components/layout/SidebarTree.tsx`](../../../components/layout/SidebarTree.tsx)
+
+---
+
+## Default
+
+No workspace is loaded. The sidebar shows an empty state prompting the user to open or create a collection.
+
+<Canvas of={SidebarTreeStories.Default} />
+
+---
+
+## With collections
+
+A workspace is seeded with the Petstore API collection containing two requests: "List pets" (GET) and "Create pet" (POST). The collection node is expanded, showing both child requests with their method badges.
+
+<Canvas of={SidebarTreeStories.WithCollections} />
+
+---
+
+## With Tauri mock override
+
+Demonstrates per-story `parameters.tauriMock` override. The story overrides the default IPC mock to return a custom response for a specific command, showing how individual stories can extend the global IPC mock without affecting others.
+
+<Canvas of={SidebarTreeStories.WithTauriMockOverride} />
+
+---
+
+## Store dependencies
+
+The `SidebarTree` component reads from multiple Zustand stores. In Storybook, these are seeded via `beforeEach` after the global store-reset decorator runs:
+
+| Store                | Seeded fields                            |
+| -------------------- | ---------------------------------------- |
+| `useWorkspaceStore`  | `activeWorkspace`, `activeWorkspacePath` |
+| `useCollectionStore` | `collections` map, `expansionState` map  |
+
+The `TabsProvider` context is required because clicking a request node calls `openTab()` from `useTabs()`.
+
+## Tauri IPC mocking
+
+The global IPC mock (applied by the `withTauriMock` decorator) nullifies all `invoke()` calls by default. Individual stories can override specific commands via `parameters.tauriMock`:
+
+```tsx
+parameters: {
+  tauriMock: {
+    my_command: () => ({ some: 'data' }),
+  },
+}
+```
+
+**Important**: mock return values must be the raw inner data — the binding wrapper automatically wraps them in `{ status: "ok", data: … }`. Returning a pre-wrapped object will result in double-wrapping.
+
+## Collection node structure
+
+Each collection in the sidebar maps to a `.crx` YAML file on disk. The tree structure mirrors the YAML hierarchy:
+
+```
+Collection (root)
+├── Folder
+│   ├── Request
+│   └── Request
+└── Request
+```
+
+Requests are colour-coded by HTTP method using the same `text-method-*` tokens as `TabItem`. Folder nodes show expand/collapse chevrons and a folder icon.
+
+## Component characteristics
+
+| Property       | Value                                                              |
+| -------------- | ------------------------------------------------------------------ |
+| Width          | 260 px (fixed in stories; resizable in app via drag handle)        |
+| Context        | `TabsProvider` required                                            |
+| Stores         | `useWorkspaceStore`, `useCollectionStore`, `useUIStore`            |
+| Tauri commands | `open_collection`, `save_collection`, `delete_request`, and others |
