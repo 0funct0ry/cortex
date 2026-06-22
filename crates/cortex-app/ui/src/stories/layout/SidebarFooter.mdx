@@ -1,0 +1,43 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as SidebarFooterStories from './SidebarFooter.stories'
+
+<Meta of={SidebarFooterStories} />
+
+# SidebarFooter
+
+A fixed-height (`h-9`, 36 px) footer strip rendered at the very bottom of the sidebar panel. It contains an "API Specs" label with a `FileText` icon on the left, and a `Plus` button on the right (currently disabled — the API Specs feature is planned for a future release). The footer uses `shrink-0` so it is never compressed by a flex parent.
+
+Source: [`src/components/layout/SidebarFooter.tsx`](../../../components/layout/SidebarFooter.tsx)
+
+---
+
+## Default
+
+The sole variant of `SidebarFooter`. The component has no props and no internal state.
+
+<Canvas of={SidebarFooterStories.Default} />
+
+---
+
+## Props
+
+`SidebarFooter` accepts no props. It is a fully stateless presentational component.
+
+## Layout tokens
+
+| Token                     | Usage                                          |
+| ------------------------- | ---------------------------------------------- |
+| `bg-bg-panel`             | Footer background                              |
+| `border-border-subtle`    | Top border separating footer from sidebar tree |
+| `text-text-muted`         | Icon and button colour at rest                 |
+| `text-text-secondary`     | Label text colour                              |
+| `hover:bg-bg-muted`       | Plus button hover background                   |
+| `hover:text-text-primary` | Plus button icon colour on hover               |
+
+## Plus button
+
+The plus button carries `title="Coming soon"` which surfaces as a native browser tooltip on hover. It has no `onClick` handler — clicking it is a no-op until the API Specs feature ships.
+
+## Future use
+
+When the API Specs feature is implemented, the plus button is expected to open a dialog for importing or linking an OpenAPI / AsyncAPI specification file to the active workspace.

@@ -1,0 +1,88 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ThemePickerStories from './ThemePicker.stories'
+
+<Meta of={ThemePickerStories} />
+
+# ThemePicker
+
+A compact overlay that lists all 13 Cortex themes grouped into **Light Themes** and **Dark Themes** sections. The currently active theme is indicated by a filled accent dot and a "✓ active" label. Hovering a theme previews it instantly by updating `document.documentElement.dataset.theme`; moving the cursor away reverts to the active theme. Clicking a theme commits the selection and closes the picker. Pressing Escape or clicking outside the overlay also closes it.
+
+Source: [`src/components/layout/ThemePicker.tsx`](../../../components/layout/ThemePicker.tsx)
+
+---
+
+## Light theme active
+
+The picker with the `light` theme selected. The Light entry receives a filled accent indicator and the "✓ active" badge.
+
+<Canvas of={ThemePickerStories.LightThemeActive} />
+
+---
+
+## Dark theme active
+
+The picker with the `dark` theme selected — the default Cortex theme.
+
+<Canvas of={ThemePickerStories.DarkThemeActive} />
+
+---
+
+## All themes visible
+
+Verifies that all 13 theme names appear across both sections: 5 light themes and 8 dark themes.
+
+<Canvas of={ThemePickerStories.AllThemesVisible} />
+
+---
+
+## Select theme
+
+Clicking a theme item (here: Nord) commits the selection and calls `onClose`. The play function asserts the spy is invoked exactly once.
+
+<Canvas of={ThemePickerStories.SelectTheme} />
+
+---
+
+## Close on Escape
+
+Pressing Escape (or clicking the × close button) calls `onClose` without changing the active theme.
+
+<Canvas of={ThemePickerStories.CloseOnEscape} />
+
+---
+
+## Props
+
+| Prop      | Type         | Description                                                                          |
+| --------- | ------------ | ------------------------------------------------------------------------------------ |
+| `onClose` | `() => void` | Invoked when the picker should close — on theme selection, Escape, or click outside. |
+
+## Theme list
+
+| Section | Theme ID               | Display name         |
+| ------- | ---------------------- | -------------------- |
+| Light   | `light`                | Light                |
+| Light   | `light-monochrome`     | Light Monochrome     |
+| Light   | `light-pastel`         | Light Pastel         |
+| Light   | `catppuccin-latte`     | Catppuccin Latte     |
+| Light   | `vscode-light`         | VS Code Light        |
+| Dark    | `dark`                 | Dark                 |
+| Dark    | `dark-monochrome`      | Dark Monochrome      |
+| Dark    | `dark-pastel`          | Dark Pastel          |
+| Dark    | `catppuccin-frappe`    | Catppuccin Frappé    |
+| Dark    | `catppuccin-macchiato` | Catppuccin Macchiato |
+| Dark    | `catppuccin-mocha`     | Catppuccin Mocha     |
+| Dark    | `nord`                 | Nord                 |
+| Dark    | `vscode-dark`          | VS Code Dark         |
+
+## Hover preview
+
+`onMouseEnter` on each theme row calls `document.documentElement.dataset.theme = themeId`, which instantly swaps all CSS custom-property tokens without persisting the change. `onMouseLeave` reverts to the stored active theme. The cleanup function in the `useEffect` also reverts on unmount so closing the picker without selecting always restores the previous theme.
+
+## Persistence
+
+`setTheme(themeId)` (from `ThemeContext`) writes to `localStorage` under the key `cortex.theme`. On next load `ThemeProvider` reads this key and initialises the theme before the first render, preventing a flash of the default theme.
+
+## Context dependency
+
+`ThemePicker` calls `useTheme()` and will throw if rendered outside a `ThemeProvider`. Stories wrap the component with `ThemeProvider` in a decorator and pre-seed `localStorage` via `beforeEach` to control the initial active theme.

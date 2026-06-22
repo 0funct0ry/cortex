@@ -1,0 +1,93 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as UrlBarStories from './UrlBar.stories'
+
+<Meta of={UrlBarStories} />
+
+# UrlBar
+
+The horizontal request bar that sits above the composer panel. It composes three sub-components — `MethodSelector`, `UrlInput`, and `SendButton` — plus three icon action buttons (Save to collection, Generate code snippet, Copy URL). UrlBar orchestrates the full request lifecycle: it reads state from six Zustand stores, builds the request payload, calls `commands.sendRequest` via Tauri IPC, and writes the response back to `responseStore`.
+
+Source: [`src/components/layout/UrlBar.tsx`](../../../components/layout/UrlBar.tsx)
+
+> **Story mode — display only.** These stories render UrlBar in a controlled state by pre-seeding stores via `beforeEach` and registering no-op tauriMock handlers for `send_request` and `cancel_request`. No real HTTP requests are made.
+
+---
+
+## Empty URL
+
+The URL bar with no URL entered. Shows the method selector at `GET`, an empty UrlInput, the icon action buttons, and the Send button.
+
+<Canvas of={UrlBarStories.EmptyUrl} />
+
+---
+
+## With URL
+
+A fully-formed URL with no template variables. The Send button is active.
+
+<Canvas of={UrlBarStories.WithUrl} />
+
+---
+
+## Variable segments
+
+A URL containing `{{variable}}` placeholders (`{{baseUrl}}` and `{{userId}}`). UrlInput renders a transparent overlay with coloured `<span>` tokens for each variable — resolved variables and unresolved variables receive different colour tokens.
+
+<Canvas of={UrlBarStories.VariableSegments} />
+
+---
+
+## In-flight
+
+The URL bar while a request is in progress (`inFlight: true`). The green Send button switches to a red Cancel button. Clicking Cancel calls `commands.cancelRequest` with the in-progress request ID.
+
+<Canvas of={UrlBarStories.InFlight} />
+
+---
+
+## Store dependencies
+
+UrlBar reads from these stores at render time:
+
+| Store                        | Fields consumed                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `requestStore`               | `method`, `url`, `headers`, `auth`, `body`, `settings`, `inFlight`, `requestId` (per active tab) |
+| `workspaceStore`             | `activeWorkspacePath`                                                                            |
+| `responseStore`              | `setResponse`, `setVisualization`, `clearVisualization`                                          |
+| `environmentStore`           | `activeEnvironmentName`                                                                          |
+| `collectionEnvironmentStore` | `activeCollectionEnvName`                                                                        |
+| `collectionStore`            | `collections` (for auth inheritance)                                                             |
+| `uiStore`                    | `openSaveToCollectionDialog`, `openGenerateCodeModal`                                            |
+
+Stories seed the minimum required stores (`requestStore`, `workspaceStore`) and let the others remain at their reset defaults.
+
+## Sub-components
+
+### MethodSelector
+
+A dropdown that lists 8 standard HTTP methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE), 4 protocol types (GraphQL, gRPC, WS, SSE), and a free-text custom method input. Each method is coloured via `text-method-*` tokens.
+
+### UrlInput
+
+A custom contenteditable-like input that renders a read-only colour overlay synced with a real `<input>` element. Template variables (`{{name}}`) are parsed and wrapped in coloured spans — resolved variables in `text-var-resolved`, unresolved in `text-var-unresolved`, and dynamic expressions in `text-var-dynamic`. The overlay scrolls in sync with the input so the colour spans always align with the typed characters.
+
+### SendButton
+
+A dual-state button:
+
+- **Idle** — accent-coloured "Send" label with a keyboard shortcut hint (⌘+Enter / Ctrl+Enter). Disabled and shows a tooltip when auth is incomplete.
+- **In-flight** — red "Cancel" button with an X icon. Clicking it calls `commands.cancelRequest`.
+
+## Keyboard shortcuts
+
+| Shortcut                                  | Action                                       |
+| ----------------------------------------- | -------------------------------------------- |
+| `Cmd/Ctrl + Enter`                        | Send the current request                     |
+| Custom `cortex:send-request` window event | Also triggers send (used by command palette) |
+
+## Auth validation
+
+Before enabling the Send button, UrlBar resolves the effective auth (accounting for collection-level auth inheritance) and disables the button with a descriptive reason if:
+
+- Auth type is `bearer_token` and the token field is empty.
+- Auth type is `api_key` and either the key name or value field is empty.

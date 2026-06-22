@@ -1,0 +1,70 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ResponseHeadersTabStories from './ResponseHeadersTab.stories'
+
+<Meta of={ResponseHeadersTabStories} />
+
+# ResponseHeadersTab
+
+Renders the HTTP response headers returned by the server in a sortable two-column table (Name / Value). Headers are sorted alphabetically. Each row reveals a copy-to-clipboard button on hover. Redirect responses (3xx status codes) receive special treatment: a warning banner appears at the top and the `location` header row is highlighted with a warning accent border and a "Redirect Location" badge.
+
+Source: [`src/components/layout/ResponseHeadersTab.tsx`](../../../components/layout/ResponseHeadersTab.tsx)
+
+---
+
+## Empty
+
+A 200 response with no headers. The table renders the sticky header row (Name / Value) but the body is empty.
+
+<Canvas of={ResponseHeadersTabStories.Empty} />
+
+---
+
+## With headers
+
+Nine varied headers typical of a REST JSON API response — content-type, cache-control, rate-limit headers, CORS, and a request trace ID. Hovering any row reveals the per-row copy button.
+
+<Canvas of={ResponseHeadersTabStories.WithHeaders} />
+
+---
+
+## Redirect response
+
+A 301 Moved Permanently response with a `location` header. The redirect warning banner is shown at the top, and the `location` row receives a left warning-colour border plus the "Redirect Location" badge.
+
+<Canvas of={ResponseHeadersTabStories.RedirectResponse} />
+
+---
+
+## Many headers
+
+Twenty-four custom headers to verify the container scrolls vertically and alternating row backgrounds (even: `bg-bg-surface`, odd: `bg-bg-muted/30`) remain correct throughout a long list.
+
+<Canvas of={ResponseHeadersTabStories.ManyHeaders} />
+
+---
+
+## Props
+
+| Prop       | Type              | Description                                                                   |
+| ---------- | ----------------- | ----------------------------------------------------------------------------- |
+| `response` | `ResponsePayload` | The full response object. Only `.headers` and `.status` are used by this tab. |
+
+## Redirect highlighting
+
+When `response.status` is in the range 300–399 **and** a `location` (case-insensitive) header is present:
+
+- A warning banner is shown above the table with the redirect URL (click to copy).
+- The `location` header row receives `bg-warning/10` background and a 3 px left `border-l-warning` accent.
+- A "Redirect Location" badge appears next to the header name.
+
+This state occurs when the request's **Do not follow redirects** setting is active. Users can enable automatic redirect following in the request Settings tab.
+
+## Row interactions
+
+- **Hover** — a copy icon button fades in at the right edge of the Value cell.
+- **Click copy** — writes `name: value` to the clipboard via `navigator.clipboard.writeText`.
+- **Redirect URL click** — clicking the redirect URL in the banner copies the URL to the clipboard.
+
+## Sorting
+
+Headers are sorted alphabetically by name via `Array.prototype.sort` with `localeCompare`. The sort is applied once on render via `useMemo`.

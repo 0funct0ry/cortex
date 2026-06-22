@@ -783,6 +783,10 @@ Layout component stories live under **layout/** in the Storybook sidebar.
 | **ResponseRawTab** | RawText, LongBody, BinaryWarning | Monospace verbatim body display; LongBody (120 lines) verifies overflow scroll; BinaryWarning documents the non-printable placeholder convention |
 | **ResponseMetaBar** | NoResponse, Loading, Status200, Status404, Status500, WithRedirectChain, MultipartResponse | Full status/loading/redirect/multipart coverage; `tauriMock` for `save_file`; `beforeEach` resets responseStore; `play()` on WithRedirectChain opens the redirect popover and asserts hop URLs; MultipartResponse verifies the Parse Multipart checkbox |
 | **TabItem** | Active, Inactive, Dirty, InactiveHover, MethodVariants, ContextMenu | Tab bar item with `TabsProvider` decorator and `useUIStore` seeding; MethodVariants renders GET/POST/PUT/DELETE side-by-side with correct colour tokens; ContextMenu fires `contextmenu` event and queries portalled menu from `document.body` |
+| **ResponseHeadersTab** | Empty, WithHeaders, RedirectResponse, ManyHeaders | Two-column header table; RedirectResponse verifies 3xx warning banner and Location row highlight; WithHeaders `play()` hovers a row and asserts copy button visibility |
+| **ThemePicker** | LightThemeActive, DarkThemeActive, AllThemesVisible, SelectTheme, CloseOnEscape | All 13 themes listed in two sections; `ThemeProvider` decorator + `localStorage` seeding; SelectTheme `play()` clicks Nord and asserts `onClose` spy; CloseOnEscape clicks the × button |
+| **SidebarFooter** | Default | Stateless footer strip — "API Specs" label, FileText icon, disabled Plus button; `play()` hovers button and asserts "Coming soon" title |
+| **UrlBar** | EmptyUrl, WithUrl, VariableSegments, InFlight | Display-only stories; stores pre-seeded via `beforeEach`; `tauriMock` no-ops `send_request` / `cancel_request`; InFlight verifies Cancel button renders when `inFlight: true` |
 
 Story files are in `src/stories/ui/` and `src/stories/layout/`; paired MDX docs render in the **Docs** tab.
 
