@@ -1,0 +1,100 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as MethodSelectorStories from './MethodSelector.stories'
+
+<Meta of={MethodSelectorStories} />
+
+# MethodSelector
+
+The HTTP method / protocol dropdown pill displayed at the left edge of the request URL bar. Clicking the pill opens a layered dropdown with HTTP methods, protocol types, and a free-text custom method entry. Each standard method maps to a dedicated design-token colour pair so the pill is colour-coded at a glance across all 13 Cortex themes.
+
+Source: [`src/components/composer/MethodSelector.tsx`](../../../components/composer/MethodSelector.tsx)
+
+---
+
+## HTTP Methods
+
+### GET
+
+<Canvas of={MethodSelectorStories.GetMethod} />
+
+### POST
+
+<Canvas of={MethodSelectorStories.PostMethod} />
+
+### PUT
+
+<Canvas of={MethodSelectorStories.PutMethod} />
+
+### PATCH
+
+<Canvas of={MethodSelectorStories.PatchMethod} />
+
+### DELETE
+
+The red warning colour signals a destructive operation at a glance.
+
+<Canvas of={MethodSelectorStories.DeleteMethod} />
+
+---
+
+## Protocols
+
+### GraphQL
+
+<Canvas of={MethodSelectorStories.ProtocolGraphQL} />
+
+### WebSocket
+
+<Canvas of={MethodSelectorStories.ProtocolWS} />
+
+---
+
+## Custom Method
+
+Non-standard methods (e.g. `PURGE`, `LOCK`, `MKCOL`) are entered via the freeform text field at the bottom of the dropdown. They render in a neutral grey pill because no dedicated design token exists for them. Pressing **Enter** or clicking **Apply** commits the value and closes the dropdown.
+
+<Canvas of={MethodSelectorStories.CustomMethod} />
+
+---
+
+## Open Dropdown
+
+The `play()` function clicks the trigger and asserts all three section headings — **HTTP Methods**, **Protocols**, and **Custom Method** — are present in the dropdown. Use this story to inspect the full dropdown UI.
+
+<Canvas of={MethodSelectorStories.OpenDropdown} />
+
+---
+
+## Method Colour Tokens
+
+| Method  | Text token            | Background token       |
+| ------- | --------------------- | ---------------------- |
+| GET     | `text-method-get`     | `bg-method-get/10`     |
+| POST    | `text-method-post`    | `bg-method-post/10`    |
+| PUT     | `text-method-put`     | `bg-method-put/10`     |
+| PATCH   | `text-method-patch`   | `bg-method-patch/10`   |
+| DELETE  | `text-method-delete`  | `bg-method-delete/10`  |
+| HEAD    | `text-method-head`    | `bg-method-head/10`    |
+| OPTIONS | `text-method-options` | `bg-method-options/10` |
+| TRACE   | `text-method-trace`   | `bg-method-trace/10`   |
+| GraphQL | `text-method-graphql` | `bg-method-graphql/10` |
+| gRPC    | `text-method-grpc`    | `bg-method-grpc/10`    |
+| WS      | `text-method-ws`      | `bg-method-ws/10`      |
+| SSE     | `text-method-sse`     | `bg-method-sse/10`     |
+| Custom  | `text-text-secondary` | `bg-bg-muted/50`       |
+
+---
+
+## Props
+
+| Prop       | Type                       | Description                                                                                                                                             |
+| ---------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `method`   | `string`                   | The currently selected HTTP method or protocol. Displayed in uppercase; matched case-insensitively against the known method list for colour resolution. |
+| `onChange` | `(method: string) => void` | Callback fired when the user selects a method from the dropdown or submits a custom method.                                                             |
+
+## Behaviour Notes
+
+- **Click outside to close** — a `mousedown` listener on `document` closes the dropdown when the user clicks outside the component.
+- **Custom method via keyboard** — pressing **Enter** in the custom method `<input>` submits without requiring a click on **Apply**.
+- **Tooltip alignment** — the trigger button tooltip is `align="start"` so it does not overlap the dropdown.
+- **Pill width** — fixed at `72px` (`w-[72px]`) to prevent layout shift when switching between short (`GET`) and longer (`DELETE`, `GraphQL`) method labels.

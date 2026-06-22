@@ -1,0 +1,60 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as SendButtonStories from './SendButton.stories'
+
+<Meta of={SendButtonStories} />
+
+# SendButton
+
+The primary action button at the right edge of the request URL bar. It has two mutually exclusive modes — **Send** (idle) and **Cancel** (in-flight) — controlled entirely by the `inFlight` prop. A disabled state prevents sending when required fields are missing.
+
+Source: [`src/components/composer/SendButton.tsx`](../../../components/composer/SendButton.tsx)
+
+---
+
+## Idle — Send
+
+The default state. An accent-coloured pill labelled **Send** is rendered. A tooltip shows the platform-aware keyboard shortcut: **⌘ + Enter** on macOS and **Ctrl + Enter** on Windows/Linux.
+
+<Canvas of={SendButtonStories.Idle} />
+
+---
+
+## In-Flight — Cancel
+
+When `inFlight` is `true` the button switches to a red error-coloured pill with an **✕ Cancel** label. Clicking fires `onCancel`, which aborts the in-progress HTTP request via Tauri IPC. The tooltip reads _"Cancel Request"_.
+
+<Canvas of={SendButtonStories.InFlight} />
+
+---
+
+## Disabled
+
+When `disabled` is `true` the Send button renders at 40 % opacity with a `cursor-not-allowed` cursor. Clicks are silently ignored — no `onSend` is fired.
+
+<Canvas of={SendButtonStories.Disabled} />
+
+---
+
+## Disabled With Reason
+
+The optional `disabledReason` prop replaces the keyboard shortcut hint in the tooltip. Use it to explain _why_ the button is disabled (e.g. _"No URL entered"_, _"Bearer token is required"_).
+
+<Canvas of={SendButtonStories.DisabledWithReason} />
+
+---
+
+## Props
+
+| Prop             | Type         | Default | Description                                                                               |
+| ---------------- | ------------ | ------- | ----------------------------------------------------------------------------------------- |
+| `inFlight`       | `boolean`    | —       | When `true`, renders the red Cancel button instead of Send.                               |
+| `onSend`         | `() => void` | —       | Called when the user clicks Send (only when not disabled).                                |
+| `onCancel`       | `() => void` | —       | Called when the user clicks Cancel.                                                       |
+| `disabled`       | `boolean`    | `false` | Disables the Send button. Ignored when `inFlight` is `true`.                              |
+| `disabledReason` | `string`     | `''`    | Optional tooltip text shown instead of the keyboard shortcut when the button is disabled. |
+
+## Behaviour Notes
+
+- **Platform shortcut** — computed at render time via `navigator.platform`. Stories inside Storybook always show the macOS variant (⌘ + Enter) because the browser UA reports a Mac.
+- **No double-fire guard** — the component does not debounce clicks; callers are responsible for setting `inFlight: true` promptly to prevent multiple `onSend` calls.
+- **Disabled during in-flight** — the `disabled` prop has no effect when `inFlight` is `true`; the Cancel button is always clickable.

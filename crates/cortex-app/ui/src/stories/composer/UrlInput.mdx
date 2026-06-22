@@ -1,0 +1,92 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as UrlInputStories from './UrlInput.stories'
+
+<Meta of={UrlInputStories} />
+
+# UrlInput
+
+The URL text field in the request URL bar. Beneath a native `<input>` element sits an invisible colour-coded overlay `<div>` that highlights `{{variable}}` tokens in real time. The overlay's horizontal scroll is kept in sync with the input so colour spans always align with typed characters.
+
+Source: [`src/components/composer/UrlInput.tsx`](../../../components/composer/UrlInput.tsx)
+
+> **Store-seeded stories.** UrlInput reads from `TabsContext`, `requestStore`, and `collectionEnvironmentStore`. These stories wrap the component in a `TabsProvider` decorator and pre-seed `requestStore.resolvedVariables` via `beforeEach` so variable colour-coding works without a running Tauri backend.
+
+---
+
+## Empty
+
+The input with no URL. Shows the placeholder _"Enter URL or paste text"_ in muted text.
+
+<Canvas of={UrlInputStories.Empty} />
+
+---
+
+## With URL
+
+A plain URL without any variable tokens. The overlay renders in the default `text-text-primary` colour — no coloured spans.
+
+<Canvas of={UrlInputStories.WithUrl} />
+
+---
+
+## Variable Segments
+
+A URL containing two `{{variable}}` tokens. The story seeds `requestStore` with `baseUrl` resolved and leaves `userId` absent so the two colours are visible side-by-side.
+
+- `{{baseUrl}}` — **green** (`text-success`) — resolved in the store
+- `{{userId}}` — **red** (`text-error`) — not found in any scope
+
+Hover either token to see the **VarPopover** with the resolved value or an _"Unresolved"_ badge. The `play()` function asserts both overlay spans are in the DOM.
+
+<Canvas of={UrlInputStories.VariableSegments} />
+
+---
+
+## Dynamic Variable
+
+A URL containing a `$`-prefixed dynamic variable (`{{$timestamp}}`). Dynamic variables are computed at request-send time by the Rust executor and are therefore never "resolved" at preview time. They always render in **accent blue** (`text-accent`).
+
+<Canvas of={UrlInputStories.DynamicVariable} />
+
+---
+
+## Multiple Variable Mix
+
+All three colour classes in a single URL — resolved (green), unresolved (red), and dynamic (blue). Use this story to verify there are no rendering conflicts when multiple token types appear together.
+
+<Canvas of={UrlInputStories.MultipleVariableMix} />
+
+---
+
+## Variable Colour Semantics
+
+| Colour | Tailwind class | Meaning                                                                   |
+| ------ | -------------- | ------------------------------------------------------------------------- |
+| Green  | `text-success` | Variable resolved — a value exists in the active environment or workspace |
+| Red    | `text-error`   | Variable unresolved — no value found in any scope                         |
+| Blue   | `text-accent`  | Dynamic variable starting with `$` — value computed at send time          |
+
+---
+
+## Props
+
+| Prop       | Type                      | Description                                                                                             |
+| ---------- | ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `value`    | `string`                  | The current URL string. May contain `{{variable}}` tokens. Fully controlled — the parent manages state. |
+| `onChange` | `(value: string) => void` | Called on every keystroke with the new URL string.                                                      |
+| `onEnter`  | `() => void`              | Optional. Called when Enter is pressed and the autocomplete picker is not handling the event.           |
+
+## Behaviour Notes
+
+- **Overlay sync** — a `scroll` listener on the `<input>` keeps `overlayRef.scrollLeft` in step so variable spans never drift horizontally.
+- **Autocomplete picker** — typing `{{` opens a Headless UI `<Combobox>` that lists all variables in scope. ↑/↓ navigate; Enter selects and inserts `{{variableName}}` at the caret; Escape closes without inserting.
+- **Hover popover** — 140 ms hide-delay prevents the `VarPopover` from flickering when the cursor moves between token and popover.
+- **Caret colour** — the input text is `text-transparent` (hidden) with `caret-accent` so only the caret is visible; all visible text comes from the overlay.
+
+## Store Dependencies
+
+| Store                        | Field                                               | Purpose                                                      |
+| ---------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
+| `TabsContext`                | `activeTabId`, `activeTab`                          | Keys into `requestStore`; provides `collectionId`            |
+| `requestStore`               | `resolvedVariables[activeTabId]`                    | Map of variable name → resolved value used for colour coding |
+| `collectionEnvironmentStore` | `collectionEnvironments`, `activeCollectionEnvName` | Collection-scoped env var names for badge variant styling    |

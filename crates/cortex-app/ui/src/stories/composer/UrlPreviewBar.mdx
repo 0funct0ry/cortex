@@ -1,0 +1,92 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as UrlPreviewBarStories from './UrlPreviewBar.stories'
+
+<Meta of={UrlPreviewBarStories} />
+
+# UrlPreviewBar
+
+A slim read-only bar rendered directly below the URL input. It shows the **fully-resolved URL** — after variable substitution and query-parameter serialisation — so the user can verify exactly what will be sent over the wire before clicking Send. The bar renders `null` (no DOM, no height) when the URL is empty.
+
+Source: [`src/components/composer/UrlPreviewBar.tsx`](../../../components/composer/UrlPreviewBar.tsx)
+
+> **Store-seeded stories.** UrlPreviewBar reads `requestStates[requestId]` and `resolvedVariables[requestId]` from `requestStore`. Every story that should render a visible bar pre-seeds these via `beforeEach` using the stable ID `story-urlpreviewbar-req-001`.
+
+---
+
+## With URL
+
+A plain URL with no variables and no query params. The **PREVIEW** label (eye icon), the monospace URL, and the copy button are all visible.
+
+<Canvas of={UrlPreviewBarStories.WithUrl} />
+
+---
+
+## With Query Params
+
+Two enabled query params are serialised and percent-encoded into the URL preview: `?q=hello%20world&limit=20`. Params come from `tabState.params` — not from inline `?…` syntax in the URL string.
+
+<Canvas of={UrlPreviewBarStories.WithQueryParams} />
+
+---
+
+## With Variables (resolved)
+
+Both `{{baseUrl}}` and `{{userId}}` are resolved in the store. The preview bar substitutes the real values inline — no chips remain.
+
+<Canvas of={UrlPreviewBarStories.WithVariables} />
+
+---
+
+## With Unresolved Variables
+
+`{{region}}` is not in the resolved variables map. The token remains in the displayed URL as a **yellow warning chip** so the user knows the variable is missing from the active environment.
+
+<Canvas of={UrlPreviewBarStories.WithUnresolvedVariables} />
+
+---
+
+## With Secrets
+
+The `apiKey` query param is resolved but marked `secret: true`. The preview URL shows `?key=••••••••` and an **eye-off icon** appears at the right edge. Clicking copy writes the **unmasked** URL (the real secret value) to the clipboard so it can be used in curl or a browser.
+
+<Canvas of={UrlPreviewBarStories.WithSecrets} />
+
+---
+
+## Long URL
+
+A very long URL with five query params. The bar clips at a fixed single-line height (`overflow-hidden whitespace-nowrap`). The copy button remains visible at the far right regardless of URL length.
+
+<Canvas of={UrlPreviewBarStories.LongUrl} />
+
+---
+
+## Variable Rendering
+
+| Token type                | Rendering                                                            |
+| ------------------------- | -------------------------------------------------------------------- |
+| Resolved variable         | Value substituted inline — no chip                                   |
+| Unresolved `{{variable}}` | Yellow warning chip (`bg-warning/20 text-warning border-warning/30`) |
+| Dynamic `{{$variable}}`   | Italic muted monospace — value computed at send time                 |
+
+---
+
+## Props
+
+| Prop        | Type     | Description                                                                                                                                  |
+| ----------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `requestId` | `string` | The request ID used to look up `requestStates[requestId]` and `resolvedVariables[requestId]` in `requestStore`. Typically the active tab ID. |
+
+## Behaviour Notes
+
+- **Query string source** — the preview bar builds the query string from `tabState.params` (the Zustand array of enabled key/value pairs), **not** from any inline `?key=value` syntax in the URL string. Inline query syntax in the URL is stripped when `?` is found; only the `params` array drives the query string.
+- **Secret masking** — a variable is masked only when it appears in a _resolved_ entry with `secret: true`. Unresolved variables that happen to be named `apiKey` are not masked — they render as unresolved chips.
+- **Copy unmasked** — the copy button always copies the unmasked URL (real secret values). The display URL masks secrets; the clipboard value does not. This allows pasting into curl or a browser address bar.
+- **Empty state** — when `tabState` is `undefined` or `tabState.url` is empty, the component returns `null`. No wrapper `<div>` is rendered, so the surrounding layout does not reserve height.
+
+## Store Dependencies
+
+| Store          | Field                          | Purpose                                                            |
+| -------------- | ------------------------------ | ------------------------------------------------------------------ |
+| `requestStore` | `requestStates[requestId]`     | URL, enabled params, and method for the given request              |
+| `requestStore` | `resolvedVariables[requestId]` | Variable resolution map used for substitution and secret detection |

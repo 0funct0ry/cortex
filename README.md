@@ -788,7 +788,16 @@ Layout component stories live under **layout/** in the Storybook sidebar.
 | **SidebarFooter** | Default | Stateless footer strip — "API Specs" label, FileText icon, disabled Plus button; `play()` hovers button and asserts "Coming soon" title |
 | **UrlBar** | EmptyUrl, WithUrl, VariableSegments, InFlight | Display-only stories; stores pre-seeded via `beforeEach`; `tauriMock` no-ops `send_request` / `cancel_request`; InFlight verifies Cancel button renders when `inFlight: true` |
 
-Story files are in `src/stories/ui/` and `src/stories/layout/`; paired MDX docs render in the **Docs** tab.
+Composer component stories live under **composer/** in the Storybook sidebar.
+
+| Component | Stories | Coverage |
+|---|---|---|
+| **MethodSelector** | GetMethod, PostMethod, DeleteMethod, PatchMethod, PutMethod, ProtocolGraphQL, ProtocolWS, CustomMethod, OpenDropdown | All HTTP methods and protocol variants; custom method fallback to grey pill; `play()` on OpenDropdown clicks the trigger and asserts HTTP Methods / Protocols / Custom Method section headings are visible |
+| **SendButton** | Idle, InFlight, Disabled, DisabledWithReason | All prop-driven states; InFlight renders red Cancel pill; DisabledWithReason shows reason in tooltip; callbacks wired via `fn()` |
+| **UrlInput** | Empty, WithUrl, VariableSegments, DynamicVariable, MultipleVariableMix | Rendered with `TabsProvider` decorator and `requestStore` seeding; VariableSegments demonstrates green (resolved) / red (unresolved) / blue (dynamic `$`) colour-coded overlay spans; `play()` on VariableSegments asserts both token spans are in the DOM |
+| **UrlPreviewBar** | WithUrl, WithQueryParams, WithVariables, WithUnresolvedVariables, WithSecrets, LongUrl | `requestStore` seeded via `beforeEach`; WithSecrets renders `?key=••••••••` and eye-off icon; WithUnresolvedVariables shows unresolved chips; LongUrl verifies single-line overflow clipping; `play()` asserts Preview label, masked value, and unresolved chip presence |
+
+Story files are in `src/stories/ui/`, `src/stories/layout/`, and `src/stories/composer/`; paired MDX docs render in the **Docs** tab.
 
 ### Adding a New Theme
 
