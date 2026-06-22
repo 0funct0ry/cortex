@@ -8,7 +8,7 @@ import prettier from 'eslint-config-prettier'
 import prettierPlugin from 'eslint-plugin-prettier'
 
 export default defineConfig([
-  globalIgnores(['dist', 'src/bindings.ts']),
+  globalIgnores(['dist', 'storybook-static', 'src/bindings.ts']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

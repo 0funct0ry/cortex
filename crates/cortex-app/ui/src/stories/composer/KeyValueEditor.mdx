@@ -1,0 +1,115 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as KeyValueEditorStories from './KeyValueEditor.stories'
+
+<Meta of={KeyValueEditorStories} />
+
+# KeyValueEditor
+
+A full-featured key-value table editor used throughout Cortex for request headers, query parameters, form fields, and URL-encoded body fields. It supports drag-and-drop row reordering, bulk edit mode, inline autocomplete for HTTP headers, multi-row selection, undo/redo, duplicate-key detection, and an optional read-only inherited-entries section.
+
+Source: [`src/components/composer/KeyValueEditor.tsx`](../../../components/composer/KeyValueEditor.tsx)
+
+> **Context dependency.** KeyValueEditor calls `useTabs()` to obtain the active collection ID for scoping custom-header localStorage memory. Stories wrap the component in `TabsProvider`; without an active tab the `collectionId` is `null` and custom-header memory is skipped — all other features work normally.
+
+---
+
+## Empty
+
+No entries supplied. KeyValueEditor normalises to a single blank placeholder row so the user always has an input target. The "Add parameter" button appears below it.
+
+<Canvas of={KeyValueEditorStories.Empty} />
+
+---
+
+## Single Row
+
+One `Content-Type: application/json` entry. The drag handle (⠿), enabled checkbox, key/value inputs, and the hover-reveal × delete button are all visible.
+
+<Canvas of={KeyValueEditorStories.SingleRow} />
+
+---
+
+## Multiple Rows
+
+Five entries including a deliberate duplicate `Accept` key. Both rows with that key are highlighted with an amber left border to warn the user of the conflict.
+
+<Canvas of={KeyValueEditorStories.MultipleRows} />
+
+---
+
+## Disabled Row
+
+The `X-Debug-Mode` row has `enabled: false`. It renders at 40 % opacity with read-only inputs and an unchecked checkbox. Toggling the checkbox re-enables the row.
+
+<Canvas of={KeyValueEditorStories.DisabledRow} />
+
+---
+
+## With Read-Only Entries
+
+Two editable rows plus two read-only entries inherited from the collection. The inherited section is pinned to the bottom with its own heading and an info tooltip.
+
+<Canvas of={KeyValueEditorStories.WithReadOnlyEntries} />
+
+---
+
+## Headers Mode
+
+`isHeaders=true` unlocks HTTP-header autocomplete. Focusing a key cell shows matching built-in header names; once a key with known value presets is chosen, focusing the value cell shows those presets. Custom headers typed in this mode are remembered per-collection in localStorage.
+
+<Canvas of={KeyValueEditorStories.HeadersMode} />
+
+---
+
+## Bulk Edit
+
+Clicking "Bulk Edit" in the header replaces the table with a full-height textarea. Entries are serialised as `Key: Value` lines; disabled rows are prefixed with `# `. Editing the textarea updates the parent in real time via `onChange`. Clicking "Key-Value Editor" parses the text and switches back to table view.
+
+`play()` clicks "Bulk Edit", verifies the textarea and mode heading appear, and confirms the "Key-Value Editor" toggle link is present.
+
+<Canvas of={KeyValueEditorStories.BulkEdit} />
+
+---
+
+## Add Row (interaction)
+
+`play()` clicks "Add parameter" and asserts that `onChange` is called with a third blank entry appended.
+
+<Canvas of={KeyValueEditorStories.AddRow} />
+
+---
+
+## Delete Row (interaction)
+
+`play()` hovers the first row to reveal its × button, clicks it, and asserts that `onChange` is called without the deleted entry.
+
+<Canvas of={KeyValueEditorStories.DeleteRow} />
+
+---
+
+## Props
+
+| Prop                | Type                               | Default           | Description                                                        |
+| ------------------- | ---------------------------------- | ----------------- | ------------------------------------------------------------------ |
+| `entries`           | `HeaderEntry[]`                    | —                 | The controlled list of key-value rows.                             |
+| `onChange`          | `(entries: HeaderEntry[]) => void` | —                 | Called on every mutation (add, delete, edit, reorder, toggle).     |
+| `title`             | `string`                           | `''`              | Section label in the meta header row.                              |
+| `namePlaceholder`   | `string`                           | `'Key'`           | Placeholder for key-column inputs.                                 |
+| `valuePlaceholder`  | `string`                           | `'Value'`         | Placeholder for value-column inputs.                               |
+| `addButtonLabel`    | `string`                           | `'Add parameter'` | Label for the bottom add-row button.                               |
+| `isHeaders`         | `boolean`                          | `false`           | Enables HTTP-header autocomplete for key and value cells.          |
+| `caseSensitiveKeys` | `boolean`                          | `false`           | When `true`, duplicate-key detection is case-sensitive.            |
+| `readOnlyEntries`   | `{ key, value, description? }[]`   | `undefined`       | Read-only rows pinned below the editable table.                    |
+| `readOnlyTitle`     | `string`                           | `undefined`       | Heading for the read-only section.                                 |
+| `readOnlyTooltip`   | `string`                           | `undefined`       | Tooltip text for the info icon beside `readOnlyTitle`.             |
+| `presets`           | `{ name, fields[] }[]`             | `undefined`       | Preset configurations selectable from the "Apply Preset" dropdown. |
+| `onApplyPreset`     | `(fields) => void`                 | `undefined`       | Called when the user picks a preset.                               |
+
+## Behaviour Notes
+
+- **Normalisation** — an empty `entries` array is always normalised to `[{ key: '', value: '', enabled: true }]` so there is always a blank row for input.
+- **Undo stack** — deleting rows pushes to an in-memory undo stack. Cmd/Ctrl+Z restores the last deleted batch. The stack resets when the component unmounts.
+- **Bulk edit** — the "Bulk Edit" button toggles a textarea view where entries are serialised as `Key: Value` lines. Disabled rows are prefixed with `#`. Pasting or typing in bulk mode updates the table in real time.
+- **Drag-and-drop** — each row has a drag handle column. Dragging reorders rows; the drop target row shows a top accent border.
+- **Duplicate keys** — rows with a non-unique key value gain an amber (`warning`) left border. Case sensitivity is controlled by `caseSensitiveKeys`.
+- **Custom header memory** — in `isHeaders` mode, typing a non-built-in header name and leaving the cell saves it to `localStorage` under `cortex.custom-headers.<collectionId>`. These appear alongside built-in suggestions on subsequent sessions.
