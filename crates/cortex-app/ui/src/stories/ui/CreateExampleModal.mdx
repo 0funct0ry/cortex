@@ -1,0 +1,49 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as CreateExampleModalStories from './CreateExampleModal.stories'
+
+<Meta of={CreateExampleModalStories} />
+
+# CreateExampleModal
+
+A portal modal that snapshots the current request composer state and active response into a named **Request Example** attached to the request file.
+
+Examples are stored inside the `.yaml` request file under the `examples:` key and can be used to document happy paths, error cases, and edge cases for a given endpoint.
+
+## How it works
+
+1. User triggers "Save as Example" from the response panel or context menu.
+2. `uiStore.openCreateExampleModal(requestPath)` is called, setting `createExampleModal.isOpen = true`.
+3. The modal reads the current request state from `requestStore` and the last response from `responseStore`.
+4. User enters a name (auto-suggested as "Example N"), optionally adds a description.
+5. On submit, the example is written to disk via the `save_example` Tauri command.
+6. The collection is reloaded via `collectionStore.loadCollection` to reflect the new example in the UI.
+
+## Store Dependencies
+
+| Store             | Fields read                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `uiStore`         | `createExampleModal.isOpen`, `createExampleModal.requestPath`, `closeCreateExampleModal` |
+| `requestStore`    | `getRequestState(tabId)` — captures headers, body, method, URL                           |
+| `responseStore`   | `getResponse(tabId)` — captures status, headers, body                                    |
+| `collectionStore` | `collections` (to count existing examples for auto-name), `loadCollection`               |
+| `TabsContext`     | `tabs` (to find the active tab for the request path)                                     |
+
+## Stories
+
+### Open (default state)
+
+<Canvas of={CreateExampleModalStories.Open} />
+
+### With Custom Name
+
+<Canvas of={CreateExampleModalStories.WithCustomName} />
+
+### Closed
+
+<Canvas of={CreateExampleModalStories.Closed} />
+
+## Accessibility
+
+- On open the name input receives `autoFocus`.
+- `Escape` or clicking the backdrop closes the modal via `closeCreateExampleModal`.
+- The Submit button is disabled while the Tauri command is in flight.

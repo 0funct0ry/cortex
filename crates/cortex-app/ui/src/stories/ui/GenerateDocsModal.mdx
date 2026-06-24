@@ -1,0 +1,84 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as GenerateDocsModalStories from './GenerateDocsModal.stories'
+
+<Meta of={GenerateDocsModalStories} />
+
+# GenerateDocsModal
+
+A portal modal for exporting a collection's documentation in multiple formats. Triggered from the collection context menu ("Generate Docs…").
+
+## Output Formats
+
+### HTML
+
+Two built-in themes:
+
+| Theme    | Description                                                               |
+| -------- | ------------------------------------------------------------------------- |
+| `cortex` | Self-contained HTML — no CDN dependencies, embeds all styles inline       |
+| `scalar` | Uses the [Scalar](https://scalar.com) CDN for a richer interactive viewer |
+
+**Options:**
+
+- **Try it out** — embed an interactive request panel
+- **Resolve variables** — substitute `{{variable}}` tokens with live values
+- **Include scripts** — embed pre/post scripts as code blocks
+- **Include tags** — group endpoints by tag
+
+### Markdown
+
+Generates GitHub-flavoured Markdown suitable for committing alongside code.
+
+**Options:**
+
+- **Resolve variables** — same as HTML
+- **Collapse examples** — wrap example sections in `<details>` toggle
+- **Include scripts** — include script blocks
+- **Include tags** — add tag headings
+- **Heading offset** — shift all headings by N levels (useful when embedding in a larger doc)
+
+### Other Formats
+
+| Format         | Description                       |
+| -------------- | --------------------------------- |
+| `openapi-yaml` | OpenAPI 3.1 specification in YAML |
+| `openapi-json` | OpenAPI 3.1 specification in JSON |
+| `blueprint`    | API Blueprint (Apiary-compatible) |
+
+## IPC Commands
+
+| Command                      | Tab                       |
+| ---------------------------- | ------------------------- |
+| `generate_docs_html`         | HTML                      |
+| `generate_docs_markdown`     | Markdown                  |
+| `generate_docs_openapi_yaml` | Other → OpenAPI YAML      |
+| `generate_docs_openapi_json` | Other → OpenAPI JSON      |
+| `save_docs`                  | All (Save to file button) |
+
+## Store Dependencies
+
+| Store     | Fields read                                                                                                                  |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `uiStore` | `generateDocsModal.isOpen`, `generateDocsModal.collectionPath`, `generateDocsModal.collectionName`, `closeGenerateDocsModal` |
+
+## Stories
+
+### Open (HTML tab, default)
+
+<Canvas of={GenerateDocsModalStories.Open} />
+
+### HTML Tab
+
+<Canvas of={GenerateDocsModalStories.HtmlTab} />
+
+### Markdown Tab
+
+<Canvas of={GenerateDocsModalStories.MarkdownTab} />
+
+### Other Formats Tab
+
+<Canvas of={GenerateDocsModalStories.OtherFormatsTab} />
+
+### Closed
+
+<Canvas of={GenerateDocsModalStories.Closed} />

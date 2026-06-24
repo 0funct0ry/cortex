@@ -1,0 +1,63 @@
+import { Meta, ArgTypes, Canvas } from '@storybook/addon-docs/blocks'
+import * as CreateWorkspaceModalStories from './CreateWorkspaceModal.stories'
+
+<Meta of={CreateWorkspaceModalStories} />
+
+# CreateWorkspaceModal
+
+A simple two-field modal for creating a new Cortex workspace. Requires the user to provide both a workspace **name** and a **directory path** (chosen via the native OS directory picker) before the Create button is enabled.
+
+Workspaces are directory-based — Cortex scans the chosen directory for `.crx` collection files and exposes them in the sidebar.
+
+## Props
+
+<ArgTypes of={CreateWorkspaceModalStories} />
+
+## Behaviour
+
+1. User clicks "+ New Workspace" in the workspace switcher.
+2. Modal opens (`isOpen = true`).
+3. User types a name and clicks Browse to pick a directory.
+4. Create button becomes enabled once both fields are non-empty.
+5. On submit, `workspaceStore.createWorkspace(name, path)` is called.
+6. On success the modal closes and the new workspace is loaded.
+
+## Validation
+
+| Condition                | Create button state            |
+| ------------------------ | ------------------------------ |
+| Name empty               | Disabled                       |
+| Path empty               | Disabled                       |
+| Store `isLoading`        | Disabled (`Creating...` label) |
+| Both filled, not loading | Enabled                        |
+
+## Stories
+
+### Open
+
+<Canvas of={CreateWorkspaceModalStories.Open} />
+
+### Closed
+
+<Canvas of={CreateWorkspaceModalStories.Closed} />
+
+### With Name Filled
+
+<Canvas of={CreateWorkspaceModalStories.WithNameFilled} />
+
+### Cancel Closes
+
+<Canvas of={CreateWorkspaceModalStories.CancelCloses} />
+
+## Accessibility
+
+- Name input receives `autoFocus` on mount.
+- Disabled state on the Create button communicates form incompleteness without requiring an explicit error message.
+- Clicking the semi-transparent backdrop calls `onClose`.
+
+## IPC Commands Used
+
+| Command            | When                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| `pick_directory`   | Browse button clicked                                        |
+| `create_workspace` | Create button clicked (via `workspaceStore.createWorkspace`) |

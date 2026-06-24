@@ -1,0 +1,72 @@
+import { Meta, ArgTypes, Canvas } from '@storybook/addon-docs/blocks'
+import * as ImportFolderDialogStories from './ImportFolderDialog.stories'
+
+<Meta of={ImportFolderDialogStories} />
+
+# ImportFolderDialog
+
+A multi-step portal dialog for bulk-importing `.yaml` request files from a local folder into a collection or sub-folder. Supports per-file conflict resolution before committing the import.
+
+## Steps
+
+```
+[Pick folder] → [Preview + conflict choices] → [Import in progress] → [Summary]
+```
+
+| Step      | Description                                                                          |
+| --------- | ------------------------------------------------------------------------------------ |
+| `pick`    | OS directory picker; scans selected folder for `.yaml` request files                 |
+| `preview` | Lists all found files with conflict/error badges; user sets per-file conflict choice |
+| `summary` | Shows per-file success / error after the import command completes                    |
+
+## Conflict Choices
+
+Each file in preview that has `conflicts: true` shows a row of radio buttons:
+
+| Choice  | Behaviour                                                        |
+| ------- | ---------------------------------------------------------------- |
+| Skip    | File is not imported; existing file is unchanged                 |
+| Replace | Existing file is overwritten                                     |
+| Rename  | File is imported with a `(imported)` suffix appended to its name |
+
+Files with `parse_error` are locked to Skip regardless of the choice.
+
+## Props
+
+<ArgTypes of={ImportFolderDialogStories} />
+
+## IPC Commands
+
+| Command                 | Step                                                     |
+| ----------------------- | -------------------------------------------------------- |
+| `pick_directory`        | Pick step — triggers native folder picker                |
+| `preview_import_folder` | After folder selected — returns `ImportFileEntry[]`      |
+| `import_folder`         | Confirm button — executes import with conflict decisions |
+
+## Stories
+
+### Open (pick step)
+
+<Canvas of={ImportFolderDialogStories.Open} />
+
+### Closed
+
+<Canvas of={ImportFolderDialogStories.Closed} />
+
+### Preview Step
+
+<Canvas of={ImportFolderDialogStories.PreviewStep} />
+
+### With Parse Errors
+
+<Canvas of={ImportFolderDialogStories.WithParseErrors} />
+
+### Summary Step
+
+<Canvas of={ImportFolderDialogStories.SummaryStep} />
+
+## Accessibility
+
+- Each file row's conflict radio group is labelled by the file name.
+- The Import button is disabled while the import command is in flight.
+- The dialog can be closed via the Cancel button at any step before import begins.

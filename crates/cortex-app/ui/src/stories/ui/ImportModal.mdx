@@ -1,0 +1,67 @@
+import { Meta, ArgTypes, Canvas } from '@storybook/addon-docs/blocks'
+import * as ImportModalStories from './ImportModal.stories'
+
+<Meta of={ImportModalStories} />
+
+# ImportModal
+
+A format-selection portal modal that acts as the entry point for all collection import flows. The user picks a format and the modal closes itself, delegating the actual import to the appropriate specialised dialog (`ImportCollectionDialog`).
+
+## Format Cards
+
+### Cortex-native (fully implemented)
+
+| Format                       | Opens                                     |
+| ---------------------------- | ----------------------------------------- |
+| Cortex ZIP Archive (`.zip`)  | `ImportCollectionDialog` in `zip` mode    |
+| Cortex YAML Bundle (`.yaml`) | `ImportCollectionDialog` in `bundle` mode |
+
+### Third-party (coming soon — Epic 10)
+
+| Format                            | Status               |
+| --------------------------------- | -------------------- |
+| Postman Collection (v2/v2.1 JSON) | Toast: "coming soon" |
+| Insomnia Collection (JSON/YAML)   | Toast: "coming soon" |
+| OpenAPI Specification v3.0/v3.1   | Toast: "coming soon" |
+
+## Props
+
+<ArgTypes of={ImportModalStories} />
+
+## Behaviour
+
+1. User opens ImportModal from the sidebar "Import" button or `File → Import Collection`.
+2. User clicks a format card.
+3. For Cortex-native formats: `onClose()` is called, then `openImportCollectionDialog(format)` is dispatched on `uiStore`, which opens `ImportCollectionDialog`.
+4. For third-party formats: `toast.info("... coming soon")` is shown; the modal stays open.
+
+## Store Dependencies
+
+| Store        | Fields used                        |
+| ------------ | ---------------------------------- |
+| `uiStore`    | `openImportCollectionDialog`       |
+| `toastStore` | `toast.info` (third-party options) |
+
+## Stories
+
+### Open
+
+<Canvas of={ImportModalStories.Open} />
+
+### Closed
+
+<Canvas of={ImportModalStories.Closed} />
+
+### Select ZIP Format
+
+<Canvas of={ImportModalStories.SelectZipFormat} />
+
+### Select Bundle Format
+
+<Canvas of={ImportModalStories.SelectBundleFormat} />
+
+## Accessibility
+
+- Each format card is a `<button>` element with descriptive text content.
+- The modal closes on backdrop click via the `onClose` prop.
+- A Close button is always present in the footer.

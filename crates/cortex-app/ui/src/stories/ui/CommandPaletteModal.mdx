@@ -1,0 +1,75 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as CommandPaletteModalStories from './CommandPaletteModal.stories'
+
+<Meta of={CommandPaletteModalStories} />
+
+# CommandPaletteModal
+
+A full-screen command palette triggered by `Ctrl+K` (search mode) or `Ctrl+Shift+P` (command mode). Supports fuzzy search across all requests in all open collections, environment switching, tab switching, collection running, and keyboard-driven command dispatch.
+
+## Modes
+
+| Mode      | Trigger        | Placeholder        | Purpose                                |
+| --------- | -------------- | ------------------ | -------------------------------------- |
+| `search`  | `Ctrl+K`       | "Search requests…" | Fuzzy-find requests across collections |
+| `command` | `Ctrl+Shift+P` | "Run a command…"   | Execute registered commands            |
+
+## Keyboard Navigation
+
+| Key                               | Action                                       |
+| --------------------------------- | -------------------------------------------- |
+| `ArrowDown` / `Ctrl+N` / `Ctrl+J` | Next result                                  |
+| `ArrowUp` / `Ctrl+P` / `Ctrl+K`   | Previous result                              |
+| `Enter`                           | Open selected request / run selected command |
+| `Escape`                          | Close palette                                |
+
+## Sub-pickers
+
+Certain commands open inline sub-pickers within the palette:
+
+- **Switch Environment** — lists all environments in the active workspace
+- **Switch Tab** — lists open request tabs
+- **Run Collection** — lists collections available for batch running
+
+## Store Dependencies
+
+This component reads from multiple Zustand stores directly:
+
+| Store              | Fields read                                                         |
+| ------------------ | ------------------------------------------------------------------- |
+| `uiStore`          | `isCommandPaletteOpen`, `commandPaletteMode`, `closeCommandPalette` |
+| `collectionStore`  | `collections` (for fuzzy search)                                    |
+| `environmentStore` | `environments`, `activeEnvironmentName`, `setActiveEnvironment`     |
+| `commandRegistry`  | `commands`, `recentCommandIds`, `recordUsed`                        |
+| `TabsContext`      | `tabs`, `activeTabId`, `openTab`, `closeTab`                        |
+
+In Storybook stories, these stores are pre-seeded via a decorator that calls `useUIStore.getState().openCommandPalette()` and populates `collectionStore.collections` with fixture data.
+
+## Stories
+
+### Open (search mode)
+
+<Canvas of={CommandPaletteModalStories.Open} />
+
+### Search Mode — filtered results
+
+<Canvas of={CommandPaletteModalStories.SearchMode} />
+
+### Empty Results
+
+<Canvas of={CommandPaletteModalStories.EmptyResults} />
+
+### Command Mode
+
+<Canvas of={CommandPaletteModalStories.CommandMode} />
+
+## Accessibility
+
+- The palette traps focus inside itself while open.
+- Results are rendered in an `ul` list; the selected item uses `aria-selected`.
+- `Escape` always closes and returns focus to the triggering element.
+
+## Known Limitations
+
+- `TabsContext` must be mounted; stories that don't wrap in a `TabsProvider` will render the palette without tab-related commands. This is acceptable for isolated story testing.
+- Recent command tracking uses `localStorage` — cleared on each Storybook reload.

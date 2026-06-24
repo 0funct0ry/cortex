@@ -1,0 +1,68 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as GenerateCodeModalStories from './GenerateCodeModal.stories'
+
+<Meta of={GenerateCodeModalStories} />
+
+# GenerateCodeModal
+
+A portal modal that generates runnable code snippets from the selected request, with full variable resolution applied. The generated snippet can be copied to the clipboard in one click.
+
+## Supported Languages
+
+| Value    | Label              |
+| -------- | ------------------ |
+| `curl`   | cURL               |
+| `fetch`  | JavaScript (fetch) |
+| `python` | Python (requests)  |
+| `go`     | Go (net/http)      |
+| `rust`   | Rust (reqwest)     |
+
+The last-selected language is persisted in `localStorage` under `cortex.code-gen.last-language`.
+
+## Variable Resolution
+
+Before generating, the modal calls `get_resolved_variables` with the active workspace, collection, global environment, and collection-scoped environment. All `{{variable}}` tokens in the URL, headers, and body are replaced with their resolved values before rendering the snippet.
+
+## Store Dependencies
+
+| Store                        | Fields read                                                                                                                                              |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uiStore`                    | `generateCodeModal.isOpen`, `generateCodeModal.requestPath`, `generateCodeModal.requestName`, `generateCodeModal.collectionId`, `closeGenerateCodeModal` |
+| `workspaceStore`             | `activeWorkspacePath`                                                                                                                                    |
+| `environmentStore`           | `activeEnvironmentName`                                                                                                                                  |
+| `collectionEnvironmentStore` | `activeCollectionEnvName[collectionId]`                                                                                                                  |
+
+## IPC Commands
+
+| Command                  | Purpose                                                |
+| ------------------------ | ------------------------------------------------------ |
+| `load_request`           | Load the raw request file from disk                    |
+| `get_resolved_variables` | Resolve all variable tokens for the active environment |
+
+## Stories
+
+### Open (default — cURL)
+
+<Canvas of={GenerateCodeModalStories.Open} />
+
+### cURL Target
+
+<Canvas of={GenerateCodeModalStories.CurlTarget} />
+
+### Fetch Target
+
+<Canvas of={GenerateCodeModalStories.FetchTarget} />
+
+### Python Target
+
+<Canvas of={GenerateCodeModalStories.PythonTarget} />
+
+### Closed
+
+<Canvas of={GenerateCodeModalStories.Closed} />
+
+## Accessibility
+
+- The language `<select>` element is keyboard accessible.
+- The Copy button switches label to "Copied!" for 2 seconds as visual feedback.
+- Modal closes on backdrop click or Escape key.

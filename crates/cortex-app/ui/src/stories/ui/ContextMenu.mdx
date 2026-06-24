@@ -1,0 +1,80 @@
+import { Meta, ArgTypes, Canvas } from '@storybook/addon-docs/blocks'
+import * as ContextMenuStories from './ContextMenu.stories'
+
+<Meta of={ContextMenuStories} />
+
+# ContextMenu
+
+A right-click context menu that renders via `createPortal` to `document.body` as a fixed-position overlay. Supports keyboard navigation, item separators, shortcuts, disabled items, danger styling, and nested submenus.
+
+Used throughout Cortex for:
+
+- **Collection tree** — right-click on a request, folder, or collection node
+- **Tab bar** — right-click on an open tab
+- **Response panel** — right-click to copy, save, or pretty-print
+
+## Behaviour
+
+| Trigger                   | Action                                                                                   |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `Escape`                  | Closes the menu                                                                          |
+| `ArrowDown` / `ArrowUp`   | Moves keyboard focus through navigable items (separators and disabled items are skipped) |
+| `Enter`                   | Activates the focused item                                                               |
+| Click outside             | Closes the menu                                                                          |
+| Click a non-disabled item | Calls `onClick` then closes                                                              |
+
+## Props
+
+<ArgTypes of={ContextMenuStories} />
+
+## Item Shape
+
+```ts
+interface ContextMenuItem {
+  label: string // Display text
+  onClick?: () => void
+  shortcut?: string // Decorative hint shown on the right (e.g. "⌘D")
+  danger?: boolean // Renders label in error colour
+  disabled?: boolean // Prevents click + keyboard activation; skipped in nav
+  separator?: boolean // Renders a horizontal divider; all other fields ignored
+  submenu?: ContextMenuItem[] // Nested panel revealed on hover
+}
+```
+
+## Stories
+
+### Default
+
+<Canvas of={ContextMenuStories.Default} />
+
+### With Separators
+
+<Canvas of={ContextMenuStories.WithSeparators} />
+
+### With Disabled Items
+
+<Canvas of={ContextMenuStories.WithDisabledItems} />
+
+### With Shortcuts
+
+<Canvas of={ContextMenuStories.WithShortcuts} />
+
+### With Danger Item
+
+<Canvas of={ContextMenuStories.WithDangerItem} />
+
+### With Submenu
+
+Hover over an item with a `›` indicator to reveal the nested submenu panel.
+
+<Canvas of={ContextMenuStories.WithSubmenu} />
+
+## Accessibility
+
+- The menu container listens for `keydown` on `document` — focus does not need to be inside the menu for keyboard navigation to work.
+- Keyboard-focused items receive `bg-bg-highlight` styling identical to the hover state.
+- Disabled items are excluded from the navigable index list so `ArrowDown` skips them.
+
+## Positioning
+
+On mount the menu measures its own bounding rect and clamps `x`/`y` so the panel never renders outside the viewport. Submenus apply the same clipping logic relative to their parent row.

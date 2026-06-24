@@ -1,0 +1,69 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ImportCollectionDialogStories from './ImportCollectionDialog.stories'
+
+<Meta of={ImportCollectionDialogStories} />
+
+# ImportCollectionDialog
+
+A multi-step portal dialog that guides the user through importing a Cortex collection from a ZIP archive or YAML bundle. Supports conflict detection when a collection with the same name already exists in the active workspace.
+
+## Steps
+
+```
+[Pick file] → [Preview] → (conflict?) → [Conflict resolution] → [Importing…] → done
+```
+
+| Step        | Description                                                                       |
+| ----------- | --------------------------------------------------------------------------------- |
+| `preview`   | File picker opens automatically; on success shows collection name + request count |
+| `conflict`  | If a collection with the same name exists, asks the user to choose a destination  |
+| `importing` | Extraction command is in flight; spinner shown                                    |
+
+## IPC Commands
+
+| Command                     | Step                                        |
+| --------------------------- | ------------------------------------------- |
+| `pick_file`                 | On open — triggers native file picker       |
+| `preview_import_zip`        | After file is selected (ZIP format)         |
+| `preview_import_bundle`     | After file is selected (YAML bundle format) |
+| `extract_collection_zip`    | Confirm button — ZIP extraction             |
+| `extract_collection_bundle` | Confirm button — YAML extraction            |
+
+## Store Dependencies
+
+| Store            | Fields read                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| `uiStore`        | `importCollectionDialog.isOpen`, `importCollectionDialog.format`, `closeImportCollectionDialog` |
+| `workspaceStore` | `activeWorkspacePath`, `loadWorkspace`                                                          |
+
+## Stories
+
+### Open (ZIP format)
+
+<Canvas of={ImportCollectionDialogStories.Open} />
+
+### Bundle Format
+
+<Canvas of={ImportCollectionDialogStories.BundleFormat} />
+
+### Preview Step
+
+<Canvas of={ImportCollectionDialogStories.PreviewStep} />
+
+### Conflict Step
+
+<Canvas of={ImportCollectionDialogStories.ConflictStep} />
+
+### Import Error
+
+<Canvas of={ImportCollectionDialogStories.ImportError} />
+
+### Closed
+
+<Canvas of={ImportCollectionDialogStories.Closed} />
+
+## Accessibility
+
+- The dialog is a modal: backdrop click closes it.
+- File selection errors are surfaced inline with a descriptive message.
+- The Confirm button is disabled while the extraction command is in flight.

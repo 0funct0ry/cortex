@@ -1,0 +1,73 @@
+import { Meta, ArgTypes, Canvas } from '@storybook/addon-docs/blocks'
+import * as CodeEditorStories from './CodeEditor.stories'
+
+<Meta of={CodeEditorStories} />
+
+# CodeEditor
+
+A full-featured code editor built on [CodeMirror 6](https://codemirror.net/) with Cortex-themed syntax highlighting, inline linting, and variable auto-complete.
+
+Used throughout Cortex for:
+
+- **Request body** — JSON, XML, HTML, plain text
+- **Scripts** — Pre-request and post-response JavaScript
+- **Response viewer** — Read-only pretty-printed output
+- **Collection YAML** — Editing raw `.crx` bundle content
+
+## Language Support
+
+| Language     | Highlighting | Linting       | Auto-complete |
+| ------------ | ------------ | ------------- | ------------- |
+| `json`       | ✓            | ✓ (parse err) | Variables     |
+| `yaml`       | ✓            | –             | Variables     |
+| `javascript` | ✓            | ✓ (syntax)    | Variables     |
+| `xml`        | ✓            | ✓ (DOM parse) | Variables     |
+| `html`       | ✓            | –             | Variables     |
+| `markdown`   | ✓            | –             | Variables     |
+| `text`       | –            | –             | Variables     |
+
+## Variable Auto-complete
+
+When `resolvedVariables` is supplied, typing `{{` opens an autocomplete dropdown listing all
+resolved variables from the active environment and collection. Selecting a completion replaces
+the partial `{{…` text with the full `{{variable_name}}` token. Dynamic variables (e.g.
+`{{$timestamp}}`) are boosted to the top of the list.
+
+## Props
+
+<ArgTypes of={CodeEditorStories} />
+
+## Stories
+
+### JSON — editable with linting
+
+<Canvas of={CodeEditorStories.JsonEditable} />
+
+### YAML
+
+<Canvas of={CodeEditorStories.YamlEditable} />
+
+### JavaScript with linting
+
+<Canvas of={CodeEditorStories.JavaScriptEditable} />
+
+### Read-only (response viewer mode)
+
+<Canvas of={CodeEditorStories.ReadOnly} />
+
+### Variable auto-complete
+
+Type `{{` to trigger the completion dropdown.
+
+<Canvas of={CodeEditorStories.WithVariableAutoComplete} />
+
+## Accessibility
+
+- The CodeMirror editor surface has `role="textbox"` and accepts standard keyboard navigation.
+- Read-only mode sets `aria-readonly="true"` and suppresses the cursor caret.
+- All colour tokens are resolved from Cortex CSS variables so themes (including high-contrast) apply automatically.
+
+## Known Limitations
+
+- Word-wrap toggling requires remounting the editor extensions; avoid toggling dynamically in hot paths.
+- XML linting uses `DOMParser` which varies across browsers — Chrome and Firefox may report different error positions.
