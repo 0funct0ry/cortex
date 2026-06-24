@@ -1,0 +1,104 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as NewRequestDialogStories from './NewRequestDialog.stories'
+
+<Meta of={NewRequestDialogStories} />
+
+# NewRequestDialog
+
+The primary dialog for creating a new, **saved** API request inside a collection. Opens when the user clicks "New Request" from the sidebar, a folder context menu, or the command palette.
+
+## Features
+
+- **Type selector** — choose between HTTP, GraphQL, gRPC, WebSocket, and "From cURL" request types.
+- **Method dropdown** — an inline HTTP method picker (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS) shown for HTTP and GraphQL requests.
+- **URL field** — pre-filled placeholder adapts to the chosen type (`https://`, `grpc://`, `ws://`).
+- **cURL importer** — paste a raw `curl` command and Cortex parses the method, URL, headers, and body automatically. A "parse as" selector lets you override the detected type to GraphQL.
+- **Options drawer** — exposes a folder selector (and a collection selector when the workspace has multiple collections) for placing the new request in the correct location.
+- **Validation** — the Create button stays disabled until a non-empty request name is provided.
+- **Keyboard support** — `Escape` closes the dialog; `Enter` submits when the form is valid.
+
+## Request Types
+
+| Type      | URL field  | Method picker                 | Notes                          |
+| --------- | ---------- | ----------------------------- | ------------------------------ |
+| HTTP      | `https://` | Yes                           | Standard REST                  |
+| GraphQL   | `https://` | Yes (always POST in practice) | HTTP transport                 |
+| gRPC      | `grpc://`  | No                            | URL-only                       |
+| WebSocket | `ws://`    | No                            | URL-only                       |
+| From cURL | —          | No                            | Parsed from raw `curl` command |
+
+## IPC Commands
+
+| Command           | When called                                            | Return                                   |
+| ----------------- | ------------------------------------------------------ | ---------------------------------------- |
+| `create_request`  | On submit — creates the `.crx` file on disk            | `Result<string, string>` (new file path) |
+| `save_request`    | Immediately after creation — writes URL, headers, body | `Result<null, string>`                   |
+| `load_collection` | After creation — refreshes the sidebar tree            | `Result<null, string>`                   |
+
+## Store Dependencies
+
+| Store             | Usage                                                           |
+| ----------------- | --------------------------------------------------------------- |
+| `workspaceStore`  | Reads `activeWorkspace` to populate the collection list         |
+| `collectionStore` | Reads `collections` for the folder tree; calls `loadCollection` |
+| `requestStore`    | `populateRequest` (in-memory), `saveRequest` (persist to disk)  |
+| `TabsContext`     | `openTab` — opens the newly created request in a tab            |
+
+## Props
+
+| Prop                    | Type             | Required | Description                                              |
+| ----------------------- | ---------------- | -------- | -------------------------------------------------------- |
+| `isOpen`                | `boolean`        | Yes      | Controls dialog visibility                               |
+| `onClose`               | `() => void`     | Yes      | Called when the dialog should dismiss                    |
+| `initialCollectionPath` | `string \| null` | No       | Pre-selects a collection and hides the collection picker |
+| `initialFolderPath`     | `string \| null` | No       | Pre-selects a folder within the active collection        |
+
+## Stories
+
+### Open (default HTTP state)
+
+<Canvas of={NewRequestDialogStories.Open} />
+
+### Type: GraphQL
+
+<Canvas of={NewRequestDialogStories.GraphQLType} />
+
+### Type: gRPC
+
+<Canvas of={NewRequestDialogStories.GrpcType} />
+
+### Type: WebSocket
+
+<Canvas of={NewRequestDialogStories.WebSocketType} />
+
+### Type: From cURL
+
+<Canvas of={NewRequestDialogStories.FromCurlType} />
+
+### Validation — name required
+
+<Canvas of={NewRequestDialogStories.ValidationNameRequired} />
+
+### Validation — name enables Create
+
+<Canvas of={NewRequestDialogStories.ValidationNameFilled} />
+
+### Create: submit flow
+
+<Canvas of={NewRequestDialogStories.CreateRequest} />
+
+### Cancel closes the dialog
+
+<Canvas of={NewRequestDialogStories.CancelCloses} />
+
+### Closed
+
+<Canvas of={NewRequestDialogStories.Closed} />
+
+## Accessibility
+
+- On open the request name input receives focus automatically (via `setTimeout` + `ref.focus()`).
+- `Escape` on any focusable element or the backdrop closes the dialog.
+- `Enter` in the name input submits the form when the Create button is enabled.
+- The dialog root has `role="dialog"` and `aria-modal="true"` with `aria-label="New Request"`.
+- The Create button has `disabled` attribute when the name is empty, preventing submission without a keyboard workaround.

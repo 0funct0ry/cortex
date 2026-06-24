@@ -1,0 +1,94 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as NewTransientRequestDialogStories from './NewTransientRequestDialog.stories'
+
+<Meta of={NewTransientRequestDialogStories} />
+
+# NewTransientRequestDialog
+
+Opens a quick, **unsaved** API request in a new tab — no collection required. The tab is marked transient; the user can later choose "Save to Collection" from the tab context menu to persist it.
+
+## When to use vs NewRequestDialog
+
+| Scenario                               | Dialog to use                         |
+| -------------------------------------- | ------------------------------------- |
+| Exploring a new endpoint quickly       | **NewTransientRequestDialog**         |
+| Creating a reusable, versioned request | **NewRequestDialog**                  |
+| Importing a cURL command               | **NewRequestDialog** (From cURL type) |
+
+## Features
+
+- **Protocol selector** — choose HTTP, GraphQL, gRPC, WebSocket, or SSE. The URL placeholder and method picker adapt automatically.
+- **Method dropdown** — shown only for HTTP requests; picks GET / POST / PUT / PATCH / DELETE / HEAD / OPTIONS.
+- **Optional URL** — pre-fills the new tab's URL if provided; the dialog works fine with a blank URL.
+- **No validation required** — the Open button is always enabled; a blank URL is acceptable.
+- **Auto-reset** — all fields reset to defaults (HTTP, GET, empty URL) when the dialog re-opens.
+- **Keyboard support** — `Escape` closes; `Enter` immediately opens a new tab.
+
+## Protocol Behaviour
+
+| Protocol  | URL placeholder | Method dropdown | Effective method sent to tab     |
+| --------- | --------------- | --------------- | -------------------------------- |
+| HTTP      | `https://`      | Yes             | Selected method (GET by default) |
+| GraphQL   | `https://`      | No              | `GraphQL`                        |
+| gRPC      | `grpc://`       | No              | `gRPC`                           |
+| WebSocket | `ws://`         | No              | `WS`                             |
+| SSE       | `https://`      | No              | `SSE`                            |
+
+## IPC Commands
+
+None. The dialog only creates an in-memory tab via `openTab` and optionally calls `useRequestStore.updateRequest` if a URL was entered. No files are written to disk.
+
+## Store Dependencies
+
+| Store          | Usage                                                                                        |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| `TabsContext`  | `openTab` — creates the new transient tab                                                    |
+| `requestStore` | `updateRequest` — sets the URL and method on the new tab (only called when URL is non-empty) |
+
+## Props
+
+| Prop      | Type         | Required | Description                           |
+| --------- | ------------ | -------- | ------------------------------------- |
+| `isOpen`  | `boolean`    | Yes      | Controls dialog visibility            |
+| `onClose` | `() => void` | Yes      | Called when the dialog should dismiss |
+
+## Stories
+
+### Open (default HTTP state)
+
+<Canvas of={NewTransientRequestDialogStories.Open} />
+
+### Protocol: GraphQL
+
+<Canvas of={NewTransientRequestDialogStories.GraphQLProtocol} />
+
+### Protocol: gRPC
+
+<Canvas of={NewTransientRequestDialogStories.GrpcProtocol} />
+
+### Protocol: WebSocket
+
+<Canvas of={NewTransientRequestDialogStories.WebSocketProtocol} />
+
+### Protocol: SSE
+
+<Canvas of={NewTransientRequestDialogStories.SseProtocol} />
+
+### Cancel closes the dialog
+
+<Canvas of={NewTransientRequestDialogStories.CancelCloses} />
+
+### Open button always enabled
+
+<Canvas of={NewTransientRequestDialogStories.OpenButtonExists} />
+
+### Closed
+
+<Canvas of={NewTransientRequestDialogStories.Closed} />
+
+## Accessibility
+
+- On open the URL input receives focus automatically (via `setTimeout` + `ref.focus()`).
+- `Escape` closes the dialog; `Enter` submits immediately (no validation gate).
+- The dialog root has `role="dialog"` and `aria-modal="true"` with `aria-label="New Transient Request"`.
+- The Open button is never disabled, so keyboard-only users can always submit without entering a URL.
