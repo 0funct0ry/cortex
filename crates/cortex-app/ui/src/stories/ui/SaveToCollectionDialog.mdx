@@ -1,0 +1,88 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as SaveToCollectionDialogStories from './SaveToCollectionDialog.stories'
+
+<Meta of={SaveToCollectionDialogStories} />
+
+# SaveToCollectionDialog
+
+A modal dialog that promotes a **transient (unsaved) tab** into a persisted collection request. Opens when the user clicks "Save to Collection" from the tab bar or the request toolbar.
+
+## Features
+
+- **Request name input** — auto-focused on open; `Enter` submits when the form is valid.
+- **Collection picker** — visible only when the active workspace contains more than one collection; switching collections resets the folder selection.
+- **Folder selector** — hierarchical dropdown of all folders within the selected collection; defaults to "Collection root".
+- **Validation** — the Save button is disabled until a non-empty request name is provided.
+- **Keyboard support** — `Escape` closes the dialog; `Enter` in the name field submits when valid.
+- **Async save chain** — on submit: creates the `.crx` file, persists in-memory state, reloads the sidebar tree, highlights the new entry, and promotes the tab from transient to saved.
+
+## IPC Commands
+
+| Command           | When called                                        | Return                                   |
+| ----------------- | -------------------------------------------------- | ---------------------------------------- |
+| `create_request`  | On submit — creates the `.crx` file on disk        | `Result<string, string>` (new file path) |
+| `save_request`    | After creation — writes URL, headers, body to disk | `Result<null, string>`                   |
+| `load_collection` | After save — refreshes the sidebar tree            | `Result<Collection, string>`             |
+
+## Store Dependencies
+
+| Store             | Usage                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `workspaceStore`  | Reads `activeWorkspace.collections` to populate the collection picker                             |
+| `collectionStore` | Reads `collections` for the folder tree; calls `loadCollection` post-save                         |
+| `requestStore`    | `saveRequest` — persists in-memory request state to the new file                                  |
+| `TabsContext`     | `tabs` — looks up the active tab for a pre-filled name; `promoteTab` — upgrades the transient tab |
+
+## Props
+
+| Prop      | Type             | Required | Description                                                                  |
+| --------- | ---------------- | -------- | ---------------------------------------------------------------------------- |
+| `isOpen`  | `boolean`        | Yes      | Controls dialog visibility                                                   |
+| `onClose` | `() => void`     | Yes      | Called when the dialog should dismiss (cancel or successful save)            |
+| `tabId`   | `string \| null` | Yes      | ID of the transient tab to promote; `null` renders without a pre-filled name |
+
+## Stories
+
+### Open (default state)
+
+<Canvas of={SaveToCollectionDialogStories.Open} />
+
+### Folder selector: with folders
+
+<Canvas of={SaveToCollectionDialogStories.WithFolders} />
+
+### Folder selector: empty collection
+
+<Canvas of={SaveToCollectionDialogStories.EmptyCollection} />
+
+### Collection picker: multiple collections
+
+<Canvas of={SaveToCollectionDialogStories.MultipleCollections} />
+
+### Validation — name required
+
+<Canvas of={SaveToCollectionDialogStories.ValidationNameRequired} />
+
+### Validation — name enables Save
+
+<Canvas of={SaveToCollectionDialogStories.ValidationNameFilled} />
+
+### Save: submit flow
+
+<Canvas of={SaveToCollectionDialogStories.SaveFlow} />
+
+### Cancel closes the dialog
+
+<Canvas of={SaveToCollectionDialogStories.CancelCloses} />
+
+### Closed
+
+<Canvas of={SaveToCollectionDialogStories.Closed} />
+
+## Accessibility
+
+- On open the request name input receives focus automatically (via `setTimeout` + `ref.focus()`).
+- `Escape` on any focusable element or the backdrop closes the dialog.
+- `Enter` in the name input submits the form when the Save button is enabled.
+- The dialog root has `role="dialog"` and `aria-modal="true"` with `aria-label="Save to Collection"`.
+- The Save button has the `disabled` attribute when the name is empty, preventing keyboard submission.

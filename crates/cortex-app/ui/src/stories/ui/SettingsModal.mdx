@@ -1,0 +1,91 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as SettingsModalStories from './SettingsModal.stories'
+
+<Meta of={SettingsModalStories} />
+
+# SettingsModal
+
+A fixed-height modal for configuring **authentication** and **custom headers** on a collection or folder. Changes propagate to all child folders and requests via the collection manifest.
+
+## Features
+
+- **Dual-target** — works for both collections (`type="collection"`) and folders (`type="folder"`); the title and "No Auth" option label adapt accordingly.
+- **Authentication tab** — choose from No Auth, API Key, or Bearer Token. Switching auth types when the form has values shows a confirmation guard to prevent accidental data loss.
+- **API Key form** — key name, key value (maskable), and placement (Header or Query Parameter).
+- **Bearer Token form** — token field (maskable toggle).
+- **Custom Headers tab** — add/delete key-value rows; empty state shown when no headers are configured.
+- **Pre-population** — on open, existing auth and header values are loaded from the in-memory collection store (no extra IPC round-trip).
+- **Save flow** — writes auth and headers via IPC, reloads the collection to sync the sidebar, then closes.
+
+## IPC Commands
+
+| Command                     | When called                             | Return                       |
+| --------------------------- | --------------------------------------- | ---------------------------- |
+| `update_collection_auth`    | On save when `type="collection"`        | `Result<null, string>`       |
+| `update_collection_headers` | On save when `type="collection"`        | `Result<null, string>`       |
+| `update_folder_auth`        | On save when `type="folder"`            | `Result<null, string>`       |
+| `update_folder_headers`     | On save when `type="folder"`            | `Result<null, string>`       |
+| `load_collection`           | After save — refreshes the sidebar tree | `Result<Collection, string>` |
+
+## Store Dependencies
+
+| Store             | Usage                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collectionStore` | Reads `collections[path]` (or `collections[collectionPath]` for folders) to pre-populate auth and headers; calls `loadCollection` post-save |
+
+## Props
+
+| Prop             | Type                       | Required | Description                                               |
+| ---------------- | -------------------------- | -------- | --------------------------------------------------------- |
+| `isOpen`         | `boolean`                  | Yes      | Controls dialog visibility                                |
+| `onClose`        | `() => void`               | Yes      | Called when the dialog should dismiss                     |
+| `type`           | `'collection' \| 'folder'` | Yes      | Whether this modal targets a collection or folder         |
+| `path`           | `string`                   | Yes      | Absolute path of the resource being configured            |
+| `name`           | `string`                   | Yes      | Display name shown in the modal subtitle                  |
+| `collectionPath` | `string`                   | Yes      | Root collection path (needed to find folders recursively) |
+
+## Stories
+
+### Collection: auth tab (no auth)
+
+<Canvas of={SettingsModalStories.CollectionAuthTab} />
+
+### Collection: API Key auth pre-filled
+
+<Canvas of={SettingsModalStories.CollectionApiKeyAuth} />
+
+### Collection: Bearer Token auth pre-filled
+
+<Canvas of={SettingsModalStories.CollectionBearerAuth} />
+
+### Collection: headers tab (empty)
+
+<Canvas of={SettingsModalStories.CollectionHeadersTab} />
+
+### Collection: headers tab (with rows)
+
+<Canvas of={SettingsModalStories.CollectionHeadersWithRows} />
+
+### Folder: settings modal
+
+<Canvas of={SettingsModalStories.FolderSettings} />
+
+### Save: submit flow
+
+<Canvas of={SettingsModalStories.SaveFlow} />
+
+### Cancel closes the dialog
+
+<Canvas of={SettingsModalStories.CancelCloses} />
+
+### Closed
+
+<Canvas of={SettingsModalStories.Closed} />
+
+## Accessibility
+
+- The modal is rendered via `createPortal` and uses a backdrop overlay.
+- Clicking the backdrop or the ✕ button closes the dialog.
+- Tab strip buttons switch between Authentication and Custom Headers panels.
+- The auth type confirmation guard shows inline with Revert/Confirm buttons before clearing existing auth data.
+- Bearer Token and API Key value fields have masking toggles (eye icon) for sensitive values.
