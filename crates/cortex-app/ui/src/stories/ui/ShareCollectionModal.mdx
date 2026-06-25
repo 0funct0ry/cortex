@@ -1,0 +1,62 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as ShareCollectionModalStories from './ShareCollectionModal.stories'
+
+<Meta of={ShareCollectionModalStories} />
+
+# ShareCollectionModal
+
+A full-screen overlay modal that lets users share a Cortex collection in two ways: by initialising a Git repository in the collection directory, or by exporting the collection to a ZIP archive or single YAML bundle.
+
+## Tabs
+
+| Tab        | Purpose                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| **Git**    | Checks whether the collection directory is already a Git repo; offers a one-click `git init` |
+| **Export** | Exports the collection as a `.zip` (folder structure preserved) or a single `.yaml` bundle   |
+
+## Store Dependencies
+
+This component reads from two Zustand stores directly — it accepts no props.
+
+| Store             | Fields read / actions called                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `uiStore`         | `shareModal.isOpen`, `shareModal.collectionPath`, `shareModal.collectionName`, `closeShareModal` |
+| `collectionStore` | `collections[collectionPath]` (to count secret variables), `loadCollection`                      |
+
+In Storybook stories, stores are pre-seeded in `beforeEach` via `useUIStore.setState` and `useCollectionStore.setState`.
+
+## IPC Commands
+
+| Command                    | When called                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `check_git_initialized`    | On modal open (Git tab active) — polls repo status        |
+| `git_init_collection`      | When user clicks "Initialize Git Repository"              |
+| `save_file`                | Opens a native save-file dialog before exporting          |
+| `export_collection_zip`    | Exports collection as a ZIP archive (ZIP format selected) |
+| `export_collection_bundle` | Exports collection as a single YAML bundle (YAML format)  |
+
+## Secret Variable Handling
+
+If the collection contains variables marked `secret: true`, their values are **always redacted** (`__REDACTED__`) in the export regardless of encryption state — users see a yellow warning banner on the Export tab. This is intentional: secrets must never leave the local machine via an export file.
+
+## Stories
+
+### Git tab: not initialized
+
+<Canvas of={ShareCollectionModalStories.GitTabNotInitialized} />
+
+### Git tab: already initialized
+
+<Canvas of={ShareCollectionModalStories.GitTabInitialized} />
+
+### Git tab: initializing (in-progress)
+
+<Canvas of={ShareCollectionModalStories.GitTabInitializing} />
+
+### Export tab: ZIP format (default)
+
+<Canvas of={ShareCollectionModalStories.ExportTabZip} />
+
+### Export tab: with secret variables warning
+
+<Canvas of={ShareCollectionModalStories.ExportTabWithSecrets} />

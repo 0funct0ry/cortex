@@ -1,0 +1,57 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks'
+import * as WelcomeScreenStories from './WelcomeScreen.stories'
+
+<Meta of={WelcomeScreenStories} />
+
+# WelcomeScreen
+
+The landing view shown when no workspace is currently loaded. It presents the Cortex logo, two primary action buttons (Create / Open workspace), and an optional list of recently opened workspaces.
+
+## Layout
+
+```
+┌──────────────────────────────────────┐
+│          [Cortex logo]               │
+│           Cortex                     │
+│    API Development Environment       │
+│                                      │
+│  [Create workspace] [Open workspace] │
+│                                      │
+│  ── Recent Workspaces ──             │
+│  [Acme API]   /home/user/acme-api    │
+│  [Payment…]   /home/user/payment     │
+└──────────────────────────────────────┘
+```
+
+The "Recent Workspaces" section is rendered only when `recentWorkspaces.length > 0`.
+
+## Store Dependencies
+
+This component accepts no props — all state comes from `useWorkspaceStore`.
+
+| Store            | Fields read / actions called                         |
+| ---------------- | ---------------------------------------------------- |
+| `workspaceStore` | `recentWorkspaces`, `loadWorkspace`, `openWorkspace` |
+
+In Storybook stories, the store is pre-seeded in `beforeEach` via `useWorkspaceStore.setState`, and `loadWorkspace` / `openWorkspace` are replaced with `fn()` spies so interactions appear in the Actions panel.
+
+## Primary Actions
+
+| Button               | Action                                                                 |
+| -------------------- | ---------------------------------------------------------------------- |
+| **Create workspace** | Opens `CreateWorkspaceModal` (local React state — no IPC on open)      |
+| **Open workspace**   | Calls `openWorkspace()` → triggers a native folder-picker dialog (IPC) |
+
+## Recent Workspace Entry
+
+Each recent workspace row shows the workspace **name** and its full **path** in monospace. Clicking a row calls `loadWorkspace(path)` to reopen it. On hover, an external-link icon appears.
+
+## Stories
+
+### Empty state: no recent workspaces
+
+<Canvas of={WelcomeScreenStories.NoRecentWorkspaces} />
+
+### Populated: recent workspaces list
+
+<Canvas of={WelcomeScreenStories.WithRecentWorkspaces} />

@@ -787,6 +787,7 @@ Atomic UI component stories live under **ui/** in the Storybook sidebar. Each co
 | **NewTransientRequestDialog** | Open, Closed | Lightweight portal modal with `TabsProvider` decorator; `tauriMock` for `create_transient_request`; `play()` on Open asserts dialog title and request name input |
 | **SaveToCollectionDialog** | Open, WithFolders, EmptyCollection, MultipleCollections, Validation (name required/filled), SaveFlow, CancelCloses, Closed | Portal dialog with `TabsProvider` decorator; `tauriMock` for `create_request` / `save_request` / `load_collection`; collection picker only shown when workspace has 2+ collections; `fireEvent.change` for name input; `waitFor` asserts `onClose` after async save chain |
 | **SettingsModal** | CollectionAuthTab, CollectionApiKeyAuth, CollectionBearerAuth, CollectionHeadersTab, CollectionHeadersWithRows, FolderSettings, SaveFlow, CancelCloses, Closed | Portal modal for collection/folder auth and headers; `collectionStore` seeded with fixture manifests containing pre-filled auth/headers; `waitFor` for `Promise.resolve().then()` deferred state init; `tauriMock` for all four update commands + `load_collection`; FolderSettings verifies "Inherit Auth" label |
+| **ShareCollectionModal** | GitTabNotInitialized, GitTabInitialized, GitTabInitializing, ExportTabZip, ExportTabWithSecrets | Portal modal driven by `uiStore.shareModal` and `collectionStore`; `tauriMock` for `check_git_initialized` / `git_init_collection` / `save_file` / `export_collection_zip` / `export_collection_bundle`; GitTabInitializing `play()` clicks init button and asserts "Initializing…" spinner; ExportTabWithSecrets seeds 2 secret variables and asserts yellow warning banner |
 
 Layout component stories live under **layout/** in the Storybook sidebar.
 
@@ -801,6 +802,7 @@ Layout component stories live under **layout/** in the Storybook sidebar.
 | **ThemePicker** | LightThemeActive, DarkThemeActive, AllThemesVisible, SelectTheme, CloseOnEscape | All 13 themes listed in two sections; `ThemeProvider` decorator + `localStorage` seeding; SelectTheme `play()` clicks Nord and asserts `onClose` spy; CloseOnEscape clicks the × button |
 | **SidebarFooter** | Default | Stateless footer strip — "API Specs" label, FileText icon, disabled Plus button; `play()` hovers button and asserts "Coming soon" title |
 | **UrlBar** | EmptyUrl, WithUrl, VariableSegments, InFlight | Display-only stories; stores pre-seeded via `beforeEach`; `tauriMock` no-ops `send_request` / `cancel_request`; InFlight verifies Cancel button renders when `inFlight: true` |
+| **WelcomeScreen** | NoRecentWorkspaces, WithRecentWorkspaces | Store-driven landing view; `workspaceStore` seeded with empty / 3-entry `recentWorkspaces`; `loadWorkspace` replaced with `fn()` spy; NoRecentWorkspaces asserts "Recent Workspaces" section is absent; WithRecentWorkspaces `play()` clicks "Acme API" entry and asserts spy called with correct path |
 
 Composer component stories live under **composer/** in the Storybook sidebar.
 

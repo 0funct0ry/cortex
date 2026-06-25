@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import logo from '../../assets/logo.png'
 import * as Icons from '../ui/Icons'
 import CreateWorkspaceModal from '../ui/CreateWorkspaceModal'
-import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useWorkspaceStore } from '@/stores/workspaceStore.ts'
 
 const WelcomeScreen: React.FC = () => {
   const { recentWorkspaces, loadWorkspace, openWorkspace } = useWorkspaceStore()
